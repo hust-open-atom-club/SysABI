@@ -264,6 +264,123 @@ int main(void) {
         self.assertFalse(comparison["noise_only"])
         self.assertEqual(comparison["first_divergence_index"], 0)
 
+    def test_canonicalize_masks_volatile_stat_output_fields(self) -> None:
+        raw_a = {
+            "program_id": "p",
+            "side": "reference",
+            "run_id": "r0",
+            "status": "ok",
+            "process_exit": {"status": "ok", "exit_code": 0, "timed_out": False},
+            "events": [
+                {
+                    "event_index": 0,
+                    "side": "reference",
+                    "syscall_name": "fstat",
+                    "syscall_number": 5,
+                    "args": [3, 0x200000000000, 0, 0, 0, 0],
+                    "return_value": 0,
+                    "errno": 0,
+                    "start_ns": 1,
+                    "end_ns": 2,
+                    "timed_out": False,
+                    "outputs": [
+                        {
+                            "label": "stat",
+                            "arg_index": 1,
+                            "length": 144,
+                            "preview_hex": "10000000000000002b0000000000000001000000000000008001000000000000",
+                            "sha256": "stable-stat",
+                        }
+                    ],
+                }
+            ],
+        }
+        raw_b = {
+            **raw_a,
+            "run_id": "r1",
+            "events": [
+                {
+                    **raw_a["events"][0],
+                    "start_ns": 4,
+                    "end_ns": 9,
+                    "outputs": [
+                        {
+                            "label": "stat",
+                            "arg_index": 1,
+                            "length": 144,
+                            "preview_hex": "1000000000000000deadbeefdeadbeef01000000000000008001000000000000",
+                            "sha256": "stable-stat",
+                        }
+                    ],
+                }
+            ],
+        }
+        external_state = {"files": []}
+        canonical_a = canonicalize(raw_a, external_state)
+        canonical_b = canonicalize(raw_b, external_state)
+        self.assertEqual(canonical_a["events"][0]["outputs"], canonical_b["events"][0]["outputs"])
+        self.assertEqual(canonical_trace_hash(canonical_a), canonical_trace_hash(canonical_b))
+        self.assertTrue(compare_canonical(canonical_a, canonical_b)["equivalent"])
+
+    def test_canonicalize_preserves_semantic_stat_differences_beyond_preview(self) -> None:
+        raw_a = {
+            "program_id": "p",
+            "side": "reference",
+            "run_id": "r0",
+            "status": "ok",
+            "process_exit": {"status": "ok", "exit_code": 0, "timed_out": False},
+            "events": [
+                {
+                    "event_index": 0,
+                    "side": "reference",
+                    "syscall_name": "fstat",
+                    "syscall_number": 5,
+                    "args": [3, 0x200000000000, 0, 0, 0, 0],
+                    "return_value": 0,
+                    "errno": 0,
+                    "start_ns": 1,
+                    "end_ns": 2,
+                    "timed_out": False,
+                    "outputs": [
+                        {
+                            "label": "stat",
+                            "arg_index": 1,
+                            "length": 144,
+                            "preview_hex": "0000000000000000000000000000000001000000000000008001000000000000",
+                            "sha256": "stable-stat-a",
+                        }
+                    ],
+                }
+            ],
+        }
+        raw_b = {
+            **raw_a,
+            "run_id": "r1",
+            "events": [
+                {
+                    **raw_a["events"][0],
+                    "start_ns": 4,
+                    "end_ns": 9,
+                    "outputs": [
+                        {
+                            "label": "stat",
+                            "arg_index": 1,
+                            "length": 144,
+                            "preview_hex": "0000000000000000000000000000000001000000000000008001000000000000",
+                            "sha256": "stable-stat-b",
+                        }
+                    ],
+                }
+            ],
+        }
+        external_state = {"files": []}
+        canonical_a = canonicalize(raw_a, external_state)
+        canonical_b = canonicalize(raw_b, external_state)
+        comparison = compare_canonical(canonical_a, canonical_b)
+        self.assertFalse(comparison["equivalent"])
+        self.assertFalse(comparison["noise_only"])
+        self.assertEqual(comparison["first_divergence_index"], 0)
+
     def test_compare_treats_process_exit_mismatch_as_semantic(self) -> None:
         reference = {
             "program_id": "p",

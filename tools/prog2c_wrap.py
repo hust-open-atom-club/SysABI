@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -12,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, runner_profiles, write_text
+from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, resolve_repo_path, resolved_config_path, runner_profiles, write_text
 from orchestrator.syzkaller import build_prog2c
 
 
@@ -121,6 +122,123 @@ def compile_testcase(
     return subprocess.run(cmd, check=False, text=True, capture_output=True, env=env_with_temp())
 
 
+def should_build_candidate_binary(candidate_profile: dict[str, object]) -> bool:
+    candidate_binary_name = str(candidate_profile.get("binary_name", "testcase.bin"))
+    return candidate_binary_name != "testcase.bin" or candidate_profile.get("kind") == "command"
+
+
+def build_input_paths(
+    normalized_path: Path,
+    *,
+    cfg: dict[str, object],
+    should_build_candidate: bool,
+) -> list[Path]:
+    paths = [
+        normalized_path,
+        Path(__file__).resolve(),
+        resolve_repo_path("orchestrator/syzkaller.py"),
+        resolved_config_path(),
+        resolve_repo_path(cfg.get("runner_profiles_path", "configs/runner_profiles.json")),
+        resolve_repo_path(cfg["paths"]["syzkaller_dir"]) / "bin" / "syz-prog2c",
+        resolve_repo_path("agent/linux/trace.c"),
+        resolve_repo_path("agent/linux/runner.c"),
+    ]
+    if should_build_candidate:
+        paths.append(resolve_repo_path("agent/asterinas/runner.c"))
+    return paths
+
+
+def input_fingerprints(
+    paths: list[Path],
+    *,
+    extra_entries: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
+    fingerprints = [
+        {
+            "path": str(path),
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in paths
+    ]
+    if extra_entries:
+        fingerprints.extend(extra_entries)
+    return fingerprints
+
+
+def syzkaller_revision_fingerprint(cfg: dict[str, object]) -> dict[str, str] | None:
+    syzkaller_root = resolve_repo_path(cfg["paths"]["syzkaller_dir"])
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(syzkaller_root), "rev-parse", "HEAD"],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    revision = result.stdout.strip()
+    if not revision:
+        return None
+    return {
+        "path": f"{syzkaller_root}::git-revision",
+        "sha256": hashlib.sha256(revision.encode("utf-8")).hexdigest(),
+    }
+
+
+def build_input_fingerprints(
+    input_paths: list[Path],
+    *,
+    cfg: dict[str, object],
+) -> list[dict[str, str]]:
+    extra_entries: list[dict[str, str]] = []
+    revision_fingerprint = syzkaller_revision_fingerprint(cfg)
+    if revision_fingerprint is not None:
+        extra_entries.append(revision_fingerprint)
+    return input_fingerprints(input_paths, extra_entries=extra_entries)
+
+
+def load_cached_build_result(
+    build_root: Path,
+    *,
+    input_paths: list[Path],
+    should_build_candidate: bool,
+    expected_fingerprints: list[dict[str, str]] | None = None,
+) -> dict[str, object] | None:
+    build_result_path = build_root / "build-result.json"
+    if not build_result_path.exists():
+        return None
+    try:
+        cached = json.loads(build_result_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if cached.get("status") != "ok":
+        return None
+    output_paths = [
+        Path(str(cached.get("testcase_c", ""))),
+        Path(str(cached.get("testcase_instrumented_c", ""))),
+        Path(str(cached.get("testcase_bin", ""))),
+    ]
+    if should_build_candidate:
+        candidate_bin = cached.get("candidate_testcase_bin")
+        if not candidate_bin:
+            return None
+        output_paths.append(Path(str(candidate_bin)))
+    if any(not path.exists() for path in output_paths):
+        return None
+    if any(not path.exists() for path in input_paths):
+        return None
+    fingerprints = expected_fingerprints if expected_fingerprints is not None else input_fingerprints(input_paths)
+    if cached.get("input_fingerprints") != fingerprints:
+        return None
+    newest_input = max(path.stat().st_mtime_ns for path in input_paths)
+    oldest_output = min(path.stat().st_mtime_ns for path in [build_result_path, *output_paths])
+    if oldest_output < newest_input:
+        return None
+    return cached
+
+
 def build_one(entry: dict[str, object]) -> dict[str, object]:
     cfg = config()
     candidate_profile = runner_profiles()["candidate"]
@@ -128,6 +246,24 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     normalized_path = Path(entry["normalized_path"])
     build_root = Path(cfg["paths"]["build_dir"]) / program_id
     build_root.mkdir(parents=True, exist_ok=True)
+    should_build_candidate = should_build_candidate_binary(candidate_profile)
+    build_inputs = build_input_paths(
+        normalized_path,
+        cfg=cfg,
+        should_build_candidate=should_build_candidate,
+    )
+    build_fingerprints = build_input_fingerprints(
+        build_inputs,
+        cfg=cfg,
+    )
+    cached_result = load_cached_build_result(
+        build_root,
+        input_paths=build_inputs,
+        should_build_candidate=should_build_candidate,
+        expected_fingerprints=build_fingerprints,
+    )
+    if cached_result is not None:
+        return cached_result
     prog2c_result = build_prog2c(normalized_path)
     testcase_c = build_root / "testcase.c"
     testcase_instrumented = build_root / "testcase.instrumented.c"
@@ -159,8 +295,6 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     )
     compile_stderr.write_text(compile_result.stderr, encoding="utf-8")
     candidate_compile_result: subprocess.CompletedProcess[str] | None = None
-    candidate_binary_name = str(candidate_profile.get("binary_name", "testcase.bin"))
-    should_build_candidate = candidate_binary_name != "testcase.bin" or candidate_profile.get("kind") == "command"
     if should_build_candidate:
         candidate_compile_result = compile_testcase(
             testcase_instrumented,
@@ -174,6 +308,7 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
         status = "build_failure"
     result = {
         "program_id": program_id,
+        "normalized_path": str(normalized_path),
         "status": status,
         "stage": "compile" if status != "ok" else "done",
         "returncode": compile_result.returncode if status == "ok" or candidate_compile_result is None else candidate_compile_result.returncode,
@@ -185,6 +320,7 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
         "prog2c_stderr": str(prog2c_stderr),
         "compile_stderr": str(compile_stderr),
         "candidate_compile_stderr": str(candidate_compile_stderr) if candidate_compile_result is not None else None,
+        "input_fingerprints": build_fingerprints,
     }
     dump_json(build_root / "build-result.json", result)
     return result

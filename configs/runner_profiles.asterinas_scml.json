@@ -4,14 +4,14 @@
     "kind": "local",
     "role": "reference",
     "snapshot_id": "local-linux-reference-asterinas",
-    "work_root": "artifacts/sandboxes/asterinas/reference",
+    "work_root": "artifacts/sandboxes/asterinas_scml/reference",
     "kernel_build_command": "uname -r"
   },
   "candidate": {
     "kind": "command",
     "role": "candidate",
     "snapshot_id": "asterinas-docker-qemu",
-    "work_root": "artifacts/sandboxes/asterinas/candidate",
+    "work_root": "artifacts/sandboxes/asterinas_scml/candidate",
     "binary_name": "testcase.candidate.bin",
     "timeout_sec": 600,
     "kernel_build_command": "printf asterinas-docker-qemu",

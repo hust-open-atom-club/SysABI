@@ -2,7 +2,7 @@ PYTHON ?= python3
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ASTERINAS_JOBS ?= 4
 
-.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas test
+.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas test clean
 
 bootstrap:
 	./tools/bootstrap_syzkaller.sh
@@ -39,6 +39,8 @@ build-asterinas-scml-manifest:
 
 derive-asterinas-scml:
 	$(PYTHON) tools/build_scml_manifest.py
+	$(PYTHON) tools/export_scml_targets.py --workflow asterinas_scml
+	$(PYTHON) tools/generate_scml_candidates.py --workflow asterinas_scml
 	$(PYTHON) tools/derive_scml_allowed_sequences.py --workflow asterinas_scml
 	$(PYTHON) tools/prog2c_wrap.py --workflow asterinas_scml --eligible-file eligible_programs/asterinas_scml.static.jsonl
 	$(PYTHON) tools/preflight_scml_gate.py --workflow asterinas_scml
@@ -71,3 +73,24 @@ analyze-asterinas:
 
 report-asterinas:
 	$(PYTHON) tools/reduce_case.py --workflow asterinas --fixture controlled_divergence
+
+clean:
+	$(PYTHON) tools/cleanup_repo_processes.py --repo-root "$(ROOT)" \
+		--remove artifacts/runs/asterinas \
+		--remove artifacts/runs/asterinas_scml \
+		--remove artifacts/sandboxes/asterinas \
+		--remove artifacts/preflight/asterinas_scml \
+		--remove artifacts/asterinas/build \
+		--remove artifacts/asterinas/build-probe \
+		--remove artifacts/asterinas/host-target \
+		--remove artifacts/asterinas/initramfs-packages \
+		--remove build/asterinas/testcases \
+		--remove build/asterinas_scml/testcases \
+		--remove artifacts/generated/asterinas_scml \
+		--remove eligible_programs/asterinas.jsonl \
+		--remove eligible_programs/asterinas_scml.targets.jsonl \
+		--remove eligible_programs/asterinas_scml.generated.jsonl \
+		--remove eligible_programs/asterinas_scml.jsonl \
+		--remove eligible_programs/asterinas_scml.static.jsonl \
+		--remove reports/asterinas \
+		--remove reports/asterinas_scml

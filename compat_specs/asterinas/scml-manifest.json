@@ -21,6 +21,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "access",
@@ -34,6 +36,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -41,6 +45,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "chdir",
@@ -54,6 +60,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -61,6 +69,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "chmod",
@@ -74,6 +84,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -81,6 +93,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "chown",
@@ -94,6 +108,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -101,6 +117,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "close",
@@ -114,6 +132,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -121,6 +141,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "creat",
@@ -134,6 +156,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -141,6 +165,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "faccessat",
@@ -154,6 +180,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -161,6 +189,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "AT_EACCESS"
@@ -184,6 +214,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/faccessat2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -191,6 +223,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fallocate",
@@ -208,6 +242,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fallocate.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "modes": [
               "FALLOC_FL_UNSHARE_RANGE",
@@ -228,6 +264,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchdir",
@@ -241,6 +279,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -248,6 +288,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchmod",
@@ -261,6 +303,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -268,6 +312,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchmodat",
@@ -281,6 +327,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -288,6 +336,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchmodat2",
@@ -301,6 +351,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -308,6 +360,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchown",
@@ -321,6 +375,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -328,6 +384,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fchownat",
@@ -341,6 +399,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -348,6 +408,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fgetxattr",
@@ -361,6 +423,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -368,6 +432,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "flistxattr",
@@ -381,6 +447,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -388,6 +456,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "flock",
@@ -401,6 +471,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -408,6 +480,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fremovexattr",
@@ -421,6 +495,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -428,6 +504,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fsetxattr",
@@ -441,6 +519,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -448,6 +528,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fstat",
@@ -461,6 +543,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -468,6 +552,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "ftruncate",
@@ -481,6 +567,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -488,6 +576,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "futimesat",
@@ -501,6 +591,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -508,6 +600,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getcwd",
@@ -521,6 +615,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -528,6 +624,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getxattr",
@@ -541,6 +639,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -548,6 +648,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lchown",
@@ -561,6 +663,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -568,6 +672,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lgetxattr",
@@ -581,6 +687,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -588,6 +696,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "link",
@@ -601,6 +711,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -608,6 +720,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "linkat",
@@ -621,6 +735,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -628,6 +744,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "listxattr",
@@ -641,6 +759,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -648,6 +768,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "llistxattr",
@@ -661,6 +783,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -668,6 +792,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lremovexattr",
@@ -681,6 +807,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -688,6 +816,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lseek",
@@ -705,6 +835,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/lseek.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "SEEK_DATA",
@@ -720,6 +852,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lsetxattr",
@@ -733,6 +867,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -740,6 +876,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "lstat",
@@ -753,6 +891,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -760,6 +900,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mkdir",
@@ -773,6 +915,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -780,6 +924,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mkdirat",
@@ -793,6 +939,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -800,6 +948,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mknod",
@@ -813,6 +963,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -820,6 +972,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mknodat",
@@ -833,6 +987,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -840,6 +996,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "AT_NO_AUTOMOUNT"
@@ -863,6 +1021,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/newfstatat.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -870,6 +1030,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "O_NOCTTY",
@@ -909,6 +1071,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/open_and_openat.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "O_TMPFILE"
@@ -922,6 +1086,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "O_NOCTTY",
@@ -961,6 +1127,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/open_and_openat.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "O_TMPFILE"
@@ -974,6 +1142,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pread64",
@@ -987,6 +1157,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -994,6 +1166,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "preadv",
@@ -1007,6 +1181,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1014,6 +1190,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "RWF_DSYNC",
@@ -1043,6 +1221,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/preadv2_and_pwritev2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "RWF_APPEND",
@@ -1060,6 +1240,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pwrite64",
@@ -1073,6 +1255,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1080,6 +1264,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pwritev",
@@ -1093,6 +1279,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1100,6 +1288,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "RWF_DSYNC",
@@ -1129,6 +1319,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/preadv2_and_pwritev2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "RWF_APPEND",
@@ -1146,6 +1338,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "read",
@@ -1159,6 +1353,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1166,6 +1362,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "readlink",
@@ -1179,6 +1377,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1186,6 +1386,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "readlinkat",
@@ -1199,6 +1401,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1206,6 +1410,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "readv",
@@ -1219,6 +1425,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1226,6 +1434,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "removexattr",
@@ -1239,6 +1449,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1246,6 +1458,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rename",
@@ -1259,6 +1473,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1266,6 +1482,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "renameat",
@@ -1279,6 +1497,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1286,6 +1506,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "renameat2",
@@ -1303,6 +1525,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/renameat2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "RENAME_EXCHANGE",
@@ -1320,6 +1544,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rmdir",
@@ -1333,6 +1559,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1340,6 +1568,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setxattr",
@@ -1353,6 +1583,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1360,6 +1592,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "stat",
@@ -1373,6 +1607,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1380,6 +1616,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "AT_NO_AUTOMOUNT",
@@ -1421,6 +1659,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/statx.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1428,6 +1668,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "symlink",
@@ -1441,6 +1683,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1448,6 +1692,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "symlinkat",
@@ -1461,6 +1707,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1468,6 +1716,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "truncate",
@@ -1481,6 +1731,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1488,6 +1740,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "umask",
@@ -1501,6 +1755,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1508,6 +1764,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "unlink",
@@ -1521,6 +1779,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1528,6 +1788,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "unlinkat",
@@ -1541,6 +1803,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1548,6 +1812,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "utime",
@@ -1561,6 +1827,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1568,6 +1836,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "utimensat",
@@ -1585,6 +1855,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/utimensat.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "AT_EMPTY_PATH"
@@ -1598,6 +1870,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "utimes",
@@ -1611,6 +1885,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1618,6 +1894,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "write",
@@ -1631,6 +1909,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1638,6 +1918,8 @@
           "category": "file-and-directory-operations",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "writev",
@@ -1651,6 +1933,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-and-directory-operations/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -1677,6 +1961,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "close_range",
@@ -1690,6 +1976,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1697,6 +1985,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "dup",
@@ -1710,6 +2000,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1717,6 +2009,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "dup2",
@@ -1730,6 +2024,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1737,6 +2033,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "dup3",
@@ -1750,6 +2048,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1757,6 +2057,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_create",
@@ -1770,6 +2072,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1777,6 +2081,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_create1",
@@ -1790,6 +2096,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1797,6 +2105,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_ctl",
@@ -1814,6 +2124,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/epoll_ctl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags_in_events": [
               "EPOLLEXCLUSIVE",
@@ -1830,6 +2142,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_pwait",
@@ -1843,6 +2157,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1850,6 +2166,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_pwait2",
@@ -1863,6 +2181,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1870,6 +2190,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "epoll_wait",
@@ -1883,6 +2205,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1890,6 +2214,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "EFD_NONBLOCK",
@@ -1915,6 +2241,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/eventfd_and_eventfd2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1922,6 +2250,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "EFD_NONBLOCK",
@@ -1947,6 +2277,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/eventfd_and_eventfd2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1954,6 +2286,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "POSIX_FADV_NORMAL",
@@ -1987,6 +2321,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fadvise64.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -1994,6 +2330,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "fcntl",
@@ -2011,6 +2349,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fcntl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "commands": [
               "F_NOTIFY",
@@ -2055,6 +2395,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fdatasync",
@@ -2068,6 +2410,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2075,6 +2419,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fsync",
@@ -2088,6 +2434,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2095,6 +2443,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "ioctl",
@@ -2112,6 +2462,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/ioctl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2119,6 +2471,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "ioprio_get",
@@ -2136,6 +2490,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/ioprio_get_and_set.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "selectors": [
               "IOPRIO_WHO_PGRP",
@@ -2152,6 +2508,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "ioprio_set",
@@ -2169,6 +2527,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/ioprio_get_and_set.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "selectors": [
               "IOPRIO_WHO_PGRP",
@@ -2185,6 +2545,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "MFD_HUGETLB"
@@ -2208,6 +2570,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/memfd_create.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MFD_HUGE_64KB",
@@ -2243,6 +2607,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pidfd_getfd",
@@ -2256,6 +2622,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2263,6 +2631,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "pidfd_open",
@@ -2276,6 +2646,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2283,6 +2655,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "O_DIRECT",
@@ -2308,6 +2682,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/pipe_and_pipe2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2315,6 +2691,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "O_DIRECT",
@@ -2340,6 +2718,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/pipe_and_pipe2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2347,6 +2727,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "poll",
@@ -2364,6 +2746,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/poll_and_ppoll.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "events": [
               "POLLRDBAND",
@@ -2382,6 +2766,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "ppoll",
@@ -2399,6 +2785,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/poll_and_ppoll.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "events": [
               "POLLRDBAND",
@@ -2417,6 +2805,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pselect6",
@@ -2430,6 +2820,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2437,6 +2829,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "select",
@@ -2450,6 +2844,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2457,6 +2853,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sendfile",
@@ -2470,6 +2868,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2477,6 +2877,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "signalfd",
@@ -2490,6 +2892,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2497,6 +2901,8 @@
           "category": "file-descriptor-and-io-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "signalfd4",
@@ -2510,6 +2916,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-descriptor-and-io-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -2531,6 +2939,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "chroot",
@@ -2544,6 +2954,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2551,6 +2963,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "fstatfs",
@@ -2564,6 +2978,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2571,6 +2987,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "inotify_add_watch",
@@ -2588,6 +3006,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/inotify_add_watch.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "control_flags": [
               "IN_EXCL_UNLINK"
@@ -2618,6 +3038,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "inotify_init",
@@ -2635,6 +3057,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/inotify_init_and_init1.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2642,6 +3066,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "inotify_init1",
@@ -2659,6 +3085,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/inotify_init_and_init1.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2666,6 +3094,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "inotify_rm_watch",
@@ -2679,6 +3109,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2686,6 +3118,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mount",
@@ -2719,6 +3153,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/mount.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "mount_flags": [
               "MS_SHARED",
@@ -2737,6 +3173,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pivot_root",
@@ -2750,6 +3188,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2757,6 +3197,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "statfs",
@@ -2770,6 +3212,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2777,6 +3221,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sync",
@@ -2790,6 +3236,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2797,6 +3245,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "syncfs",
@@ -2810,6 +3260,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2817,6 +3269,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {
             "flags": [
               "MNT_FORCE",
@@ -2845,6 +3299,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/umount_and_umount2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -2852,6 +3308,8 @@
           "category": "file-systems-and-mount-control",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "MNT_FORCE",
@@ -2880,6 +3338,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/file-systems-and-mount-control/umount_and_umount2.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -2901,6 +3361,8 @@
           "category": "inter-process-communication",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "futex",
@@ -2919,6 +3381,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/inter-process-communication/futex.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "operations": [
               "FUTEX_FD",
@@ -2941,6 +3405,8 @@
           "category": "inter-process-communication",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "semctl",
@@ -2958,6 +3424,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/inter-process-communication/semctl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "commands": [
               "IPC_INFO",
@@ -2982,6 +3450,8 @@
           "category": "inter-process-communication",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "semget",
@@ -2999,6 +3469,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/inter-process-communication/semget.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3006,6 +3478,8 @@
           "category": "inter-process-communication",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "semop",
@@ -3025,6 +3499,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/inter-process-communication/semop_and_semtimedop.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "semaphore_flags": [
               "SEM_UNDO"
@@ -3039,6 +3515,8 @@
           "category": "inter-process-communication",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "set_robust_list",
@@ -3052,6 +3530,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/inter-process-communication/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -3074,6 +3554,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "brk",
@@ -3087,6 +3569,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3094,6 +3578,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "advice": [
               "MADV_NORMAL",
@@ -3134,6 +3620,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/madvise.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "advice": [
               "MADV_RANDOM",
@@ -3170,6 +3658,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "MAP_HUGETLB",
@@ -3205,6 +3695,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/mmap_and_munmap.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MAP_32BIT",
@@ -3224,6 +3716,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "protection_flags": [
               "PROT_SEM",
@@ -3254,6 +3748,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/mprotect.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3261,6 +3757,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "mremap",
@@ -3278,6 +3776,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/mremap.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3285,6 +3785,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "MS_INVALIDATE"
@@ -3308,6 +3810,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/msync.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3315,6 +3819,8 @@
           "category": "memory-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "MAP_HUGETLB",
@@ -3350,6 +3856,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/memory-management/mmap_and_munmap.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MAP_32BIT",
@@ -3383,6 +3891,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "capget",
@@ -3400,6 +3910,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/capget_and_capset.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "versions": [
               "_LINUX_CAPABILITY_VERSION_1",
@@ -3416,6 +3928,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "capset",
@@ -3433,6 +3947,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/capget_and_capset.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "versions": [
               "_LINUX_CAPABILITY_VERSION_1",
@@ -3449,6 +3965,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getgroups",
@@ -3462,6 +3980,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3469,6 +3989,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "prctl",
@@ -3495,6 +4017,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/prctl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "operations": [
               "PR_CAP_AMBIENT",
@@ -3601,6 +4125,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setgroups",
@@ -3614,6 +4140,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3621,6 +4149,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setns",
@@ -3638,6 +4168,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/setns.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "CLONE_NEWCGROUP",
@@ -3661,6 +4193,8 @@
           "category": "namespaces-cgroups-and-security",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "CLONE_SYSVSEM"
@@ -3684,6 +4218,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/namespaces-cgroups-and-security/unshare.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "CLONE_NEWCGROUP",
@@ -3725,6 +4261,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "accept",
@@ -3743,6 +4281,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/accept_and_accept4.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3750,6 +4290,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "accept4",
@@ -3768,6 +4310,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/accept_and_accept4.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3775,6 +4319,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "bind",
@@ -3792,6 +4338,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/bind.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3799,6 +4347,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "connect",
@@ -3816,6 +4366,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/connect.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3823,6 +4375,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getpeername",
@@ -3836,6 +4390,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3843,6 +4399,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getsockname",
@@ -3856,6 +4414,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3863,6 +4423,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getsockopt",
@@ -3880,6 +4442,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/getsockopt_and_setsockopt.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3887,6 +4451,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "listen",
@@ -3900,6 +4466,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3907,6 +4475,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "recvfrom",
@@ -3931,6 +4501,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/recvfrom_and_recvmsg.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3938,6 +4510,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "recvmsg",
@@ -3962,6 +4536,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/recvfrom_and_recvmsg.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -3969,6 +4545,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sendmmsg",
@@ -3986,6 +4564,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/sendto_and_sendmsg.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MSG_CONFIRM",
@@ -4013,6 +4593,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sendmsg",
@@ -4030,6 +4612,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/sendto_and_sendmsg.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MSG_CONFIRM",
@@ -4057,6 +4641,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sendto",
@@ -4074,6 +4660,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/sendto_and_sendmsg.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "flags": [
               "MSG_CONFIRM",
@@ -4101,6 +4689,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setsockopt",
@@ -4118,6 +4708,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/getsockopt_and_setsockopt.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4125,6 +4717,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "shutdown",
@@ -4138,6 +4732,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4145,6 +4741,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "socket",
@@ -4162,6 +4760,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/socket.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4169,6 +4769,8 @@
           "category": "networking-and-sockets",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "socketpair",
@@ -4187,6 +4789,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/networking-and-sockets/socketpair.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -4209,6 +4813,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "clone",
@@ -4226,6 +4832,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/clone_and_clone3.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4233,6 +4841,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "clone3",
@@ -4250,6 +4860,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/clone_and_clone3.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4257,6 +4869,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "execve",
@@ -4270,6 +4884,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4277,6 +4893,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "execveat",
@@ -4290,6 +4908,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4297,6 +4917,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "exit",
@@ -4310,6 +4932,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4317,6 +4941,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "exit_group",
@@ -4330,6 +4956,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4337,6 +4965,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "unavailable",
+          "generator_gap_reason": "missing_description",
           "ignored": {},
           "ignored_flags": [],
           "name": "fork",
@@ -4350,6 +4980,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4357,6 +4989,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "getcpu",
@@ -4370,6 +5004,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4377,6 +5013,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getegid",
@@ -4390,6 +5028,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4397,6 +5037,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "geteuid",
@@ -4410,6 +5052,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4417,6 +5061,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getgid",
@@ -4430,6 +5076,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4437,6 +5085,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getpgid",
@@ -4450,6 +5100,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4457,6 +5109,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getpgrp",
@@ -4470,6 +5124,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4477,6 +5133,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getpid",
@@ -4490,6 +5148,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4497,6 +5157,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "unavailable",
+          "generator_gap_reason": "disabled_in_syzkaller",
           "ignored": {},
           "ignored_flags": [],
           "name": "getppid",
@@ -4510,6 +5172,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4517,6 +5181,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getpriority",
@@ -4530,6 +5196,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4537,6 +5205,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getresgid",
@@ -4550,6 +5220,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4557,6 +5229,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getresuid",
@@ -4570,6 +5244,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4577,6 +5253,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getrlimit",
@@ -4590,6 +5268,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4597,6 +5277,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "getsid",
@@ -4610,6 +5292,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4617,6 +5301,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "gettid",
@@ -4630,6 +5316,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4637,6 +5325,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getuid",
@@ -4650,6 +5340,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4657,6 +5349,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "prlimit64",
@@ -4670,6 +5364,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4677,6 +5373,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_get_priority_max",
@@ -4690,6 +5388,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4697,6 +5397,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_get_priority_min",
@@ -4710,6 +5412,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4717,6 +5421,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_getaffinity",
@@ -4730,6 +5436,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4737,6 +5445,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_getattr",
@@ -4752,6 +5462,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/sched_getattr_and_sched_setattr.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "scheduling_flags": [
               "SCHED_FLAG_RESET_ON_FORK",
@@ -4780,6 +5492,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_getparam",
@@ -4793,6 +5507,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4800,6 +5516,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_getscheduler",
@@ -4813,6 +5531,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4820,6 +5540,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_setaffinity",
@@ -4833,6 +5555,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4840,6 +5564,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_setattr",
@@ -4855,6 +5581,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/sched_getattr_and_sched_setattr.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "scheduling_flags": [
               "SCHED_FLAG_RESET_ON_FORK",
@@ -4883,6 +5611,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_setparam",
@@ -4896,6 +5626,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4903,6 +5635,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_setscheduler",
@@ -4920,6 +5654,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/sched_setscheduler.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "policies_or_flags": [
               "SCHED_RESET_ON_FORK"
@@ -4934,6 +5670,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sched_yield",
@@ -4947,6 +5685,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4954,6 +5694,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setfsgid",
@@ -4967,6 +5709,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4974,6 +5718,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setfsuid",
@@ -4987,6 +5733,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -4994,6 +5742,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setgid",
@@ -5007,6 +5757,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5014,6 +5766,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setpgid",
@@ -5027,6 +5781,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5034,6 +5790,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setpriority",
@@ -5047,6 +5805,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5054,6 +5814,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setregid",
@@ -5067,6 +5829,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5074,6 +5838,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setresgid",
@@ -5087,6 +5853,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5094,6 +5862,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setresuid",
@@ -5107,6 +5877,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5114,6 +5886,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setreuid",
@@ -5127,6 +5901,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5134,6 +5910,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setrlimit",
@@ -5147,6 +5925,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5154,6 +5934,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "unavailable",
+          "generator_gap_reason": "disabled_in_syzkaller",
           "ignored": {},
           "ignored_flags": [],
           "name": "setsid",
@@ -5167,6 +5949,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5174,6 +5958,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setuid",
@@ -5187,6 +5973,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5194,6 +5982,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "unavailable",
+          "generator_gap_reason": "missing_description",
           "ignored": {},
           "ignored_flags": [],
           "name": "vfork",
@@ -5207,6 +5997,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5214,6 +6006,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "options": [
               "WEXITED",
@@ -5244,6 +6038,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/wait4.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5251,6 +6047,8 @@
           "category": "process-and-thread-management",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "options": [
               "WEXITED"
@@ -5275,6 +6073,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/process-and-thread-management/waitid.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -5297,6 +6097,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "alarm",
@@ -5310,6 +6112,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5317,6 +6121,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getitimer",
@@ -5330,6 +6136,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5337,6 +6145,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "gettimeofday",
@@ -5350,6 +6160,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5357,6 +6169,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "kill",
@@ -5370,6 +6184,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5377,6 +6193,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pause",
@@ -5390,6 +6208,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5397,6 +6217,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "pidfd_send_signal",
@@ -5410,6 +6232,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5417,6 +6241,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rt_sigaction",
@@ -5434,6 +6260,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/rt_sigaction.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "sigaction_flags": [
               "SA_NOCLDSTOP",
@@ -5450,6 +6278,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rt_sigprocmask",
@@ -5468,6 +6298,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/rt_sigprocmask.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5475,6 +6307,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rt_sigreturn",
@@ -5488,6 +6322,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5495,6 +6331,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "rt_sigtimedwait",
@@ -5508,6 +6346,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5515,6 +6355,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setitimer",
@@ -5528,6 +6370,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5535,6 +6379,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sigaltstack",
@@ -5548,6 +6394,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5555,6 +6403,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "sigpending",
@@ -5568,6 +6418,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5575,6 +6427,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "sigsuspend",
@@ -5588,6 +6442,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5595,6 +6451,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "tgkill",
@@ -5608,6 +6466,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5615,6 +6475,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "time",
@@ -5628,6 +6490,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5635,6 +6499,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timer_create",
@@ -5661,6 +6527,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/timer_create.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "notification_methods": [
               "SIGEV_THREAD"
@@ -5685,6 +6553,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timer_delete",
@@ -5698,6 +6568,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5705,6 +6577,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timer_gettime",
@@ -5718,6 +6592,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5725,6 +6601,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timer_settime",
@@ -5738,6 +6616,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5745,6 +6625,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timerfd_create",
@@ -5771,6 +6653,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/timerfd_create.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "predefined_clock_ids": [
               "CLOCK_REALTIME_ALARM",
@@ -5787,6 +6671,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "timerfd_gettime",
@@ -5800,6 +6686,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5807,6 +6695,8 @@
           "category": "signals-and-timers",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "TFD_TIMER_CANCEL_ON_SET"
@@ -5830,6 +6720,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/signals-and-timers/timerfd_settime.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
@@ -5853,6 +6745,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "variant_only",
+          "generator_gap_reason": "missing_base_definition",
           "ignored": {},
           "ignored_flags": [],
           "name": "arch_prctl",
@@ -5870,6 +6764,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/arch_prctl.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": false,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "codes": [
               "ARCH_GET_CPUID",
@@ -5890,6 +6786,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "clock_gettime",
@@ -5907,6 +6805,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/clock_gettime.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "predefined_clock_ids": [
               "CLOCK_REALTIME_ALARM",
@@ -5925,6 +6825,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "clock_nanosleep",
@@ -5942,6 +6844,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/clock_nanosleep.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "clock_ids": [
               "CLOCK_TAI"
@@ -5956,6 +6860,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getdents",
@@ -5969,6 +6875,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5976,6 +6884,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getdents64",
@@ -5989,6 +6899,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -5996,6 +6908,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {
             "flags": [
               "GRND_NONBLOCK"
@@ -6019,6 +6933,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/getrandom.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6026,6 +6942,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "getrusage",
@@ -6043,6 +6961,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/getrusage.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {
             "who_flags": [
               "RUSAGE_CHILDREN"
@@ -6057,6 +6977,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "nanosleep",
@@ -6070,6 +6992,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6077,6 +7001,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "reboot",
@@ -6095,6 +7021,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/reboot.scml"
           ],
           "support_tier": "partial",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": false,
           "unsupported": {
             "op_flags": [
               "LINUX_REBOOT_CMD_CAD_OFF",
@@ -6117,6 +7045,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "set_tid_address",
@@ -6130,6 +7060,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6137,6 +7069,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "setdomainname",
@@ -6150,6 +7084,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6157,6 +7093,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sethostname",
@@ -6170,6 +7108,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6177,6 +7117,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "sysinfo",
@@ -6190,6 +7132,8 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         },
@@ -6197,6 +7141,8 @@
           "category": "system-information-and-misc",
           "defer_reason": null,
           "generation_enabled": true,
+          "generator_class": "base_only",
+          "generator_gap_reason": "none",
           "ignored": {},
           "ignored_flags": [],
           "name": "uname",
@@ -6210,13 +7156,15 @@
             "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/system-information-and-misc/fully_covered.scml"
           ],
           "support_tier": "full",
+          "syzkaller_base_available": true,
+          "syzkaller_variant_available": true,
           "unsupported": {},
           "unsupported_flags": []
         }
       }
     }
   },
-  "generated_at": "2026-03-23T03:14:36.094482+00:00",
+  "generated_at": "2026-03-25T05:34:43.477068+00:00",
   "source_revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
   "source_root": "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage",
   "source_type": "scml",

@@ -3,18 +3,18 @@
   "schema_version": 1,
   "target_os": "linux",
   "arch": "amd64",
-  "runner_profiles_path": "configs/runner_profiles.asterinas.json",
+  "runner_profiles_path": "configs/runner_profiles.asterinas_scml.json",
   "compat_manifest_path": "compat_specs/asterinas/scml-manifest.json",
   "generation_profile_path": "compat_specs/asterinas/generation-profile.json",
   "asterinas": {
     "repo_dir": "third_party/asterinas",
     "revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
-    "docker_image": "asterinas/asterinas:0.17.1-20260319",
+    "docker_image": "asterinas/asterinas:0.17.1-20260317",
     "docker_repo_dir": "/root/asterinas",
     "docker_workspace_dir": "/workspace",
     "docker_workdir": "/root/asterinas",
     "build_timeout_sec": 3600,
-    "run_timeout_sec": 120,
+    "run_timeout_sec": 600,
     "base_initramfs_path": "third_party/asterinas/test/initramfs/build/initramfs.cpio.gz",
     "build_info_path": "artifacts/asterinas/build-info.json"
   },
@@ -27,14 +27,20 @@
     "corpus_normalized": "corpus/normalized",
     "corpus_meta": "corpus/meta",
     "corpus_rejected": "corpus/rejected",
+    "targets_file": "eligible_programs/asterinas_scml.targets.jsonl",
+    "generated_file": "eligible_programs/asterinas_scml.generated.jsonl",
     "static_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
     "eligible_file": "eligible_programs/asterinas_scml.jsonl",
+    "generated_raw_dir": "artifacts/generated/asterinas_scml/raw",
+    "generated_normalized_dir": "artifacts/generated/asterinas_scml/normalized",
+    "generated_meta_dir": "artifacts/generated/asterinas_scml/meta",
     "build_dir": "build/asterinas_scml/testcases",
     "artifacts_dir": "artifacts/runs/asterinas_scml",
     "reports_dir": "reports/asterinas_scml"
   },
   "derivation": {
     "source_eligible_file": "eligible_programs/baseline.jsonl",
+    "generated_source_eligible_file": "eligible_programs/asterinas_scml.generated.jsonl",
     "accept_reasons": [
       "scml_manifest_allowed",
       "profile_enabled_category",
@@ -53,6 +59,7 @@
     "source_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
     "scml_root": "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage",
     "artifact_dir": "artifacts/preflight/asterinas_scml",
+    "timeout_sec": 20,
     "rejection_taxonomy": {
       "syscall_not_in_manifest": "syscall_not_in_manifest",
       "unsupported_flag_pattern": "unsupported_flag_pattern",
@@ -60,7 +67,10 @@
       "unsupported_path_pattern": "unsupported_path_pattern",
       "deferred_category": "deferred_category",
       "scml_parser_gap": "scml_parser_gap",
-      "preflight_build_failure": "preflight_build_failure"
+      "preflight_build_failure": "preflight_build_failure",
+      "preflight_runtime_failure": "preflight_runtime_failure",
+      "preflight_runtime_timeout": "preflight_runtime_timeout",
+      "preflight_matcher_timeout": "preflight_matcher_timeout"
     }
   },
   "normalization": {
@@ -82,7 +92,8 @@
     "baseline_invalid_threshold": 0.1
   },
   "parallel": {
-    "jobs": 8
+    "jobs": 8,
+    "candidate_batch_size": 100
   },
   "build": {
     "cflags": [

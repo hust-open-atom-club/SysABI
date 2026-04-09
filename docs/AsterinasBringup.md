@@ -14,7 +14,7 @@
 8. 已实现最小 reducer/report 闭环，最小化报告会同时给出原始 event index 与映射回 `.syz` 的 syscall index。
 9. 已完成 1000-case Linux baseline full run，并输出 summary、baseline-invalid 列表、divergence index 与最小化报告。
 
-截至 2026-03-21，Linux baseline 当前签收结果如下。
+Linux baseline 当前签收结果如下。
 
 1. `eligible_program_count=1400`
 2. `import_success_rate=1.000`

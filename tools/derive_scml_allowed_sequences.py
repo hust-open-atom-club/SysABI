@@ -9,7 +9,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, load_json, load_jsonl, report_path
+from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, load_json, load_jsonl, report_path, resolve_repo_path
+from orchestrator.capability import load_manifest_index
 from orchestrator.models import EligibleProgram
 
 
@@ -17,51 +18,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workflow", default="asterinas_scml")
     parser.add_argument("--source-eligible-file")
+    parser.add_argument("--generated-source-eligible-file")
     return parser.parse_args()
-
-
-def apply_generation_profile(
-    manifest: dict[str, Any],
-    profile: dict[str, Any],
-) -> dict[str, dict[str, Any]]:
-    enabled_categories = set(profile["enabled_categories"])
-    deferred_categories = dict(profile.get("deferred_categories", {}))
-    deferred_syscalls = dict(profile.get("deferred_syscalls", {}))
-    index: dict[str, dict[str, Any]] = {}
-    for category_name, category in manifest["categories"].items():
-        for syscall_name, entry in category["syscalls"].items():
-            effective = {
-                **entry,
-                "category": category_name,
-            }
-            generation_enabled = bool(entry.get("generation_enabled", True))
-            defer_reason = entry.get("defer_reason")
-            if syscall_name in deferred_syscalls:
-                generation_enabled = False
-                defer_reason = deferred_syscalls[syscall_name]
-            elif category_name not in enabled_categories:
-                generation_enabled = False
-                defer_reason = deferred_categories.get(category_name, "category_not_enabled")
-            effective["generation_enabled"] = generation_enabled
-            effective["defer_reason"] = defer_reason
-            index[syscall_name] = effective
-    return index
-
-
-def load_manifest_index(
-    manifest: dict[str, Any],
-    profile: dict[str, Any] | None = None,
-) -> dict[str, dict[str, Any]]:
-    if profile is not None:
-        return apply_generation_profile(manifest, profile)
-    index: dict[str, dict[str, Any]] = {}
-    for category_name, category in manifest["categories"].items():
-        for syscall_name, entry in category["syscalls"].items():
-            index[syscall_name] = {
-                **entry,
-                "category": category_name,
-            }
-    return index
 
 
 def derive_rejection(
@@ -97,6 +55,30 @@ def derive_rejection(
     return list(dict.fromkeys(reasons))
 
 
+def merge_source_rows(*row_groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for rows in row_groups:
+        for row in rows:
+            program_id = str(row["program_id"])
+            existing = merged.get(program_id)
+            if existing is None:
+                merged[program_id] = dict(row)
+                continue
+            combined = dict(existing)
+            combined.update(row)
+            if existing.get("source_modes") or row.get("source_modes"):
+                combined["source_modes"] = sorted(
+                    set(existing.get("source_modes", [])) | set(row.get("source_modes", []))
+                )
+            if existing.get("covered_target_syscalls") or row.get("covered_target_syscalls"):
+                combined["covered_target_syscalls"] = sorted(
+                    set(existing.get("covered_target_syscalls", []))
+                    | set(row.get("covered_target_syscalls", []))
+                )
+            merged[program_id] = combined
+    return sorted(merged.values(), key=lambda row: str(row["program_id"]))
+
+
 def main() -> None:
     args = parse_args()
     configure_runtime(workflow=args.workflow)
@@ -105,7 +87,17 @@ def main() -> None:
     profile = load_json(cfg["generation_profile_path"])
     manifest_index = load_manifest_index(manifest, profile)
     source_eligible_file = args.source_eligible_file or cfg["derivation"]["source_eligible_file"]
-    source_rows = load_jsonl(source_eligible_file)
+    generated_source_eligible_file = (
+        args.generated_source_eligible_file
+        or cfg["derivation"].get("generated_source_eligible_file")
+    )
+    base_rows = load_jsonl(source_eligible_file)
+    generated_rows = []
+    if generated_source_eligible_file:
+        generated_path = resolve_repo_path(generated_source_eligible_file)
+        if generated_path.exists():
+            generated_rows = load_jsonl(generated_path)
+    source_rows = merge_source_rows(base_rows, generated_rows)
     static_eligible_file = cfg["paths"].get("static_eligible_file", cfg["paths"]["eligible_file"])
 
     eligible_rows: list[dict[str, Any]] = []
@@ -145,13 +137,18 @@ def main() -> None:
     rejected_rows.sort(key=lambda row: row["program_id"])
 
     dump_jsonl(static_eligible_file, eligible_rows)
-    dump_jsonl(report_path("scml-rejections.jsonl", cfg=cfg), rejected_rows)
+    derivation_rejections_path = report_path("derivation-rejections.jsonl", cfg=cfg)
+    dump_jsonl(derivation_rejections_path, rejected_rows)
     dump_json(
         report_path("derivation-summary.json", cfg=cfg),
         {
             "workflow": cfg["workflow"],
             "source_eligible_file": source_eligible_file,
+            "generated_source_eligible_file": generated_source_eligible_file,
+            "base_source_total": len(base_rows),
+            "generated_source_total": len(generated_rows),
             "static_eligible_file": static_eligible_file,
+            "rejections_file": str(derivation_rejections_path),
             "source_total": len(source_rows),
             "eligible": len(eligible_rows),
             "rejected": len(rejected_rows),

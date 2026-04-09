@@ -7,7 +7,7 @@
   "asterinas": {
     "repo_dir": "third_party/asterinas",
     "revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
-    "docker_image": "asterinas/asterinas:0.17.1-20260319",
+    "docker_image": "asterinas/asterinas:0.17.1-20260317",
     "docker_repo_dir": "/root/asterinas",
     "docker_workspace_dir": "/workspace",
     "docker_workdir": "/root/asterinas",
@@ -95,7 +95,8 @@
     "baseline_invalid_threshold": 0.1
   },
   "parallel": {
-    "jobs": 4
+    "jobs": 4,
+    "candidate_batch_size": 100
   },
   "build": {
     "cflags": [

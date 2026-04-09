@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
-from tools.build_scml_manifest import build_manifest
+from tools.build_scml_manifest import analyze_syzkaller_descriptions, build_manifest
 
 
 def find_syscall(manifest: dict[str, object], category: str, name: str) -> dict[str, object]:
@@ -106,6 +107,36 @@ class SCMLManifestTests(unittest.TestCase):
         self.assertEqual(getrandom["ignored_flags"], ["GRND_NONBLOCK"])
         self.assertIn("ARCH_GET_CPUID", arch_prctl["unsupported_codes"])
         self.assertIn("ARCH_SET_CPUID", arch_prctl["unsupported_codes"])
+
+    def test_analyze_syzkaller_descriptions_ignores_generated_auto_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "sys.txt").write_text(
+                "\n".join(
+                    [
+                        "clone$foo(a intptr)",
+                        "clone3(a intptr) (disabled)",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / "auto.txt").write_text(
+                "\n".join(
+                    [
+                        "clone(a intptr)",
+                        "clone3(a intptr)",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            index = analyze_syzkaller_descriptions(root)
+
+        self.assertFalse(index["clone"]["syzkaller_base_available"])
+        self.assertTrue(index["clone"]["syzkaller_variant_available"])
+        self.assertTrue(index["clone3"]["has_disabled_definition"])
+        self.assertFalse(index["clone3"]["syzkaller_base_available"])
 
 
 if __name__ == "__main__":

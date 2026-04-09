@@ -242,6 +242,47 @@ static size_t min_size(size_t a, size_t b)
 	return a < b ? a : b;
 }
 
+static void zero_range(unsigned char* ptr, size_t len, size_t offset, size_t size)
+{
+	if (offset >= len)
+		return;
+	if (size > len - offset)
+		size = len - offset;
+	memset(ptr + offset, 0, size);
+}
+
+static void sanitize_stat_bytes(const unsigned char* ptr, size_t len, unsigned char* out)
+{
+	memcpy(out, ptr, len);
+	if (len < sizeof(struct stat))
+		return;
+	zero_range(out, len, offsetof(struct stat, st_dev), sizeof(((struct stat*)0)->st_dev));
+	zero_range(out, len, offsetof(struct stat, st_ino), sizeof(((struct stat*)0)->st_ino));
+	zero_range(out, len, offsetof(struct stat, st_atim), sizeof(((struct stat*)0)->st_atim));
+	zero_range(out, len, offsetof(struct stat, st_mtim), sizeof(((struct stat*)0)->st_mtim));
+	zero_range(out, len, offsetof(struct stat, st_ctim), sizeof(((struct stat*)0)->st_ctim));
+}
+
+static int is_stat_probe(const struct output_probe* probe)
+{
+	return probe->label && strcmp(probe->label, "stat") == 0 && probe->length == sizeof(struct stat);
+}
+
+static void probe_preview_and_digest(const struct output_probe* probe, char* preview, size_t preview_size, char* digest,
+				     size_t digest_size)
+{
+	size_t preview_len = safe_probe_length(probe->length);
+	if (is_stat_probe(probe)) {
+		unsigned char sanitized[sizeof(struct stat)];
+		sanitize_stat_bytes(probe->ptr, probe->length, sanitized);
+		hex_preview(sanitized, preview_len, preview, preview_size);
+		digest_hex(sanitized, probe->length, digest, digest_size);
+		return;
+	}
+	hex_preview(probe->ptr, preview_len, preview, preview_size);
+	digest_hex(probe->ptr, probe->length, digest, digest_size);
+}
+
 static int is_injection_match(struct syzabi_injection injection, long call_index, const char* syscall_name)
 {
 	if (!injection.enabled)
@@ -492,11 +533,9 @@ static void emit_event(const char* syscall_name, long syscall_number, long call_
 	for (i = 0; i < probe_count; ++i) {
 		char preview[8192];
 		char digest[65];
-		size_t preview_len = safe_probe_length(probes[i].length);
 		if (i != 0)
 			used = append_char(line, sizeof(line), used, ',');
-		hex_preview(probes[i].ptr, preview_len, preview, sizeof(preview));
-		digest_hex(probes[i].ptr, probes[i].length, digest, sizeof(digest));
+		probe_preview_and_digest(&probes[i], preview, sizeof(preview), digest, sizeof(digest));
 		used = append_cstr(line, sizeof(line), used, "{\"label\":");
 		used = append_json_string(line, sizeof(line), used, probes[i].label);
 		used = append_cstr(line, sizeof(line), used, ",\"arg_index\":");

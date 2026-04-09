@@ -21,6 +21,7 @@ DEFAULT_REPO_DIR = "third_party/asterinas"
 DEFAULT_SCML_ROOT = (
     "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage"
 )
+DEFAULT_SYZKALLER_ROOT = "third_party/syzkaller/sys/linux"
 DEFAULT_OUTPUT = "compat_specs/asterinas/scml-manifest.json"
 
 SECTION_HEADING_RE = re.compile(r"^###\s+(?P<title>.+?)\s*$")
@@ -29,6 +30,7 @@ SYSCALL_RULE_RE = re.compile(r"^([A-Za-z0-9_]+)\s*\(")
 GROUP_LABEL_RE = re.compile(
     r"^(?P<prefix>Silently-ignored|Ignored|Partially-supported|Unsupported)\s+(?P<field>.+):$"
 )
+SYZKALLER_SYSCALL_RE = re.compile(r"^(?P<name>[A-Za-z0-9_]+(?:\$[A-Za-z0-9_]+)?)\s*\(")
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target", default=DEFAULT_TARGET)
     parser.add_argument("--repo-dir", default=DEFAULT_REPO_DIR)
     parser.add_argument("--source-root", default=DEFAULT_SCML_ROOT)
+    parser.add_argument("--syzkaller-root", default=DEFAULT_SYZKALLER_ROOT)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     return parser.parse_args()
 
@@ -238,11 +241,142 @@ def support_tier(
     return "full"
 
 
-def build_manifest(*, target: str, repo_dir: Path, source_root: Path) -> dict[str, Any]:
+def parse_syzkaller_definition(line: str) -> tuple[str, bool] | None:
+    stripped = line.strip()
+    commented = stripped.startswith("#")
+    if commented:
+        stripped = stripped[1:].strip()
+    if not stripped:
+        return None
+    match = SYZKALLER_SYSCALL_RE.match(stripped)
+    if not match:
+        return None
+    return match.group("name"), commented
+
+
+def syscall_base_name(name: str) -> str:
+    return name.split("$", 1)[0]
+
+
+def analyze_syzkaller_descriptions(syzkaller_root: Path) -> dict[str, dict[str, Any]]:
+    index: dict[str, dict[str, Any]] = {}
+    if not syzkaller_root.exists():
+        return index
+
+    def ensure_entry(base_name: str) -> dict[str, Any]:
+        return index.setdefault(
+            base_name,
+            {
+                "active_base_names": set(),
+                "active_variant_names": set(),
+                "helper_names": set(),
+                "commented_names": set(),
+                "disabled_names": set(),
+            },
+        )
+
+    for path in sorted(syzkaller_root.glob("*.txt")):
+        if path.name.startswith("auto"):
+            continue
+        for raw_line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            parsed = parse_syzkaller_definition(raw_line)
+            if parsed is None:
+                continue
+            full_name, commented = parsed
+            base_name = syscall_base_name(full_name)
+            entry = ensure_entry(base_name)
+            if commented:
+                entry["commented_names"].add(full_name)
+                continue
+
+            if full_name.startswith("syz_"):
+                helper_base = syscall_base_name(full_name[len("syz_") :])
+                helper_entry = ensure_entry(helper_base)
+                helper_entry["helper_names"].add(full_name)
+                continue
+
+            disabled = "disabled" in raw_line
+            if disabled:
+                entry["disabled_names"].add(full_name)
+                continue
+            if "$" in full_name:
+                entry["active_variant_names"].add(full_name)
+            else:
+                entry["active_base_names"].add(full_name)
+
+    finalized: dict[str, dict[str, Any]] = {}
+    for base_name, entry in index.items():
+        finalized[base_name] = {
+            "syzkaller_base_available": bool(entry["active_base_names"]),
+            "syzkaller_variant_available": bool(entry["active_variant_names"]),
+            "helper_available": bool(entry["helper_names"]),
+            "has_disabled_definition": bool(entry["disabled_names"]),
+            "has_commented_definition": bool(entry["commented_names"]),
+        }
+    return finalized
+
+
+def generator_metadata(
+    syscall_name: str,
+    syzkaller_index: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    entry = syzkaller_index.get(syscall_name)
+    if entry is None:
+        return {
+            "syzkaller_base_available": False,
+            "syzkaller_variant_available": False,
+            "generator_class": "unavailable",
+            "generator_gap_reason": "missing_description",
+        }
+
+    base_available = bool(entry["syzkaller_base_available"])
+    variant_available = bool(entry["syzkaller_variant_available"])
+    helper_available = bool(entry["helper_available"])
+    disabled = bool(entry["has_disabled_definition"] or entry["has_commented_definition"])
+
+    if base_available:
+        return {
+            "syzkaller_base_available": True,
+            "syzkaller_variant_available": variant_available,
+            "generator_class": "base_only",
+            "generator_gap_reason": "none",
+        }
+    if variant_available:
+        return {
+            "syzkaller_base_available": False,
+            "syzkaller_variant_available": True,
+            "generator_class": "variant_only",
+            "generator_gap_reason": "missing_base_definition",
+        }
+    if helper_available:
+        return {
+            "syzkaller_base_available": False,
+            "syzkaller_variant_available": False,
+            "generator_class": "helper_only",
+            "generator_gap_reason": "disabled_in_syzkaller" if disabled else "pseudo_only",
+        }
+    return {
+        "syzkaller_base_available": False,
+        "syzkaller_variant_available": False,
+        "generator_class": "unavailable",
+        "generator_gap_reason": "disabled_in_syzkaller" if disabled else "missing_description",
+    }
+
+
+def build_manifest(
+    *,
+    target: str,
+    repo_dir: Path,
+    source_root: Path,
+    syzkaller_root: Path | None = None,
+) -> dict[str, Any]:
     category_meta: dict[str, dict[str, Any]] = {}
     total_scml_files = 0
     total_readmes = 0
     total_syscalls = 0
+    syzkaller_index = analyze_syzkaller_descriptions(
+        syzkaller_root or resolve_repo_path(DEFAULT_SYZKALLER_ROOT)
+    )
 
     for category_dir in sorted(path for path in source_root.iterdir() if path.is_dir()):
         category_name = category_dir.name
@@ -290,6 +424,7 @@ def build_manifest(*, target: str, repo_dir: Path, source_root: Path) -> dict[st
                 "unsupported": unsupported,
                 "notes": notes,
             }
+            syscall_entry.update(generator_metadata(syscall_name, syzkaller_index))
             syscall_entry.update(bucket_aliases("ignored", ignored))
             syscall_entry.update(bucket_aliases("partial", partial))
             syscall_entry.update(bucket_aliases("unsupported", unsupported))
@@ -325,11 +460,17 @@ def main() -> None:
     args = parse_args()
     repo_dir = resolve_repo_path(args.repo_dir)
     source_root = resolve_repo_path(args.source_root)
+    syzkaller_root = resolve_repo_path(args.syzkaller_root)
     if not repo_dir.exists():
         raise SystemExit(f"missing repo dir: {repo_dir}")
     if not source_root.exists():
         raise SystemExit(f"missing SCML source root: {source_root}")
-    manifest = build_manifest(target=args.target, repo_dir=repo_dir, source_root=source_root)
+    manifest = build_manifest(
+        target=args.target,
+        repo_dir=repo_dir,
+        source_root=source_root,
+        syzkaller_root=syzkaller_root,
+    )
     dump_json(args.output, manifest)
 
 

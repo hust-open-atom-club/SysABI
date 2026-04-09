@@ -464,8 +464,8 @@ artifacts/runs/<program_id>/<run_id>/<side>/
 
 ### 相关参考路径
 
-- [README.md](/home/plucky/FuzzAsterinas/README.md)：当前项目总体目标、模块设计、阶段划分与固定工程决策来源
-- [LinuxBaseline.md](/home/plucky/FuzzAsterinas/LinuxBaseline.md)：本阶段详细实施计划
+- `README.md`：当前项目总体目标、模块设计、阶段划分与固定工程决策来源
+- [LinuxBaseline.md](/home/plucky/FuzzAsterinas/docs/LinuxBaseline.md)：本阶段详细实施计划
 
 ## 依赖关系与实施顺序
 

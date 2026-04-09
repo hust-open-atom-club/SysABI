@@ -83,8 +83,15 @@ def normalize_outputs(outputs: list[dict[str, object]], ctx: CanonicalContext) -
             "arg_index": output["arg_index"],
             "length": output["length"],
             "preview_hex": output["preview_hex"],
-            "sha256": output["sha256"],
         }
+        if output["label"] == "stat":
+            # Keep stat previews compatible with older traces by masking the
+            # volatile device/inode prefix, but retain the digest because the
+            # tracer now sanitizes those fields before hashing the full buffer.
+            preview_hex = str(output["preview_hex"])
+            if len(preview_hex) >= 32:
+                item["preview_hex"] = ("0" * 32) + preview_hex[32:]
+        item["sha256"] = output["sha256"]
         if output.get("resource_kind") == "fd":
             item["resource_kind"] = "fd"
             item["resource_values"] = [ctx.token("fd", int(value)) for value in output["resource_values"]]

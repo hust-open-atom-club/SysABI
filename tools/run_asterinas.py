@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -12,6 +13,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 from pathlib import Path
@@ -19,7 +21,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from analyzer.schemas import validate_raw_trace
-from orchestrator.common import config, configure_runtime, dump_json, repo_root, resolve_repo_path
+from orchestrator.common import config, configure_runtime, dump_json, repo_root, resolve_repo_path, sha256_text, temp_dir as runtime_temp_dir
+from tools.run_asterinas_shared import (
+    candidate_status_from_events,
+    compose_batch_autorun,
+    compose_packaged_autorun,
+    extract_batch_case_blocks,
+    extract_section,
+    materialize_batch_case_outputs,
+    parse_batch_case_results,
+    parse_events,
+    parse_external_state,
+    parse_process_exit,
+    shared_package_bundle_dir,
+    shared_package_runtime_dirs,
+)
 
 
 MARKER_PREFIX = "__SYZABI"
@@ -32,6 +48,8 @@ NETWORK_PORT_ENV_NAMES = (
     "LMBENCH_TCP_BW_PORT",
     "MEMCACHED_PORT",
 )
+GUEST_ENV_HEADER_MAGIC = "SYZABI_ENV_V1"
+GUEST_ENV_HEADER_SIZE = 1024
 
 ASTERINAS_GIT_MIRRORS = {
     "inherit-methods-macro": "https://github.com/asterinas/inherit-methods-macro",
@@ -45,9 +63,65 @@ class RunnerError(RuntimeError):
     pass
 
 
+def is_docker_access_error(detail: str) -> bool:
+    normalized = detail.lower()
+    return (
+        "permission denied while trying to connect to the docker daemon socket" in normalized
+        or "dial unix /var/run/docker.sock" in normalized
+        or "cannot connect to the docker daemon" in normalized
+    )
+
+
+def should_fallback_to_host_direct(exc: RunnerError) -> bool:
+    return is_docker_access_error(str(exc))
+
+
+def guest_crash_detail(console_text: str) -> str | None:
+    if "Printing stack trace:" in console_text:
+        return "guest crashed before emitting autorun markers (kernel stack trace observed)"
+    lowered = console_text.lower()
+    if "panicked at" in lowered or "kernel panic" in lowered:
+        return "guest crashed before emitting autorun markers (kernel panic observed)"
+    return None
+
+
+def write_missing_marker_crash_result(
+    *,
+    console_text: str,
+    raw_trace_path: Path,
+    external_state_path: Path,
+    kernel_build: str,
+) -> bool:
+    detail = guest_crash_detail(console_text)
+    if detail is None:
+        return False
+    if not external_state_path.exists():
+        dump_json(external_state_path, {"files": []})
+    raw_trace = {
+        "program_id": os.environ.get("SYZABI_PROGRAM_ID", "unknown"),
+        "side": os.environ.get("SYZABI_SIDE", "candidate"),
+        "run_id": os.environ.get("SYZABI_RUN_ID", "unknown"),
+        "status": "crash",
+        "events": [],
+        "process_exit": {"status": "crash", "exit_code": None, "timed_out": False},
+    }
+    validate_raw_trace(raw_trace)
+    dump_json(raw_trace_path, raw_trace)
+    write_runner_result(
+        {
+            "status": "crash",
+            "exit_code": None,
+            "status_detail": detail,
+            "kernel_build": kernel_build,
+        }
+    )
+    return True
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary")
+    parser.add_argument("--batch-manifest")
     parser.add_argument("--work-dir")
     parser.add_argument("--healthcheck", action="store_true")
     parser.add_argument(
@@ -81,6 +155,13 @@ def write_runner_result(payload: dict[str, object]) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     dump_json(path, payload)
+
+
+def selected_run_timeout_sec(cfg: dict[str, object]) -> int:
+    override = os.environ.get("SYZABI_BATCH_TIMEOUT_SEC")
+    if override:
+        return int(override)
+    return int(cfg["asterinas"]["run_timeout_sec"])
 
 
 def read_workflow_config() -> dict[str, object]:
@@ -117,7 +198,11 @@ def ensure_git_mirror(name: str, remote_url: str) -> Path:
             timeout=600,
         )
         if update.returncode != 0:
-            raise RunnerError(update.stderr.strip() or update.stdout.strip() or f"failed to update git mirror {name}")
+            detail = update.stderr.strip() or update.stdout.strip() or f"failed to update git mirror {name}"
+            if (mirror_path / "HEAD").exists():
+                sys.stderr.write(f"warning: using stale git mirror {name}: {detail}\n")
+                return mirror_path
+            raise RunnerError(detail)
         return mirror_path
     clone = subprocess.run(
         ["git", "clone", "--mirror", remote_url, str(mirror_path)],
@@ -136,6 +221,16 @@ def ensure_asterinas_git_mirrors() -> dict[str, Path]:
         name: ensure_git_mirror(name, remote_url)
         for name, remote_url in ASTERINAS_GIT_MIRRORS.items()
     }
+
+
+def existing_asterinas_git_mirrors() -> dict[str, Path]:
+    mirror_root = asterinas_git_mirror_root()
+    mirrors: dict[str, Path] = {}
+    for name in ASTERINAS_GIT_MIRRORS:
+        mirror_path = mirror_root / f"{name}.git"
+        if (mirror_path / "HEAD").exists():
+            mirrors[name] = mirror_path
+    return mirrors
 
 
 def docker_cargo_home() -> Path:
@@ -162,11 +257,89 @@ def ensure_docker_cargo_cache_dirs() -> tuple[Path, Path]:
     return git_dir, registry_dir
 
 
+def prepare_run_cargo_home(work_dir: Path) -> Path:
+    shared_home = docker_cargo_home()
+    ensure_docker_cargo_cache_dirs()
+    run_home = work_dir / "docker-cargo-home"
+    run_home.mkdir(parents=True, exist_ok=True)
+    for metadata_name in (
+        ".crates.toml",
+        ".crates2.json",
+        ".global-cache",
+        ".package-cache",
+        ".package-cache-mutate",
+        "config.toml",
+        "credentials.toml",
+    ):
+        source = shared_home / metadata_name
+        destination = run_home / metadata_name
+        if not source.exists():
+            continue
+        if destination.exists() or destination.is_symlink():
+            if destination.is_dir() and not destination.is_symlink():
+                shutil.rmtree(destination)
+            else:
+                destination.unlink()
+        shutil.copy2(source, destination)
+    registry_target = run_home / "registry"
+    if registry_target.is_symlink() or registry_target.exists():
+        if registry_target.is_dir() and not registry_target.is_symlink():
+            shutil.rmtree(registry_target)
+        else:
+            registry_target.unlink()
+    registry_target.symlink_to(os.path.relpath(shared_home / "registry", run_home), target_is_directory=True)
+
+    git_target = run_home / "git"
+    if git_target.exists():
+        shutil.rmtree(git_target)
+    shutil.copytree(shared_home / "git", git_target)
+    package_cache = run_home / ".package-cache"
+    package_cache.touch(exist_ok=True)
+    return run_home
+
+
+def ensure_shared_package_cargo_home(package_dir: Path, *, refresh: bool = False) -> Path:
+    run_home = package_dir / "shared-cargo-home"
+    if run_home.exists() and not refresh:
+        return run_home
+    lock_path = package_dir / ".cargo-home.lock"
+    with lock_path.open("w", encoding="utf-8") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        if run_home.exists() and not refresh:
+            return run_home
+        if run_home.exists():
+            shutil.rmtree(run_home)
+        shared_home = docker_cargo_home()
+        ensure_docker_cargo_cache_dirs()
+        run_home.mkdir(parents=True, exist_ok=True)
+        for metadata_name in (
+            ".crates.toml",
+            ".crates2.json",
+            ".global-cache",
+            ".package-cache",
+            ".package-cache-mutate",
+            "config.toml",
+            "credentials.toml",
+        ):
+            source = shared_home / metadata_name
+            destination = run_home / metadata_name
+            if not source.exists():
+                continue
+            shutil.copy2(source, destination)
+        registry_target = run_home / "registry"
+        registry_target.symlink_to(os.path.relpath(shared_home / "registry", run_home), target_is_directory=True)
+        git_target = run_home / "git"
+        shutil.copytree(shared_home / "git", git_target)
+        (run_home / ".package-cache").touch(exist_ok=True)
+    return run_home
+
+
 def prime_docker_cargo_cache(cfg: dict[str, object]) -> None:
     cargo_home = docker_cargo_home()
     cargo_home.mkdir(parents=True, exist_ok=True)
     ensure_docker_cargo_cache_dirs()
     manifest_path = resolve_repo_path(cfg["asterinas"]["repo_dir"]) / "Cargo.toml"
+    gitconfig_path = prepare_host_gitconfig(cfg)
     fetch = subprocess.run(
         ["cargo", "fetch", "--locked", "--manifest-path", str(manifest_path)],
         text=True,
@@ -178,6 +351,7 @@ def prime_docker_cargo_cache(cfg: dict[str, object]) -> None:
             "CARGO_HOME": str(cargo_home),
             "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
             "CARGO_TERM_PROGRESS_WHEN": "never",
+            "GIT_CONFIG_GLOBAL": str(gitconfig_path),
             "TMPDIR": str(local_tmp_dir()),
         },
     )
@@ -186,12 +360,19 @@ def prime_docker_cargo_cache(cfg: dict[str, object]) -> None:
         raise RunnerError(detail)
 
 
-def prepare_docker_gitconfig(cfg: dict[str, object]) -> Path:
-    mirrors = ensure_asterinas_git_mirrors()
-    config_path = resolve_repo_path("artifacts/asterinas/docker-gitconfig")
+def gitconfig_lines(
+    cfg: dict[str, object],
+    *,
+    path_transform,
+    ensure_mirrors: bool,
+) -> list[str]:
+    mirrors = ensure_asterinas_git_mirrors() if ensure_mirrors else existing_asterinas_git_mirrors()
     lines: list[str] = []
     for name, remote_url in ASTERINAS_GIT_MIRRORS.items():
-        mirror_path = host_path_to_container_path(mirrors[name], cfg)
+        mirror = mirrors.get(name)
+        if mirror is None:
+            continue
+        mirror_path = path_transform(mirror, cfg)
         lines.extend(
             [
                 "[safe]",
@@ -207,7 +388,26 @@ def prepare_docker_gitconfig(cfg: dict[str, object]) -> Path:
                     "",
                 ]
             )
-    config_path.write_text("\n".join(lines), encoding="utf-8")
+    return lines
+
+
+def prepare_host_gitconfig(cfg: dict[str, object]) -> Path:
+    config_path = resolve_repo_path("artifacts/asterinas/host-gitconfig")
+    config_path.write_text(
+        "\n".join(gitconfig_lines(cfg, path_transform=lambda path, _: path, ensure_mirrors=True)),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def prepare_docker_gitconfig(cfg: dict[str, object]) -> Path:
+    config_path = resolve_repo_path("artifacts/asterinas/docker-gitconfig")
+    # Per-run Docker execution must stay self-contained and reuse only mirrors
+    # that were already primed by an explicit cache/bootstrap flow.
+    config_path.write_text(
+        "\n".join(gitconfig_lines(cfg, path_transform=host_path_to_container_path, ensure_mirrors=False)),
+        encoding="utf-8",
+    )
     return config_path
 
 
@@ -316,9 +516,10 @@ def force_remove_container(container_name: str) -> None:
 
 
 def local_tmp_dir() -> Path:
-    path = Path.home() / "tmp" / "fuzzasterinas"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    try:
+        return runtime_temp_dir(config())
+    except Exception:
+        return runtime_temp_dir()
 
 
 def ensure_vdso_dir() -> Path:
@@ -591,58 +792,337 @@ def create_minimal_initramfs(cfg: dict[str, object], binary_path: Path, work_dir
     return output_path
 
 
-def extract_section(console_text: str, name: str) -> str | None:
-    begin = f"{MARKER_PREFIX}_BEGIN_{name}__\n"
-    end = f"\n{MARKER_PREFIX}_END_{name}__"
-    start = console_text.find(begin)
-    if start < 0:
-        return None
-    start += len(begin)
-    finish = console_text.find(end, start)
-    if finish < 0:
-        return None
-    return console_text[start:finish].strip("\n")
+def load_initramfs_package_manifest(package_dir: Path) -> dict[str, object]:
+    manifest_path = package_dir / "package-manifest.json"
+    if not manifest_path.exists():
+        raise RunnerError(f"missing initramfs package manifest: {manifest_path}")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    cases = payload.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise RunnerError(f"invalid initramfs package manifest: {manifest_path}")
+    return payload
 
 
-def parse_events(section: str | None) -> list[dict[str, object]]:
-    if not section:
-        return []
-    events: list[dict[str, object]] = []
-    for line in section.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        events.append(json.loads(line))
-    return events
+def create_packaged_initramfs(cfg: dict[str, object], package_dir: Path, payload: dict[str, object]) -> Path:
+    root = package_dir / "initramfs-root"
+    if root.exists():
+        shutil.rmtree(root)
+    for directory in (
+        root / "bin",
+        root / "dev",
+        root / "etc/profile.d",
+        root / "proc",
+        root / "root",
+        root / "sbin",
+        root / "sys",
+        root / "tmp",
+        root / "usr/bin",
+        root / "syzkabi/batch",
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2("/usr/bin/busybox", root / "usr/bin/busybox")
+    os.symlink("/usr/bin/busybox", root / "bin/sh")
+    init_path = root / "bin/init"
+    init_path.write_text(compose_init(), encoding="utf-8")
+    init_path.chmod(0o755)
+    os.symlink("/bin/init", root / "sbin/init")
+    for case in payload["cases"]:
+        source = Path(str(case["binary_path"]))
+        if not source.exists():
+            raise RunnerError(f"missing packaged testcase binary: {source}")
+        destination = root / "syzkabi" / "batch" / f"{int(case['slot'])}.bin"
+        shutil.copy2(source, destination)
+        destination.chmod(0o755)
+    (root / "etc/profile").write_text(compose_profile(), encoding="utf-8")
+    (root / "etc/profile.d/init.sh").write_text(compose_init_hook(), encoding="utf-8")
+    autorun_path = root / "syzkabi/autorun.sh"
+    autorun_path.write_text(compose_packaged_autorun(int(payload["preview_bytes"])), encoding="utf-8")
+    autorun_path.chmod(0o755)
+
+    output_path = package_dir / "asterinas-packaged-initramfs.cpio.gz"
+    repack_initramfs(root, output_path)
+    return output_path
 
 
-def parse_process_exit(section: str | None) -> dict[str, object]:
-    if not section:
-        return {"status": "infra_error", "exit_code": None, "timed_out": False}
-    return json.loads(section)
+def ensure_packaged_initramfs(cfg: dict[str, object], package_dir: Path) -> Path:
+    package_dir.mkdir(parents=True, exist_ok=True)
+    output_path = package_dir / "asterinas-packaged-initramfs.cpio.gz"
+    if output_path.exists():
+        return output_path
+    lock_path = package_dir / ".build.lock"
+    with lock_path.open("w", encoding="utf-8") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        if output_path.exists():
+            return output_path
+        payload = load_initramfs_package_manifest(package_dir)
+        return create_packaged_initramfs(cfg, package_dir, payload)
 
 
-def parse_external_state(section: str | None) -> dict[str, object]:
-    if not section:
-        return {"files": []}
-    return json.loads(section)
+def selected_guest_cmdline_append() -> str:
+    parts: list[str] = []
+    extra = os.environ.get("SYZABI_GUEST_KCMD_ARGS")
+    if extra:
+        parts.append(extra)
+    return " ".join(part for part in parts if part)
 
 
-def candidate_status_from_events(events: list[dict[str, object]], process_exit: dict[str, object]) -> str:
-    if process_exit.get("status") == "crash":
-        return "crash"
-    for event in events:
-        if int(event.get("return_value", 0)) == -1 and int(event.get("errno", 0)) in {38, 95}:
-            return "unsupported"
-    return "ok"
+def guest_env_lines() -> list[str]:
+    lines: list[str] = []
+    if os.environ.get("SYZABI_ASTERINAS_PACKAGE_DIR") and not os.environ.get("SYZABI_ASTERINAS_PACKAGE_SLOT"):
+        raise RunnerError("missing SYZABI_ASTERINAS_PACKAGE_SLOT for packaged candidate run")
+    slot = os.environ.get("SYZABI_ASTERINAS_PACKAGE_SLOT")
+    if slot:
+        lines.append(f"SYZABI_PACKAGE_SLOT={shlex.quote(slot)}")
+    inject_enabled = os.environ.get("SYZABI_INJECT_TRACE_ENABLED")
+    if inject_enabled:
+        lines.append(f"SYZABI_INJECT_TRACE_ENABLED={shlex.quote(inject_enabled)}")
+    inject_call_index = os.environ.get("SYZABI_INJECT_TRACE_CALL_INDEX")
+    if inject_call_index:
+        lines.append(f"SYZABI_INJECT_TRACE_CALL_INDEX={shlex.quote(inject_call_index)}")
+    inject_syscall = os.environ.get("SYZABI_INJECT_TRACE_SYSCALL")
+    if inject_syscall:
+        lines.append(f"SYZABI_INJECT_TRACE_SYSCALL={shlex.quote(inject_syscall)}")
+    inject_field = os.environ.get("SYZABI_INJECT_TRACE_FIELD")
+    if inject_field:
+        lines.append(f"SYZABI_INJECT_TRACE_FIELD={shlex.quote(inject_field)}")
+    inject_value = os.environ.get("SYZABI_INJECT_TRACE_VALUE")
+    if inject_value:
+        lines.append(f"SYZABI_INJECT_TRACE_VALUE={shlex.quote(inject_value)}")
+    return lines
+
+
+def guest_env_header_bytes(lines: list[str]) -> bytes:
+    payload = "\n".join([GUEST_ENV_HEADER_MAGIC, *lines, "__END__", ""]).encode("utf-8")
+    if len(payload) > GUEST_ENV_HEADER_SIZE:
+        raise RunnerError("guest env selector header exceeds reserved image space")
+    return payload.ljust(GUEST_ENV_HEADER_SIZE, b" ")
+
+
+def materialize_guest_env_file(ext2_image: Path) -> None:
+    lines = guest_env_lines()
+    if not lines:
+        return
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=local_tmp_dir()) as handle:
+        handle.write("\n".join(lines) + "\n")
+        temp_path = Path(handle.name)
+    try:
+        subprocess.run(
+            ["debugfs", "-w", "-R", "rm /syzkabi.env", str(ext2_image)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        write_result = subprocess.run(
+            ["debugfs", "-w", "-R", f"write {temp_path} /syzkabi.env", str(ext2_image)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if write_result.returncode != 0:
+            raise RunnerError(write_result.stderr.strip() or write_result.stdout.strip() or "failed to materialize guest env file")
+        with ext2_image.open("r+b") as image_handle:
+            image_handle.seek(0)
+            image_handle.write(guest_env_header_bytes(lines))
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
+def docker_osdk_build_script(cfg: dict[str, object], work_dir: Path, initramfs_path: Path, *, kcmd_args: str = "console=hvc0") -> str:
+    container_work_dir = host_path_to_container_path(work_dir, cfg)
+    container_initramfs = host_path_to_container_path(initramfs_path, cfg)
+    container_osdk_output = host_path_to_container_path(work_dir / "osdk-output", cfg)
+    return "\n".join(
+        [
+            "set -euo pipefail",
+            f"mkdir -p {shlex.quote(str(container_work_dir))} {shlex.quote(str(container_osdk_output))}",
+            f"cd {shlex.quote(str(docker_repo_dir(cfg) / 'kernel'))}",
+            " ".join(shlex.quote(part) for part in osdk_build_command(container_initramfs, kcmd_args=kcmd_args)),
+        ]
+    )
+
+
+def packaged_bundle_metadata_path(package_dir: Path) -> Path:
+    return package_dir / ".osdk-build.meta.json"
+
+
+def packaged_bundle_metadata(cfg: dict[str, object], initramfs_path: Path, *, kcmd_args: str) -> dict[str, object]:
+    return {
+        "docker_image": str(cfg["asterinas"]["docker_image"]),
+        "initramfs_sha256": hashlib.sha256(initramfs_path.read_bytes()).hexdigest(),
+        "kcmd_args": kcmd_args,
+        "revision": ensure_revision(cfg),
+    }
+
+
+def packaged_bundle_metadata_matches(metadata_path: Path, expected: dict[str, object]) -> bool:
+    if not metadata_path.exists():
+        return False
+    try:
+        actual = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return actual == expected
+
+
+def ensure_packaged_docker_bundle(cfg: dict[str, object], package_dir: Path, initramfs_path: Path, *, kcmd_args: str) -> None:
+    cargo_target_dir, osdk_output_dir = shared_package_runtime_dirs(package_dir)
+    build_root = package_dir / "build"
+    build_root.mkdir(parents=True, exist_ok=True)
+    lock_path = package_dir / ".osdk-build.lock"
+    bundle_dir = shared_package_bundle_dir(package_dir)
+    ready_stamp = package_dir / ".osdk-build.ready"
+    metadata_path = packaged_bundle_metadata_path(package_dir)
+    with lock_path.open("w", encoding="utf-8") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        expected_metadata = packaged_bundle_metadata(cfg, initramfs_path, kcmd_args=kcmd_args)
+        if (
+            ready_stamp.exists()
+            and (bundle_dir / "bundle.toml").exists()
+            and packaged_bundle_metadata_matches(metadata_path, expected_metadata)
+        ):
+            return
+        ready_stamp.unlink(missing_ok=True)
+        metadata_path.unlink(missing_ok=True)
+        # Prime the shared cargo cache before snapshotting it into a package-local home.
+        # The packaged build itself runs offline to avoid nondeterministic network stalls.
+        prime_docker_cargo_cache(cfg)
+        run_cargo_home = ensure_shared_package_cargo_home(package_dir, refresh=True)
+        build_env = {
+            "CARGO_HOME": str(host_path_to_container_path(run_cargo_home, cfg)),
+            "CARGO_TARGET_DIR": str(host_path_to_container_path(cargo_target_dir, cfg)),
+            "OSDK_OUTPUT_DIR": str(host_path_to_container_path(osdk_output_dir, cfg)),
+            "CARGO_NET_OFFLINE": "true",
+        }
+        container_name = container_name_for_run("bundle", sha256_text(str(package_dir))[:12])
+        force_remove_container(container_name)
+        build_command = docker_run_command(
+            cfg,
+            docker_osdk_build_script(cfg, package_dir, initramfs_path, kcmd_args=kcmd_args),
+            extra_env=build_env,
+            workdir=docker_repo_dir(cfg),
+            container_name=container_name,
+        )
+        try:
+            completed = subprocess.run(
+                build_command,
+                cwd=build_root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        finally:
+            force_remove_container(container_name)
+        (build_root / "build.stdout.txt").write_text(completed.stdout, encoding="utf-8")
+        (build_root / "build.stderr.txt").write_text(completed.stderr, encoding="utf-8")
+        if completed.returncode != 0:
+            raise RunnerError(completed.stderr.strip() or completed.stdout.strip() or "failed to prebuild packaged docker bundle")
+        dump_json(metadata_path, expected_metadata)
+        ready_stamp.write_text("ready\n", encoding="utf-8")
+
+
+def containerized_grub_iso_command(cfg: dict[str, object], package_dir: Path, work_dir: Path) -> list[str]:
+    host_env = host_osdk_env(work_dir, boot_method="grub-rescue-iso")
+    host_env["OVMF"] = "on"
+    host_env["OVMF_CODE_FILE"] = str(system_ovmf_code_path())
+    host_env["OVMF_VARS_FILE"] = str(prepare_ovmf_vars(work_dir))
+    host_env["EXT2_IMAGE"] = str(work_dir / "ext2.img")
+    host_env["EXFAT_IMAGE"] = str(work_dir / "exfat.img")
+    qemu_command, _ = grub_iso_qemu_command(cfg, shared_package_bundle_dir(package_dir), host_env)
+    workspace_root = repo_root().resolve()
+    replaced: list[str] = []
+    for token in qemu_command:
+        token = str(token).replace(str(workspace_root), str(docker_workspace_dir(cfg)))
+        token = token.replace(str(system_ovmf_code_path()), container_ovmf_code_path())
+        token = token.replace(str((work_dir / "OVMF_VARS.fd").resolve()), str(host_path_to_container_path(work_dir / "OVMF_VARS.fd", cfg)))
+        replaced.append(token)
+    if kvm_enabled(host_env) and "-accel" not in replaced and "-enable-kvm" not in replaced:
+        replaced.extend(["-accel", "kvm"])
+    return replaced
+
+
+def host_grub_bundle_command(cfg: dict[str, object], package_dir: Path, work_dir: Path) -> tuple[list[str], Path]:
+    host_env = host_osdk_env(work_dir, boot_method="grub-rescue-iso")
+    host_env["OVMF"] = "on"
+    host_env["OVMF_CODE_FILE"] = str(system_ovmf_code_path())
+    host_env["OVMF_VARS_FILE"] = str(prepare_ovmf_vars(work_dir))
+    host_env["EXT2_IMAGE"] = str(work_dir / "ext2.img")
+    host_env["EXFAT_IMAGE"] = str(work_dir / "exfat.img")
+    return grub_iso_qemu_command(cfg, shared_package_bundle_dir(package_dir), host_env)
+
+
+def docker_grub_bundle_script(cfg: dict[str, object], package_dir: Path, work_dir: Path) -> str:
+    container_cmd = containerized_grub_iso_command(cfg, package_dir, work_dir)
+    return "\n".join(
+        [
+            "set -euo pipefail",
+            "exec " + " ".join(shlex.quote(part) for part in container_cmd),
+        ]
+    )
+
+
+def selected_initramfs(cfg: dict[str, object], binary_path: Path, work_dir: Path) -> Path:
+    package_dir = env_path("SYZABI_ASTERINAS_PACKAGE_DIR")
+    if package_dir is not None:
+        return ensure_packaged_initramfs(cfg, package_dir.resolve())
+    return create_minimal_initramfs(cfg, binary_path, work_dir)
+
+
+def create_batch_initramfs(cfg: dict[str, object], cases: list[dict[str, object]], work_dir: Path) -> Path:
+    root = work_dir / "asterinas-batch-initramfs"
+    if root.exists():
+        shutil.rmtree(root)
+    for directory in (
+        root / "bin",
+        root / "dev",
+        root / "etc/profile.d",
+        root / "proc",
+        root / "root",
+        root / "sbin",
+        root / "sys",
+        root / "tmp",
+        root / "usr/bin",
+        root / "syzkabi/batch",
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2("/usr/bin/busybox", root / "usr/bin/busybox")
+    os.symlink("/usr/bin/busybox", root / "bin/sh")
+    init_path = root / "bin/init"
+    init_path.write_text(compose_init(), encoding="utf-8")
+    init_path.chmod(0o755)
+    os.symlink("/bin/init", root / "sbin/init")
+    for index, case in enumerate(cases):
+        destination = root / "syzkabi" / "batch" / f"{index}.bin"
+        shutil.copy2(case["binary_path"], destination)
+        destination.chmod(0o755)
+    (root / "etc/profile").write_text(compose_profile(), encoding="utf-8")
+    (root / "etc/profile.d/init.sh").write_text(compose_init_hook(), encoding="utf-8")
+    autorun_path = root / "syzkabi/autorun.sh"
+    autorun_path.write_text(compose_batch_autorun(int(cfg["normalization"]["preview_bytes"]), cases), encoding="utf-8")
+    autorun_path.chmod(0o755)
+
+    output_path = work_dir / "asterinas-batch-initramfs.cpio.gz"
+    repack_initramfs(root, output_path)
+    return output_path
 
 
 def build_info_path(cfg: dict[str, object]) -> Path:
     return resolve_repo_path(cfg["asterinas"]["build_info_path"])
 
 
-def built_bundle_dir() -> Path:
-    return resolve_repo_path("third_party/asterinas/target/osdk/aster-kernel")
+def target_osdk_dir(cfg: dict[str, object]) -> Path:
+    info_path = build_info_path(cfg)
+    if info_path.exists():
+        info = json.loads(info_path.read_text(encoding="utf-8"))
+        target_dir = info.get("target_dir")
+        if target_dir:
+            return Path(str(target_dir))
+    return resolve_repo_path("third_party/asterinas/target/osdk")
+
+
+def built_bundle_dir(cfg: dict[str, object]) -> Path:
+    return target_osdk_dir(cfg) / "aster-kernel"
 
 
 def build_probe_root() -> Path:
@@ -657,15 +1137,29 @@ def build_probe_initramfs(cfg: dict[str, object]) -> Path:
     return create_minimal_initramfs(cfg, probe_root / "probe.bin", probe_root)
 
 
-def load_bundle_manifest() -> dict[str, object]:
-    manifest_path = built_bundle_dir() / "bundle.toml"
+def load_bundle_manifest(cfg: dict[str, object]) -> dict[str, object]:
+    manifest_path = built_bundle_dir(cfg) / "bundle.toml"
     if not manifest_path.exists():
         raise RunnerError(f"missing OSDK bundle manifest: {manifest_path}")
     return tomllib.loads(manifest_path.read_text(encoding="utf-8"))
 
 
-def shared_bzimage_path() -> Path:
-    return resolve_repo_path("third_party/asterinas/target/osdk/iso_root/boot/aster-kernel-osdk-bin")
+def load_external_bundle_manifest(bundle_dir: Path) -> dict[str, object]:
+    manifest_path = bundle_dir / "bundle.toml"
+    if not manifest_path.exists():
+        raise RunnerError(f"missing OSDK bundle manifest: {manifest_path}")
+    return tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def shared_bzimage_path(cfg: dict[str, object]) -> Path:
+    manifest = load_bundle_manifest(cfg)
+    aster_bin = manifest.get("aster_bin")
+    if not isinstance(aster_bin, dict):
+        raise RunnerError("invalid OSDK bundle manifest: missing aster_bin section")
+    kernel_relpath = aster_bin.get("path")
+    if not isinstance(kernel_relpath, str):
+        raise RunnerError("invalid OSDK bundle manifest: missing aster_bin.path")
+    return built_bundle_dir(cfg) / kernel_relpath
 
 
 def bundle_kcmdline(manifest: dict[str, object]) -> str:
@@ -684,12 +1178,39 @@ def bundle_kcmdline(manifest: dict[str, object]) -> str:
     return " ".join(str(part) for part in kcmdline)
 
 
-def kernel_build_ready() -> bool:
+def bundle_qemu_path(manifest: dict[str, object]) -> str:
+    config_section = manifest.get("config")
+    if not isinstance(config_section, dict):
+        raise RunnerError("invalid OSDK bundle manifest: missing config")
+    run_section = config_section.get("run")
+    if not isinstance(run_section, dict):
+        raise RunnerError("invalid OSDK bundle manifest: missing run section")
+    qemu_section = run_section.get("qemu")
+    if not isinstance(qemu_section, dict):
+        raise RunnerError("invalid OSDK bundle manifest: missing qemu section")
+    path = qemu_section.get("path")
+    if not isinstance(path, str) or not path:
+        raise RunnerError("invalid OSDK bundle manifest: missing qemu path")
+    return path
+
+
+def bundle_grub_iso_path(bundle_dir: Path, manifest: dict[str, object]) -> Path:
+    vm_image = manifest.get("vm_image")
+    if not isinstance(vm_image, dict):
+        raise RunnerError("invalid OSDK bundle manifest: missing vm_image")
+    image_relpath = vm_image.get("path")
+    if not isinstance(image_relpath, str) or not image_relpath:
+        raise RunnerError("invalid OSDK bundle manifest: missing vm_image.path")
+    return bundle_dir / image_relpath
+
+
+def kernel_build_ready(cfg: dict[str, object]) -> bool:
     try:
-        load_bundle_manifest()
+        load_bundle_manifest(cfg)
     except RunnerError:
         return False
-    return shared_bzimage_path().exists() and shared_bzimage_path().stat().st_size > 1024
+    image_path = shared_bzimage_path(cfg)
+    return image_path.exists() and image_path.stat().st_size > 1024
 
 
 def qemu_log_paths(work_dir: Path) -> tuple[Path, Path]:
@@ -713,12 +1234,22 @@ def read_console_text(*paths: Path) -> str:
 def stop_process(process: subprocess.Popen[str]) -> None:
     if process.poll() is not None:
         return
-    process.terminate()
+    try:
+        pgid = os.getpgid(process.pid)
+    except ProcessLookupError:
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
     try:
         process.wait(timeout=5)
         return
     except subprocess.TimeoutExpired:
-        process.kill()
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
     process.wait(timeout=5)
 
 
@@ -851,10 +1382,11 @@ def prepare_run_block_images(cfg: dict[str, object], work_dir: Path) -> tuple[Pa
     exfat_image = work_dir / "exfat.img"
     shutil.copy2(source_dir / "ext2.img", ext2_image)
     shutil.copy2(source_dir / "exfat.img", exfat_image)
+    materialize_guest_env_file(ext2_image)
     return ext2_image, exfat_image
 
 
-def osdk_build_command(initramfs_path: Path) -> list[str]:
+def osdk_build_command(initramfs_path: Path, *, kcmd_args: str = "console=hvc0") -> list[str]:
     return [
         *cargo_osdk_base_command(),
         "build",
@@ -862,21 +1394,36 @@ def osdk_build_command(initramfs_path: Path) -> list[str]:
         "--boot-method=grub-rescue-iso",
         "--grub-boot-protocol=linux",
         "--linux-x86-legacy-boot",
-        "--kcmd-args=console=hvc0",
+        f"--kcmd-args={kcmd_args}",
         "--initramfs",
         str(initramfs_path),
     ]
 
 
-def osdk_run_command(initramfs_path: Path) -> list[str]:
+def osdk_qemu_direct_build_command(initramfs_path: Path, *, kcmd_args: str = "console=hvc0") -> list[str]:
     return [
+        *cargo_osdk_base_command(),
+        "build",
+        "--target-arch=x86_64",
+        "--boot-method=qemu-direct",
+        f"--kcmd-args={kcmd_args}",
+        "--initramfs",
+        str(initramfs_path),
+    ]
+
+
+def osdk_run_command(initramfs_path: Path, *, kcmd_args: str = "console=hvc0") -> list[str]:
+    command = [
         *cargo_osdk_base_command(),
         "run",
         "--target-arch=x86_64",
-        "--kcmd-args=console=hvc0",
+        f"--kcmd-args={kcmd_args}",
         "--initramfs",
         str(initramfs_path),
     ]
+    if os.environ.get("SYZABI_ASTERINAS_ENABLE_KVM", "1") != "0":
+        command.append('--qemu-args=-accel kvm')
+    return command
 
 
 def build_lock_path(cfg: dict[str, object]) -> Path:
@@ -887,6 +1434,8 @@ def build_lock_path(cfg: dict[str, object]) -> Path:
 def ensure_host_build(cfg: dict[str, object]) -> str:
     revision = ensure_revision(cfg)
     info_path = build_info_path(cfg)
+    cargo_target_dir = resolve_repo_path("artifacts/asterinas/host-target")
+    target_dir = cargo_target_dir / "osdk"
     lock_path = build_lock_path(cfg)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("w", encoding="utf-8") as lock_handle:
@@ -894,6 +1443,7 @@ def ensure_host_build(cfg: dict[str, object]) -> str:
         ensure_host_osdk(cfg)
         probe_root = build_probe_root()
         env = host_osdk_env(probe_root, boot_method="grub-rescue-iso")
+        env["CARGO_TARGET_DIR"] = str(cargo_target_dir)
         ensure_dummy_block_images(cfg)
         initramfs_path = build_probe_initramfs(cfg)
 
@@ -902,14 +1452,15 @@ def ensure_host_build(cfg: dict[str, object]) -> str:
             if (
                 info.get("revision") == revision
                 and info.get("mode") == "host-direct"
-                and info.get("boot_method") == "grub-rescue-iso/linux"
-                and kernel_build_ready()
+                and info.get("boot_method") == "qemu-direct"
+                and info.get("target_dir") == str(target_dir)
+                and kernel_build_ready(cfg)
             ):
                 return revision
 
         repo = resolve_repo_path(cfg["asterinas"]["repo_dir"]) / "kernel"
         build = subprocess.run(
-            osdk_build_command(initramfs_path),
+            osdk_qemu_direct_build_command(initramfs_path),
             cwd=repo,
             env=env,
             timeout=1800,
@@ -924,7 +1475,8 @@ def ensure_host_build(cfg: dict[str, object]) -> str:
             {
                 "revision": revision,
                 "mode": "host-direct",
-                "boot_method": "grub-rescue-iso/linux",
+                "boot_method": "qemu-direct",
+                "target_dir": str(target_dir),
                 "vdso_library_dir": env["VDSO_LIBRARY_DIR"],
                 "cargo_osdk_version": cargo_osdk_version(),
             },
@@ -950,7 +1502,7 @@ def ensure_docker_build(cfg: dict[str, object]) -> str:
                 and info.get("mode") == "docker-qemu"
                 and info.get("docker_image") == cfg["asterinas"]["docker_image"]
                 and shared_cargo_osdk_path().exists()
-                and kernel_build_ready()
+                and kernel_build_ready(cfg)
             ):
                 return revision
 
@@ -974,6 +1526,7 @@ def ensure_docker_build(cfg: dict[str, object]) -> str:
                 "docker_image": cfg["asterinas"]["docker_image"],
                 "docker_repo_dir": str(docker_repo_dir(cfg)),
                 "docker_workspace_dir": str(docker_workspace_dir(cfg)),
+                "target_dir": str(resolve_repo_path("third_party/asterinas/target/osdk")),
                 "build_command": "make kernel",
                 "build_stdout_path": str(stdout_path),
                 "build_stderr_path": str(stderr_path),
@@ -998,8 +1551,16 @@ def qemu_args_tokens(cfg: dict[str, object], env: dict[str, str]) -> list[str]:
     return shlex.split(result.stdout.strip())
 
 
+def kvm_accessible() -> bool:
+    return Path("/dev/kvm").exists() and os.access("/dev/kvm", os.R_OK | os.W_OK)
+
+
+def kvm_enabled(env: dict[str, str]) -> bool:
+    return env.get("SYZABI_ASTERINAS_ENABLE_KVM", "1") != "0"
+
+
 def qemu_direct_command(cfg: dict[str, object], initramfs_path: Path, env: dict[str, str]) -> tuple[list[str], Path]:
-    manifest = load_bundle_manifest()
+    manifest = load_bundle_manifest(cfg)
     config_section = manifest.get("config")
     if not isinstance(config_section, dict):
         raise RunnerError("invalid OSDK bundle manifest: missing config")
@@ -1010,16 +1571,36 @@ def qemu_direct_command(cfg: dict[str, object], initramfs_path: Path, env: dict[
     if not isinstance(qemu_section, dict):
         raise RunnerError("invalid OSDK bundle manifest: missing qemu section")
 
+    kcmdline = bundle_kcmdline(manifest)
+    extra_kcmd_args = env.get("SYZABI_GUEST_KCMD_ARGS", "").strip()
+    if extra_kcmd_args:
+        kcmdline = f"{kcmdline} {extra_kcmd_args}".strip()
     command = [
         str(qemu_section["path"]),
         "-kernel",
-        str(shared_bzimage_path()),
+        str(shared_bzimage_path(cfg)),
         "-initrd",
         str(initramfs_path),
         "-append",
-        bundle_kcmdline(manifest),
+        kcmdline,
     ]
     command.extend(qemu_args_tokens(cfg, env))
+    if kvm_enabled(env) and kvm_accessible() and "-accel" not in command and "-enable-kvm" not in command:
+        command.extend(["-accel", "kvm"])
+    return command, resolve_repo_path(cfg["asterinas"]["repo_dir"])
+
+
+def grub_iso_qemu_command(cfg: dict[str, object], bundle_dir: Path, env: dict[str, str]) -> tuple[list[str], Path]:
+    manifest = load_external_bundle_manifest(bundle_dir)
+    image_path = bundle_grub_iso_path(bundle_dir, manifest)
+    command = [
+        bundle_qemu_path(manifest),
+        "-drive",
+        f"file={image_path},format=raw,index=2,media=cdrom",
+    ]
+    command.extend(qemu_args_tokens(cfg, env))
+    if kvm_enabled(env) and kvm_accessible() and "-accel" not in command and "-enable-kvm" not in command:
+        command.extend(["-accel", "kvm"])
     return command, resolve_repo_path(cfg["asterinas"]["repo_dir"])
 
 
@@ -1052,20 +1633,72 @@ def docker_run_env(cfg: dict[str, object], work_dir: Path) -> dict[str, str]:
     }
 
 
-def docker_osdk_run_script(cfg: dict[str, object], work_dir: Path, initramfs_path: Path) -> str:
+def containerized_qemu_direct_command(
+    cfg: dict[str, object],
+    work_dir: Path,
+    initramfs_path: Path,
+    *,
+    guest_kcmd_args: str = "",
+) -> list[str]:
+    host_env = host_osdk_env(work_dir, boot_method="qemu-direct")
+    host_env["OVMF"] = "off"
+    host_env["EXT2_IMAGE"] = str(work_dir / "ext2.img")
+    host_env["EXFAT_IMAGE"] = str(work_dir / "exfat.img")
+    if guest_kcmd_args:
+        host_env["SYZABI_GUEST_KCMD_ARGS"] = guest_kcmd_args
+    qemu_command, _ = qemu_direct_command(cfg, initramfs_path, host_env)
+    workspace_root = repo_root().resolve()
+    qemu_tokens = [str(token) for token in qemu_command]
+    replaced: list[str] = []
+    for token in qemu_tokens:
+        token = token.replace(str(workspace_root), str(docker_workspace_dir(cfg)))
+        replaced.append(token)
+    if kvm_enabled(host_env) and "-accel" not in replaced and "-enable-kvm" not in replaced:
+        replaced.extend(["-accel", "kvm"])
+    return replaced
+
+
+def docker_qemu_direct_script(
+    cfg: dict[str, object],
+    work_dir: Path,
+    initramfs_path: Path,
+    *,
+    guest_kcmd_args: str = "",
+) -> str:
+    container_cmd = containerized_qemu_direct_command(cfg, work_dir, initramfs_path, guest_kcmd_args=guest_kcmd_args)
+    return "\n".join(
+        [
+            "set -euo pipefail",
+            "exec " + " ".join(shlex.quote(part) for part in container_cmd),
+        ]
+    )
+
+
+def docker_osdk_run_script(cfg: dict[str, object], work_dir: Path, initramfs_path: Path, *, kcmd_args: str = "console=hvc0") -> str:
     container_work_dir = host_path_to_container_path(work_dir, cfg)
     container_initramfs = host_path_to_container_path(initramfs_path, cfg)
-    container_osdk_output = host_path_to_container_path(work_dir / "osdk-output", cfg)
     container_ovmf_vars = host_path_to_container_path(work_dir / "OVMF_VARS.fd", cfg)
     return "\n".join(
         [
             "set -euo pipefail",
-            f"mkdir -p {shlex.quote(str(container_work_dir))} {shlex.quote(str(container_osdk_output))}",
+            f"mkdir -p {shlex.quote(str(container_work_dir))} \"${{OSDK_OUTPUT_DIR:-{shlex.quote(str(host_path_to_container_path(work_dir / 'osdk-output', cfg)))}}}\"",
             f"if [ ! -f {shlex.quote(str(container_ovmf_vars))} ]; then cp {shlex.quote(container_ovmf_vars_seed_path())} {shlex.quote(str(container_ovmf_vars))}; fi",
             f"cd {shlex.quote(str(docker_repo_dir(cfg) / 'kernel'))}",
-            " ".join(shlex.quote(part) for part in osdk_run_command(container_initramfs)),
+            " ".join(shlex.quote(part) for part in osdk_run_command(container_initramfs, kcmd_args=kcmd_args)),
         ]
     )
+
+
+def load_batch_manifest(path: Path) -> list[dict[str, object]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cases = payload.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise RunnerError("invalid batch manifest: missing cases")
+    return [dict(case) for case in cases]
+
+
+def docker_qemu_batch_run(args: argparse.Namespace) -> None:
+    raise RunnerError("batch manifest mode is disabled because candidate cases must run in isolated VMs")
 
 
 def local_proxy(args: argparse.Namespace) -> None:
@@ -1102,9 +1735,24 @@ def host_direct_run(args: argparse.Namespace) -> None:
     for stale_path in (stdout_path, stderr_path, console_log_path, raw_trace_path, external_state_path, result_path):
         stale_path.unlink(missing_ok=True)
 
-    custom_initramfs = create_minimal_initramfs(cfg, binary_path, work_dir)
-    revision = ensure_revision(cfg)
-    ensure_host_osdk(cfg)
+    package_dir = env_path("SYZABI_ASTERINAS_PACKAGE_DIR")
+    resolved_package_dir = package_dir.resolve() if package_dir is not None else None
+    custom_initramfs = selected_initramfs(cfg, binary_path, work_dir)
+    guest_kcmd_args = " ".join(part for part in ("console=hvc0", selected_guest_cmdline_append()) if part)
+    packaged_bundle_ready = False
+    if resolved_package_dir is not None and (shared_package_bundle_dir(resolved_package_dir) / "bundle.toml").exists():
+        try:
+            ensure_packaged_docker_bundle(
+                cfg,
+                resolved_package_dir,
+                custom_initramfs,
+                kcmd_args=guest_kcmd_args,
+            )
+            packaged_bundle_ready = True
+        except RunnerError as exc:
+            if not should_fallback_to_host_direct(exc):
+                raise
+    revision = ensure_revision(cfg) if packaged_bundle_ready else ensure_host_build(cfg)
     ensure_dummy_block_images(cfg)
     qemu_log_path, qemu_serial_log_path = qemu_log_paths(work_dir)
     qemu_log_path.unlink(missing_ok=True)
@@ -1113,15 +1761,23 @@ def host_direct_run(args: argparse.Namespace) -> None:
     cargo_stdout_path = work_dir / "qemu.stdout.txt"
     cargo_stderr_path = work_dir / "qemu.stderr.txt"
     ext2_image, exfat_image = prepare_run_block_images(cfg, work_dir)
-    run_env = host_osdk_env(work_dir, boot_method="grub-rescue-iso")
-    run_env["OVMF"] = "on"
-    run_env["OVMF_CODE_FILE"] = str(system_ovmf_code_path())
-    run_env["OVMF_VARS_FILE"] = str(prepare_ovmf_vars(work_dir))
-    run_env["EXT2_IMAGE"] = str(ext2_image)
-    run_env["EXFAT_IMAGE"] = str(exfat_image)
-    run_env["OSDK_OUTPUT_DIR"] = str(work_dir / "osdk-output")
-    qemu_command = osdk_run_command(custom_initramfs)
-    qemu_cwd = resolve_repo_path(cfg["asterinas"]["repo_dir"]) / "kernel"
+    if packaged_bundle_ready:
+        run_env = host_osdk_env(work_dir, boot_method="grub-rescue-iso")
+        run_env["OVMF"] = "on"
+        run_env["OVMF_CODE_FILE"] = str(system_ovmf_code_path())
+        run_env["OVMF_VARS_FILE"] = str(prepare_ovmf_vars(work_dir))
+        run_env["EXT2_IMAGE"] = str(ext2_image)
+        run_env["EXFAT_IMAGE"] = str(exfat_image)
+        qemu_command, qemu_cwd = host_grub_bundle_command(cfg, resolved_package_dir, work_dir)
+    else:
+        run_env = host_osdk_env(work_dir, boot_method="qemu-direct")
+        run_env["OVMF"] = "on"
+        run_env["OVMF_CODE_FILE"] = str(system_ovmf_code_path())
+        run_env["OVMF_VARS_FILE"] = str(prepare_ovmf_vars(work_dir))
+        run_env["EXT2_IMAGE"] = str(ext2_image)
+        run_env["EXFAT_IMAGE"] = str(exfat_image)
+        run_env["SYZABI_GUEST_KCMD_ARGS"] = selected_guest_cmdline_append()
+        qemu_command, qemu_cwd = qemu_direct_command(cfg, custom_initramfs, run_env)
 
     with cargo_stdout_path.open("a", encoding="utf-8") as cargo_stdout, cargo_stderr_path.open("a", encoding="utf-8") as cargo_stderr:
         run = subprocess.Popen(
@@ -1131,8 +1787,9 @@ def host_direct_run(args: argparse.Namespace) -> None:
             text=True,
             stdout=cargo_stdout,
             stderr=cargo_stderr,
+            start_new_session=True,
         )
-        deadline = time.monotonic() + int(cfg["asterinas"]["run_timeout_sec"])
+        deadline = time.monotonic() + selected_run_timeout_sec(cfg)
         while True:
             console_preview = read_console_text(qemu_log_path, qemu_serial_log_path, cargo_stdout_path, cargo_stderr_path)
             markers_complete = extract_section(console_preview, "PROCESS_EXIT") is not None and extract_section(console_preview, "EXTERNAL_STATE") is not None
@@ -1147,7 +1804,7 @@ def host_direct_run(args: argparse.Namespace) -> None:
                 stop_process(run)
                 stdout = cargo_stdout_path.read_text(encoding="utf-8", errors="replace")
                 stderr = cargo_stderr_path.read_text(encoding="utf-8", errors="replace")
-                raise subprocess.TimeoutExpired(run.args, int(cfg["asterinas"]["run_timeout_sec"]), output=stdout, stderr=stderr)
+                raise subprocess.TimeoutExpired(run.args, selected_run_timeout_sec(cfg), output=stdout, stderr=stderr)
             time.sleep(1)
         if run.poll() is None:
             stop_process(run)
@@ -1164,6 +1821,13 @@ def host_direct_run(args: argparse.Namespace) -> None:
     dump_json(external_state_path, external_state)
 
     if extract_section(console_text, "PROCESS_EXIT") is None:
+        if write_missing_marker_crash_result(
+            console_text=console_text,
+            raw_trace_path=raw_trace_path,
+            external_state_path=external_state_path,
+            kernel_build=f"asterinas@{revision[:12]}",
+        ):
+            return
         detail = stderr_text.strip() or stdout_text.strip()
         raise RunnerError(detail or "Asterinas autorun markers not found")
 
@@ -1207,8 +1871,7 @@ def docker_qemu_run(args: argparse.Namespace) -> None:
     for stale_path in (stdout_path, stderr_path, console_log_path, raw_trace_path, external_state_path, result_path):
         stale_path.unlink(missing_ok=True)
 
-    custom_initramfs = create_minimal_initramfs(cfg, binary_path, work_dir)
-    revision = ensure_docker_build(cfg)
+    custom_initramfs = selected_initramfs(cfg, binary_path, work_dir)
     ensure_dummy_block_images(cfg)
     qemu_log_path, qemu_serial_log_path = qemu_log_paths(work_dir)
     qemu_log_path.unlink(missing_ok=True)
@@ -1222,15 +1885,41 @@ def docker_qemu_run(args: argparse.Namespace) -> None:
         os.environ.get("SYZABI_RUN_ID", "run"),
     )
     run_env = docker_run_env(cfg, work_dir)
+    guest_kcmd_args = " ".join(part for part in ("console=hvc0", selected_guest_cmdline_append()) if part)
+    package_dir = env_path("SYZABI_ASTERINAS_PACKAGE_DIR")
+    if package_dir is not None:
+        resolved_package_dir = package_dir.resolve()
+        ensure_packaged_docker_bundle(cfg, resolved_package_dir, custom_initramfs, kcmd_args=guest_kcmd_args)
+        revision = ensure_revision(cfg)
+        run_cargo_home = ensure_shared_package_cargo_home(resolved_package_dir)
+        cargo_target_dir, osdk_output_dir = shared_package_runtime_dirs(resolved_package_dir)
+    else:
+        revision = ensure_docker_build(cfg)
+        run_cargo_home = prepare_run_cargo_home(work_dir)
+        cargo_target_dir = work_dir / "cargo-target"
+        osdk_output_dir = work_dir / "osdk-output"
+    run_env["CARGO_HOME"] = str(host_path_to_container_path(run_cargo_home, cfg))
+    run_env["CARGO_TARGET_DIR"] = str(host_path_to_container_path(cargo_target_dir, cfg))
+    run_env["OSDK_OUTPUT_DIR"] = str(host_path_to_container_path(osdk_output_dir, cfg))
+    run_env["CARGO_NET_OFFLINE"] = "true"
     run_env["EXT2_IMAGE"] = str(host_path_to_container_path(ext2_image, cfg))
     run_env["EXFAT_IMAGE"] = str(host_path_to_container_path(exfat_image, cfg))
-    qemu_command = docker_run_command(
-        cfg,
-        docker_osdk_run_script(cfg, work_dir, custom_initramfs),
-        extra_env=run_env,
-        workdir=docker_repo_dir(cfg),
-        container_name=container_name,
-    )
+    if package_dir is not None:
+        qemu_command = docker_run_command(
+            cfg,
+            docker_grub_bundle_script(cfg, resolved_package_dir, work_dir),
+            extra_env=run_env,
+            workdir=docker_repo_dir(cfg),
+            container_name=container_name,
+        )
+    else:
+        qemu_command = docker_run_command(
+            cfg,
+            docker_osdk_run_script(cfg, work_dir, custom_initramfs, kcmd_args=guest_kcmd_args),
+            extra_env=run_env,
+            workdir=docker_repo_dir(cfg),
+            container_name=container_name,
+        )
 
     with cargo_stdout_path.open("a", encoding="utf-8") as cargo_stdout, cargo_stderr_path.open("a", encoding="utf-8") as cargo_stderr:
         run = subprocess.Popen(
@@ -1238,8 +1927,9 @@ def docker_qemu_run(args: argparse.Namespace) -> None:
             text=True,
             stdout=cargo_stdout,
             stderr=cargo_stderr,
+            start_new_session=True,
         )
-        deadline = time.monotonic() + int(cfg["asterinas"]["run_timeout_sec"])
+        deadline = time.monotonic() + selected_run_timeout_sec(cfg)
         try:
             while True:
                 console_preview = read_console_text(qemu_log_path, qemu_serial_log_path, cargo_stdout_path, cargo_stderr_path)
@@ -1255,7 +1945,7 @@ def docker_qemu_run(args: argparse.Namespace) -> None:
                     stop_process(run)
                     stdout = cargo_stdout_path.read_text(encoding="utf-8", errors="replace")
                     stderr = cargo_stderr_path.read_text(encoding="utf-8", errors="replace")
-                    raise subprocess.TimeoutExpired(run.args, int(cfg["asterinas"]["run_timeout_sec"]), output=stdout, stderr=stderr)
+                    raise subprocess.TimeoutExpired(run.args, selected_run_timeout_sec(cfg), output=stdout, stderr=stderr)
                 time.sleep(1)
             if run.poll() is None:
                 stop_process(run)
@@ -1274,6 +1964,13 @@ def docker_qemu_run(args: argparse.Namespace) -> None:
     dump_json(external_state_path, external_state)
 
     if extract_section(console_text, "PROCESS_EXIT") is None:
+        if write_missing_marker_crash_result(
+            console_text=console_text,
+            raw_trace_path=raw_trace_path,
+            external_state_path=external_state_path,
+            kernel_build=f"asterinas@{revision[:12]}",
+        ):
+            return
         detail = stderr_text.strip() or stdout_text.strip()
         raise RunnerError(detail or "Asterinas autorun markers not found")
 
@@ -1309,7 +2006,18 @@ def main() -> None:
                 write_runner_result({"status": "ok", "exit_code": 0, "kernel_build": "local-proxy"})
                 return
             cfg = read_workflow_config()
-            revision = ensure_docker_build(cfg) if args.mode == "docker-qemu" else ensure_host_build(cfg)
+            if args.mode == "docker-qemu":
+                try:
+                    revision = ensure_docker_build(cfg)
+                except RunnerError as exc:
+                    if not should_fallback_to_host_direct(exc):
+                        raise
+                    sys.stderr.write(
+                        "warning: docker-qemu healthcheck unavailable, falling back to host-direct\n"
+                    )
+                    revision = ensure_host_build(cfg)
+            else:
+                revision = ensure_host_build(cfg)
             write_runner_result({"status": "ok", "exit_code": 0, "kernel_build": f"asterinas@{revision[:12]}"})
             return
 
@@ -1318,8 +2026,21 @@ def main() -> None:
         if args.mode == "local-proxy":
             local_proxy(args)
             return
+        if args.batch_manifest:
+            if args.mode != "docker-qemu":
+                raise RunnerError("batch manifest mode currently supports docker-qemu only")
+            docker_qemu_batch_run(args)
+            return
         if args.mode == "docker-qemu":
-            docker_qemu_run(args)
+            try:
+                docker_qemu_run(args)
+            except RunnerError as exc:
+                if not should_fallback_to_host_direct(exc):
+                    raise
+                sys.stderr.write(
+                    "warning: docker-qemu unavailable for candidate replay, falling back to host-direct\n"
+                )
+                host_direct_run(args)
             return
         host_direct_run(args)
     except subprocess.TimeoutExpired as exc:

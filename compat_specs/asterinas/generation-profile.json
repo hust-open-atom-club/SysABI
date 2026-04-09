@@ -9,6 +9,13 @@
       "syz_generate",
       "seed_templates"
     ],
+    "jobs": 16,
+    "batch_size": 8,
+    "per_target_budget": 16,
+    "existing_corpus_limit": 8,
+    "existing_corpus_source_file": "eligible_programs/baseline.jsonl",
+    "template_dir": "corpus/templates/asterinas_scml",
+    "allow_variant_templates": [],
     "threaded": false,
     "collide": false,
     "sequence_length": {

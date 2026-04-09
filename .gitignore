@@ -4,11 +4,13 @@ __pycache__/
 .mypy_cache/
 .venv/
 .codex-backups/
+.humanize/
 bin/
 build/
 artifacts/
 third_party/syzkaller/
 corpus/input/generated/
+corpus/input/
 corpus/raw/
 corpus/normalized/
 corpus/meta/
