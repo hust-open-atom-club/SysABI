@@ -77,15 +77,43 @@ def controlled_divergence_spec(enabled: bool) -> dict[str, object] | None:
     }
 
 
+def scml_result_bucket(
+    *,
+    preflight_status: str,
+    candidate_status: str | None,
+    classification: str,
+    cfg: dict[str, object],
+) -> str:
+    if preflight_status != "passed":
+        return "rejected_by_scml"
+    if classification == "build_failure" or candidate_status != "ok":
+        return "passed_scml_but_candidate_failed"
+    if classification == cfg["classification"]["no_diff"]:
+        return "passed_scml_and_no_diff"
+    return "passed_scml_and_diverged"
+
+
 def schedule_one(entry: dict[str, object], args: argparse.Namespace) -> dict[str, object]:
     cfg = config()
     program_id = entry["program_id"]
+    scml_preflight_status = entry.get("scml_preflight_status", "not_run")
     build_result_path = build_root(program_id) / "build-result.json"
     if not build_status_ok(build_result_path):
         return {
             "program_id": program_id,
             "classification": "build_failure",
             "build_result_path": str(build_result_path),
+            "scml_preflight_status": scml_preflight_status,
+            "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
+            "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
+            "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
+            "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+            "scml_result_bucket": scml_result_bucket(
+                preflight_status=scml_preflight_status,
+                candidate_status=None,
+                classification="build_failure",
+                cfg=cfg,
+            ),
         }
 
     inject_trace = controlled_divergence_spec(args.controlled_divergence)
@@ -111,6 +139,17 @@ def schedule_one(entry: dict[str, object], args: argparse.Namespace) -> dict[str
             "program_id": program_id,
             "classification": cfg["classification"]["baseline_invalid"],
             "reference_runs": [result.to_dict() for result in reference_results],
+            "scml_preflight_status": scml_preflight_status,
+            "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
+            "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
+            "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
+            "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+            "scml_result_bucket": scml_result_bucket(
+                preflight_status=scml_preflight_status,
+                candidate_status=None,
+                classification=cfg["classification"]["baseline_invalid"],
+                cfg=cfg,
+            ),
         }
 
     candidate_result, candidate_canonical = run_candidate_once(program_id, run_id, "candidate0", inject_trace)
@@ -142,6 +181,17 @@ def schedule_one(entry: dict[str, object], args: argparse.Namespace) -> dict[str
             "classification": cfg["classification"]["baseline_invalid"],
             "reference_runs": [result.to_dict() for result in reference_results],
             "candidate_runs": [result.to_dict() for result in candidate_results],
+            "scml_preflight_status": scml_preflight_status,
+            "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
+            "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
+            "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
+            "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+            "scml_result_bucket": scml_result_bucket(
+                preflight_status=scml_preflight_status,
+                candidate_status=candidate_results[-1].status if candidate_results else None,
+                classification=cfg["classification"]["baseline_invalid"],
+                cfg=cfg,
+            ),
         }
 
     candidate_status = candidate_results[-1].status
@@ -162,6 +212,17 @@ def schedule_one(entry: dict[str, object], args: argparse.Namespace) -> dict[str
         "candidate_run": candidate_results[-1].to_dict(),
         "candidate_runs": [result.to_dict() for result in candidate_results],
         "comparison": comparison,
+        "scml_preflight_status": scml_preflight_status,
+        "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
+        "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
+        "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
+        "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+        "scml_result_bucket": scml_result_bucket(
+            preflight_status=scml_preflight_status,
+            candidate_status=candidate_status,
+            classification=classification,
+            cfg=cfg,
+        ),
     }
     if candidate_canonical:
         result["reference_canonical_hash"] = reference_hashes[-1]

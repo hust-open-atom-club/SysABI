@@ -34,6 +34,11 @@ class EligibleProgram:
     meta_path: str
     source_workflow: str = ""
     source_program_id: str = ""
+    scml_preflight_status: str = "not_run"
+    scml_rejection_reasons: list[str] = field(default_factory=list)
+    scml_trace_log_path: str = ""
+    scml_sctrace_output_path: str = ""
+    scml_preflight_run_root: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

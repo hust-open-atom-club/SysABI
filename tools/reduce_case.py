@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,7 +58,7 @@ def run_case(program_path: Path) -> tuple[dict[str, object], dict[str, object], 
         "normalized_path": str(program_path),
     }
     build_one(entry)
-    run_id = f"reduce-{info['program_id'][:12]}"
+    run_id = f"reduce-{info['program_id'][:12]}-{time.time_ns()}"
     reference = execute_side(program_id=info["program_id"], side="reference", timeout_sec=config()["stability"]["timeout_sec"], run_id=f"{run_id}-reference")
     candidate = execute_side(
         program_id=info["program_id"],
@@ -83,14 +84,19 @@ def run_case(program_path: Path) -> tuple[dict[str, object], dict[str, object], 
     }
 
 
-def seed_program(fixture_name: str) -> Path:
+def seed_program(fixture_name: str) -> tuple[Path, dict[str, object] | None]:
+    cfg = config()
+    if cfg["workflow"] == "asterinas_scml":
+        eligible = load_jsonl(cfg["paths"]["eligible_file"])
+        if eligible:
+            return Path(eligible[0]["normalized_path"]), eligible[0]
     fixture = Path("tests/fixtures/corpus") / f"{fixture_name}.syz"
     if fixture.exists():
-        return fixture
-    eligible = load_jsonl(config()["paths"]["eligible_file"])
+        return fixture, None
+    eligible = load_jsonl(cfg["paths"]["eligible_file"])
     if not eligible:
-        raise SystemExit(f"{config()['paths']['eligible_file']} is empty")
-    return Path(eligible[0]["normalized_path"])
+        raise SystemExit(f"{cfg['paths']['eligible_file']} is empty")
+    return Path(eligible[0]["normalized_path"]), eligible[0]
 
 
 def greedy_reduce(initial_program: Path) -> tuple[Path, dict[str, object], dict[str, object], dict[str, object]]:
@@ -124,7 +130,7 @@ def main() -> None:
     args = parse_args()
     configure_runtime(workflow=args.workflow)
     cfg = config()
-    source_program = seed_program(args.fixture)
+    source_program, source_entry = seed_program(args.fixture)
     minimized_path, info, comparison, runs = greedy_reduce(source_program)
     original_text = read_text(source_program)
     minimized_text = read_text(minimized_path)
@@ -144,6 +150,9 @@ def main() -> None:
         "reference_console_log_path": runs["reference"]["console_log_path"],
         "candidate_console_log_path": runs["candidate"]["console_log_path"],
         "run_command": f"python3 tools/reduce_case.py --workflow {cfg['workflow']} --fixture {args.fixture}",
+        "scml_preflight_status": source_entry.get("scml_preflight_status", "unknown") if source_entry else "unknown",
+        "scml_trace_log_path": source_entry.get("scml_trace_log_path", "") if source_entry else "",
+        "scml_sctrace_output_path": source_entry.get("scml_sctrace_output_path", "") if source_entry else "",
     }
     json_path = report_path("minimized-report.json", cfg=cfg)
     md_path = report_path("minimized-report.md", cfg=cfg)
@@ -167,6 +176,9 @@ def main() -> None:
                 f"- reference_console_log_path: {report['reference_console_log_path']}",
                 f"- candidate_console_log_path: {report['candidate_console_log_path']}",
                 f"- run_command: {report['run_command']}",
+                f"- scml_preflight_status: {report['scml_preflight_status']}",
+                f"- scml_trace_log_path: {report['scml_trace_log_path']}",
+                f"- scml_sctrace_output_path: {report['scml_sctrace_output_path']}",
             ]
         )
         + "\n",

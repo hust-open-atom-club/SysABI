@@ -1,0 +1,36 @@
+{
+  "target": "asterinas",
+  "source_manifest": "compat_specs/asterinas/scml-manifest.json",
+  "profile_name": "stable-diff-v1",
+  "workflow": "asterinas_scml",
+  "generation": {
+    "source_modes": [
+      "existing_corpus",
+      "syz_generate",
+      "seed_templates"
+    ],
+    "threaded": false,
+    "collide": false,
+    "sequence_length": {
+      "min": 1,
+      "max": 12
+    }
+  },
+  "enabled_categories": [
+    "file-and-directory-operations",
+    "file-descriptor-and-io-control",
+    "process-and-thread-management",
+    "system-information-and-misc"
+  ],
+  "deferred_syscalls": {
+    "reboot": "privileged_or_environment_destructive"
+  },
+  "deferred_categories": {
+    "file-systems-and-mount-control": "privileged_or_mount_heavy",
+    "inter-process-communication": "high_semantic_complexity_for_first_slice",
+    "memory-management": "high_noise_and_flag_complexity",
+    "namespaces-cgroups-and-security": "privileged_or_namespace_heavy",
+    "networking-and-sockets": "environment_and_protocol_noise",
+    "signals-and-timers": "signal_delivery_and_timing_noise"
+  }
+}

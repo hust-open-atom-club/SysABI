@@ -87,8 +87,8 @@ def read_workflow_config() -> dict[str, object]:
     workflow = os.environ.get("SYZABI_WORKFLOW", "asterinas")
     configure_runtime(workflow=workflow)
     cfg = config()
-    if cfg.get("workflow") != "asterinas":
-        raise RunnerError(f"run_asterinas.py requires asterinas config, got {cfg.get('workflow')}")
+    if "asterinas" not in cfg:
+        raise RunnerError(f"run_asterinas.py requires an asterinas-capable config, got {cfg.get('workflow')}")
     return cfg
 
 

@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, write_text
+from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, runner_profiles, write_text
 from orchestrator.syzkaller import build_prog2c
 
 
@@ -123,6 +123,7 @@ def compile_testcase(
 
 def build_one(entry: dict[str, object]) -> dict[str, object]:
     cfg = config()
+    candidate_profile = runner_profiles()["candidate"]
     program_id = entry["program_id"]
     normalized_path = Path(entry["normalized_path"])
     build_root = Path(cfg["paths"]["build_dir"]) / program_id
@@ -158,7 +159,9 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     )
     compile_stderr.write_text(compile_result.stderr, encoding="utf-8")
     candidate_compile_result: subprocess.CompletedProcess[str] | None = None
-    if cfg.get("workflow") == "asterinas":
+    candidate_binary_name = str(candidate_profile.get("binary_name", "testcase.bin"))
+    should_build_candidate = candidate_binary_name != "testcase.bin" or candidate_profile.get("kind") == "command"
+    if should_build_candidate:
         candidate_compile_result = compile_testcase(
             testcase_instrumented,
             candidate_bin,

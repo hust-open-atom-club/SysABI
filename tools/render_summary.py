@@ -18,10 +18,16 @@ def main() -> None:
     campaign_results = load_jsonl(report_path("campaign-results.jsonl", cfg=cfg))
     build_summary = load_json(report_path("build-summary.json", cfg=cfg))
     classification_counts: dict[str, int] = {}
+    scml_result_counts: dict[str, int] = {}
     for result in campaign_results:
         classification_counts[result["classification"]] = classification_counts.get(result["classification"], 0) + 1
+        bucket = result.get("scml_result_bucket")
+        if bucket:
+            scml_result_counts[bucket] = scml_result_counts.get(bucket, 0) + 1
 
     total = len(campaign_results)
+    scml_rejections_path = report_path("scml-rejections.jsonl", cfg=cfg)
+    scml_rejections = load_jsonl(scml_rejections_path) if scml_rejections_path.exists() else []
     candidate_ok = [result for result in campaign_results if result.get("candidate_run", {}).get("status") == "ok"]
     traces_ok = [
         result
@@ -41,12 +47,19 @@ def main() -> None:
         "workflow": current_workflow(cfg),
         "total": total,
         "classification_counts": classification_counts,
+        "scml_result_counts": scml_result_counts,
+        "scml_rejected_count": len(scml_rejections),
         "eligible_program_count": sum(1 for _ in resolve_repo_path(cfg["paths"]["eligible_file"]).open("r", encoding="utf-8")),
         "build_success_rate": build_summary["success"] / build_summary["total"] if build_summary["total"] else 0.0,
         "dual_execution_completion_rate": len(candidate_ok) / total if total else 0.0,
         "trace_generation_success_rate": len(traces_ok) / len(candidate_ok) if candidate_ok else 0.0,
         "canonicalization_success_rate": len(canonical_ok) / len(traces_ok) if traces_ok else 0.0,
         "baseline_invalid_rate": classification_counts.get(cfg["classification"]["baseline_invalid"], 0) / total if total else 0.0,
+        "scml_preflight_pass_rate": (
+            total / (total + len(scml_rejections))
+            if (total + len(scml_rejections))
+            else 0.0
+        ),
         "candidate_runner_kinds": sorted({run.get("runner_kind") for run in candidate_runs if run.get("runner_kind")}),
         "candidate_kernel_builds": sorted({run.get("kernel_build") for run in candidate_runs if run.get("kernel_build")}),
     }
@@ -82,6 +95,8 @@ def main() -> None:
         f"- total: {summary['total']}",
         f"- eligible_program_count: {summary['eligible_program_count']}",
         f"- build_success_rate: {summary['build_success_rate']:.3f}",
+        f"- scml_preflight_pass_rate: {summary['scml_preflight_pass_rate']:.3f}",
+        f"- scml_rejected_count: {summary['scml_rejected_count']}",
         f"- dual execution completion rate: {summary['dual_execution_completion_rate']:.3f}",
         f"- trace_generation_success_rate: {summary['trace_generation_success_rate']:.3f}",
         f"- canonicalization_success_rate: {summary['canonicalization_success_rate']:.3f}",
@@ -98,6 +113,10 @@ def main() -> None:
         lines.insert(4, f"- derivation_success_rate: {summary['derivation_success_rate']:.3f}")
     for key, value in sorted(summary["classification_counts"].items()):
         lines.append(f"- {key}: {value}")
+    if summary["scml_result_counts"]:
+        lines.extend(["", "## scml result counts"])
+        for key, value in sorted(summary["scml_result_counts"].items()):
+            lines.append(f"- {key}: {value}")
     report_path("summary.md", cfg=cfg).write_text("\n".join(lines) + "\n", encoding="utf-8")
     signoff_lines = [
         f"# {summary['workflow']} sign-off",
@@ -112,6 +131,8 @@ def main() -> None:
     signoff_lines.extend(
         [
             f"- build_success_rate: {summary['build_success_rate']:.3f}",
+            f"- scml_preflight_pass_rate: {summary['scml_preflight_pass_rate']:.3f}",
+            f"- scml_rejected_count: {summary['scml_rejected_count']}",
             f"- dual_execution_completion_rate: {summary['dual_execution_completion_rate']:.3f}",
             f"- trace_generation_success_rate: {summary['trace_generation_success_rate']:.3f}",
             f"- canonicalization_success_rate: {summary['canonicalization_success_rate']:.3f}",
