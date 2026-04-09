@@ -4,7 +4,6 @@ __pycache__/
 .mypy_cache/
 .venv/
 .codex-backups/
-.humanize/
 bin/
 build/
 artifacts/
@@ -17,4 +16,5 @@ corpus/meta/
 corpus/rejected/
 reports/phase*/
 eligible_programs/*.jsonl
+eligible_programs/targets/
 coverage/
