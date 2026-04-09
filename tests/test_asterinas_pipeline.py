@@ -44,6 +44,7 @@ from tools.run_asterinas import (
     target_osdk_dir,
     write_missing_marker_crash_result,
 )
+from targets.asterinas.adapter import AsterinasTargetAdapter
 
 
 class AsterinasPipelineTests(unittest.TestCase):
@@ -66,13 +67,13 @@ class AsterinasPipelineTests(unittest.TestCase):
     def test_asterinas_config_uses_command_candidate_profile(self) -> None:
         cfg = config()
         self.assertEqual(cfg["workflow"], "asterinas")
-        self.assertEqual(cfg["paths"]["eligible_file"], "eligible_programs/asterinas.jsonl")
+        self.assertEqual(cfg["paths"]["eligible_file"], "eligible_programs/targets/asterinas/asterinas/default.jsonl")
         self.assertEqual(cfg["parallel"]["jobs"], 4)
         self.assertEqual(cfg["parallel"]["candidate_batch_size"], 100)
         self.assertEqual(runner_profiles()["candidate"]["kind"], "command")
         self.assertEqual(runner_profiles()["candidate"]["binary_name"], "testcase.candidate.bin")
         self.assertEqual(runner_profiles()["candidate"]["controlled_divergence"]["match_syscall"], "openat")
-        self.assertIn("--batch-manifest", runner_profiles()["candidate"]["batch_command"])
+        self.assertEqual(runner_profiles()["candidate"]["command_batching_mode"], "packaged_per_case")
 
     def test_asterinas_scml_profile_uses_distinct_sandbox_roots(self) -> None:
         previous_workflow = os.environ.get("SYZABI_WORKFLOW")
@@ -643,6 +644,30 @@ class AsterinasPipelineTests(unittest.TestCase):
         ):
             run_asterinas.main()
         host_direct_run.assert_called_once_with(args)
+
+    def test_adapter_healthcheck_dispatches_via_prepare_target(self) -> None:
+        adapter = AsterinasTargetAdapter()
+        args = SimpleNamespace(mode="docker-qemu")
+        with patch("targets.asterinas.runner_impl.read_workflow_config", return_value={"asterinas": {"repo_dir": "x"}}), patch(
+            "targets.asterinas.adapter.AsterinasTargetAdapter.prepare_target",
+            return_value="rev1234567890",
+        ) as prepare_target, patch("targets.asterinas.runner_impl.write_runner_result") as write_runner_result:
+            adapter.healthcheck(args)
+        prepare_target.assert_called_once()
+        write_runner_result.assert_called_once_with({"status": "ok", "exit_code": 0, "kernel_build": "asterinas@rev123456789"})
+
+    def test_adapter_run_case_dispatches_modes(self) -> None:
+        adapter = AsterinasTargetAdapter()
+        local_args = SimpleNamespace(mode="local-proxy")
+        docker_args = SimpleNamespace(mode="docker-qemu")
+        with patch("targets.asterinas.runner_impl.local_proxy") as local_proxy, patch(
+            "targets.asterinas.runner_impl.docker_qemu_run"
+        ) as docker_qemu_run, patch("targets.asterinas.runner_impl.host_direct_run") as host_direct_run:
+            adapter.run_case(local_args)
+            adapter.run_case(docker_args)
+        local_proxy.assert_called_once_with(local_args)
+        docker_qemu_run.assert_called_once_with(docker_args)
+        host_direct_run.assert_not_called()
 
     def test_host_direct_run_validates_packaged_bundle_before_reuse(self) -> None:
         from tools import run_asterinas

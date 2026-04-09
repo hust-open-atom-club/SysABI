@@ -116,6 +116,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 1},
                     "normalization": {"runtime_syscalls": []},
                 },
@@ -201,6 +203,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "normalization": {"runtime_syscalls": []},
                 },
@@ -343,6 +347,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "paths": {"eligible_file": str(eligible_file)},
                 },
             ), patch(
@@ -398,6 +404,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "paths": {"eligible_file": str(eligible_file)},
                 },
             ), patch(
@@ -498,6 +506,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "normalization": {"runtime_syscalls": []},
                 },
@@ -579,6 +589,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "normalization": {"runtime_syscalls": ["mmap"]},
                 },
@@ -654,6 +666,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "normalization": {"runtime_syscalls": ["mmap"]},
                 },
@@ -733,6 +747,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "normalization": {"runtime_syscalls": ["mmap"]},
                 },
@@ -818,6 +834,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "preflight": {
                         "timeout_sec": 7,
@@ -878,6 +896,8 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.config",
                 return_value={
                     "workflow": "asterinas_scml",
+                    "target": "asterinas",
+                    "capabilities": {"supports_preflight": True},
                     "stability": {"timeout_sec": 120, "rerun_count": 0},
                     "preflight": {
                         "timeout_sec": 7,

@@ -13,6 +13,7 @@ from pathlib import Path
 from analyzer.schemas import validate_raw_trace
 from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text
 from orchestrator.models import RunResult
+from runners import build_runner
 from targets.registry import get_target_adapter
 
 
@@ -118,17 +119,6 @@ def resolve_command(profile: dict[str, object], context: dict[str, str]) -> list
     if isinstance(command, list):
         return [str(token).format(**context) for token in command]
     raise TypeError(f"unsupported command profile type: {type(command)!r}")
-
-
-def resolve_batch_command(profile: dict[str, object], context: dict[str, str]) -> list[str]:
-    command = profile.get("batch_command")
-    if not command:
-        raise ValueError("command runner profile is missing `batch_command`")
-    if isinstance(command, str):
-        return [token.format(**context) for token in shlex.split(command)]
-    if isinstance(command, list):
-        return [str(token).format(**context) for token in command]
-    raise TypeError(f"unsupported batch command profile type: {type(command)!r}")
 
 
 def load_runner_result(path: Path) -> dict[str, object] | None:
@@ -324,25 +314,27 @@ def execute_prepared_candidate_case(
     exit_code: int | None = None
     stdout = ""
     stderr = ""
+    runner = build_runner(profile)
+    execution = runner.run_case(
+        command=command,
+        cwd=str(sandbox_root),
+        env=env,
+        timeout_sec=effective_timeout_sec,
+    )
     try:
-        completed = subprocess.run(
-            command,
-            cwd=sandbox_root,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=effective_timeout_sec,
-            check=False,
-        )
-        stdout = completed.stdout
-        stderr = completed.stderr
+        stdout = execution.stdout
+        stderr = execution.stderr
         fallback_kernel_build = safe_kernel_build(profile["kernel_build_command"])
         status, exit_code, status_detail, kernel_build_value = finalize_process_result(
             profile_kind=str(case["runner_kind"]),
-            completed_returncode=completed.returncode,
+            completed_returncode=execution.returncode,
             runner_result=load_runner_result(runner_result_path),
             fallback_kernel_build=fallback_kernel_build,
         )
+        if execution.timed_out:
+            raise subprocess.TimeoutExpired(command, effective_timeout_sec, output=stdout, stderr=stderr)
+        if execution.os_error is not None:
+            raise OSError(execution.os_error)
     except subprocess.TimeoutExpired as exc:
         status = "timeout"
         stdout = exc.stdout or ""
@@ -675,25 +667,27 @@ def execute_side(
     exit_code: int | None = None
     stdout = ""
     stderr = ""
+    runner = build_runner(profile)
+    execution = runner.run_case(
+        command=command,
+        cwd=str(sandbox_root),
+        env=env,
+        timeout_sec=effective_timeout_sec,
+    )
     try:
-        completed = subprocess.run(
-            command,
-            cwd=sandbox_root,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=effective_timeout_sec,
-            check=False,
-        )
-        stdout = completed.stdout
-        stderr = completed.stderr
+        stdout = execution.stdout
+        stderr = execution.stderr
         fallback_kernel_build = safe_kernel_build(profile["kernel_build_command"])
         status, exit_code, status_detail, kernel_build_value = finalize_process_result(
             profile_kind=runner_kind,
-            completed_returncode=completed.returncode,
+            completed_returncode=execution.returncode,
             runner_result=load_runner_result(runner_result_path),
             fallback_kernel_build=fallback_kernel_build,
         )
+        if execution.timed_out:
+            raise subprocess.TimeoutExpired(command, effective_timeout_sec, output=stdout, stderr=stderr)
+        if execution.os_error is not None:
+            raise OSError(execution.os_error)
     except subprocess.TimeoutExpired as exc:
         status = "timeout"
         stdout = exc.stdout or ""

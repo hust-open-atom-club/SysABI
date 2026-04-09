@@ -1,6 +1,6 @@
 {
   "base_initramfs_path": "third_party/asterinas/test/initramfs/build/initramfs.cpio.gz",
-  "build_info_path": "artifacts/asterinas/build-info.json",
+  "build_info_path": "artifacts/targets/asterinas/build-info.json",
   "build_timeout_sec": 3600,
   "docker_image": "asterinas/asterinas:0.17.1-20260317",
   "docker_repo_dir": "/root/asterinas",

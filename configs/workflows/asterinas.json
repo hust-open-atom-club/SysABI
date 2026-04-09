@@ -49,7 +49,7 @@
       "asterinas_exact_supported_subset",
       "full_name_allowlisted"
     ],
-    "source_eligible_file": "eligible_programs/baseline.jsonl",
+    "source_eligible_file": "eligible_programs/targets/linux/baseline/default.jsonl",
     "unsupported_taxonomy": {
       "memory_management": [
         "mmap",
@@ -81,19 +81,23 @@
     "jobs": 4
   },
   "paths": {
-    "artifacts_dir": "artifacts/runs/asterinas",
-    "build_dir": "build/asterinas/testcases",
-    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages",
+    "artifacts_dir": "artifacts/runs/targets/asterinas/asterinas",
+    "build_dir": "build/targets/asterinas/asterinas/testcases",
+    "candidate_initramfs_packages_dir": "artifacts/targets/asterinas/initramfs-packages",
     "corpus_meta": "corpus/meta",
     "corpus_normalized": "corpus/normalized",
     "corpus_raw": "corpus/raw",
     "corpus_rejected": "corpus/rejected",
-    "eligible_file": "eligible_programs/asterinas.jsonl",
+    "eligible_file": "eligible_programs/targets/asterinas/asterinas/default.jsonl",
     "go_archive_dir": "artifacts/toolchains/go",
     "go_root": "artifacts/toolchains/go/current/go",
-    "reports_dir": "reports/asterinas",
+    "reports_dir": "reports/targets/asterinas/asterinas",
     "syzkaller_dir": "third_party/syzkaller",
     "temp_dir": "artifacts/tmp"
+  },
+  "presentation": {
+    "candidate_label": "Asterinas",
+    "reference_label": "Linux"
   },
   "runner_profiles_path": "configs/targets/asterinas/runner_profiles.asterinas.json",
   "schema_version": 1,

@@ -24,7 +24,7 @@
       "profile_enabled_category",
       "unspecialized_sequence"
     ],
-    "generated_source_eligible_file": "eligible_programs/asterinas_scml.generated.jsonl",
+    "generated_source_eligible_file": "eligible_programs/targets/asterinas/asterinas_scml/generated.jsonl",
     "rejection_taxonomy": {
       "deferred_category": "deferred_category",
       "manifest_disabled": "manifest_disabled",
@@ -33,7 +33,7 @@
       "specialized_variant": "specialized_variant_not_allowed",
       "syscall_not_in_manifest": "syscall_not_in_manifest"
     },
-    "source_eligible_file": "eligible_programs/baseline.jsonl"
+    "source_eligible_file": "eligible_programs/targets/linux/baseline/default.jsonl"
   },
   "generation_profile_path": "compat_specs/asterinas/generation-profile.json",
   "normalization": {
@@ -54,28 +54,32 @@
     "jobs": 8
   },
   "paths": {
-    "artifacts_dir": "artifacts/runs/asterinas_scml",
-    "build_dir": "build/asterinas_scml/testcases",
-    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages",
+    "artifacts_dir": "artifacts/runs/targets/asterinas/asterinas_scml",
+    "build_dir": "build/targets/asterinas/asterinas_scml/testcases",
+    "candidate_initramfs_packages_dir": "artifacts/targets/asterinas/initramfs-packages",
     "corpus_meta": "corpus/meta",
     "corpus_normalized": "corpus/normalized",
     "corpus_raw": "corpus/raw",
     "corpus_rejected": "corpus/rejected",
-    "eligible_file": "eligible_programs/asterinas_scml.jsonl",
-    "generated_file": "eligible_programs/asterinas_scml.generated.jsonl",
-    "generated_meta_dir": "artifacts/generated/asterinas_scml/meta",
-    "generated_normalized_dir": "artifacts/generated/asterinas_scml/normalized",
-    "generated_raw_dir": "artifacts/generated/asterinas_scml/raw",
+    "eligible_file": "eligible_programs/targets/asterinas/asterinas_scml/default.jsonl",
+    "generated_file": "eligible_programs/targets/asterinas/asterinas_scml/generated.jsonl",
+    "generated_meta_dir": "artifacts/generated/targets/asterinas/asterinas_scml/meta",
+    "generated_normalized_dir": "artifacts/generated/targets/asterinas/asterinas_scml/normalized",
+    "generated_raw_dir": "artifacts/generated/targets/asterinas/asterinas_scml/raw",
     "go_archive_dir": "artifacts/toolchains/go",
     "go_root": "artifacts/toolchains/go/current/go",
-    "reports_dir": "reports/asterinas_scml",
-    "static_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
+    "reports_dir": "reports/targets/asterinas/asterinas_scml",
+    "static_eligible_file": "eligible_programs/targets/asterinas/asterinas_scml/static.jsonl",
     "syzkaller_dir": "third_party/syzkaller",
-    "targets_file": "eligible_programs/asterinas_scml.targets.jsonl",
+    "targets_file": "eligible_programs/targets/asterinas/asterinas_scml/targets.jsonl",
     "temp_dir": "artifacts/tmp"
   },
+  "presentation": {
+    "candidate_label": "Asterinas",
+    "reference_label": "Linux"
+  },
   "preflight": {
-    "artifact_dir": "artifacts/preflight/asterinas_scml",
+    "artifact_dir": "artifacts/preflight/targets/asterinas/asterinas_scml",
     "rejection_taxonomy": {
       "deferred_category": "deferred_category",
       "preflight_build_failure": "preflight_build_failure",
@@ -89,7 +93,7 @@
       "unsupported_struct_pattern": "unsupported_struct_pattern"
     },
     "scml_root": "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage",
-    "source_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
+    "source_eligible_file": "eligible_programs/targets/asterinas/asterinas_scml/static.jsonl",
     "timeout_sec": 20
   },
   "runner_profiles_path": "configs/targets/asterinas/runner_profiles.asterinas_scml.json",

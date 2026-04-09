@@ -95,12 +95,27 @@ SyzABI 是一个面向 `syzkaller` 程序的离线差分回放框架。它的目
 - `corpus/normalized/`: 归一化后的 `*.syz` 程序。
 - `corpus/meta/`: 每个程序对应的 JSON 元数据。
 - `corpus/rejected/`: 导入阶段失败或拒绝的记录。
-- `eligible_programs/baseline.jsonl`: baseline 合格程序列表。
-- `eligible_programs/asterinas.jsonl`: 从 baseline 派生出的 Asterinas corpus。
-- `eligible_programs/asterinas_scml*.jsonl`: SCML 导出、生成、预检后的中间和最终列表。
-- `build/testcases/`, `build/asterinas/testcases/`, `build/asterinas_scml/testcases/`: 构建产物。
-- `artifacts/runs/`, `artifacts/runs/asterinas/`, `artifacts/runs/asterinas_scml/`: 每次执行的证据目录。
-- `reports/baseline/`, `reports/asterinas/`, `reports/asterinas_scml/`: 汇总结果与报告。
+- canonical eligible lists:
+  - `eligible_programs/targets/linux/baseline/default.jsonl`
+  - `eligible_programs/targets/asterinas/asterinas/default.jsonl`
+  - `eligible_programs/targets/asterinas/asterinas_scml/{targets,generated,static,default}.jsonl`
+- canonical build roots:
+  - `build/targets/linux/baseline/testcases/`
+  - `build/targets/asterinas/asterinas/testcases/`
+  - `build/targets/asterinas/asterinas_scml/testcases/`
+- canonical artifact roots:
+  - `artifacts/runs/targets/linux/baseline/`
+  - `artifacts/runs/targets/asterinas/asterinas/`
+  - `artifacts/runs/targets/asterinas/asterinas_scml/`
+- canonical report roots:
+  - `reports/targets/linux/baseline/`
+  - `reports/targets/asterinas/asterinas/`
+  - `reports/targets/asterinas/asterinas_scml/`
+- canonical preflight/generated roots:
+  - `artifacts/preflight/targets/asterinas/asterinas_scml/`
+  - `artifacts/generated/targets/asterinas/asterinas_scml/`
+
+迁移窗口内，旧的 `eligible_programs/*.jsonl`、`build/asterinas*`、`artifacts/runs/asterinas*`、`reports/asterinas*` 路径仍可能作为兼容 shim 或历史产物出现。
 
 ## 环境要求
 
@@ -195,14 +210,14 @@ make report
 
 baseline 的主要输出包括：
 
-- `eligible_programs/baseline.jsonl`
-- `build/testcases/`
-- `artifacts/runs/`
-- `reports/baseline/summary.json`
-- `reports/baseline/summary.md`
-- `reports/baseline/signoff.md`
-- `reports/baseline/minimized-report.json`
-- `reports/baseline/minimized-report.md`
+- `eligible_programs/targets/linux/baseline/default.jsonl`
+- `build/targets/linux/baseline/testcases/`
+- `artifacts/runs/targets/linux/baseline/`
+- `reports/targets/linux/baseline/summary.json`
+- `reports/targets/linux/baseline/summary.md`
+- `reports/targets/linux/baseline/signoff.md`
+- `reports/targets/linux/baseline/minimized-report.json`
+- `reports/targets/linux/baseline/minimized-report.md`
 
 ### 2. Asterinas bring-up 路径
 
@@ -253,11 +268,11 @@ ASTERINAS_JOBS=8 make run-asterinas-smoke
 
 Asterinas 相关重要输出：
 
-- `eligible_programs/asterinas.jsonl`
-- `artifacts/runs/asterinas/`
-- `artifacts/asterinas/build-info.json`
-- `reports/asterinas/summary.json`
-- `reports/asterinas/signoff.md`
+- `eligible_programs/targets/asterinas/asterinas/default.jsonl`
+- `artifacts/runs/targets/asterinas/asterinas/`
+- `artifacts/targets/asterinas/build-info.json`
+- `reports/targets/asterinas/asterinas/summary.json`
+- `reports/targets/asterinas/asterinas/signoff.md`
 
 ### 3. Asterinas SCML 路径
 
@@ -293,12 +308,12 @@ python3 tools/reduce_case.py --workflow asterinas_scml --fixture controlled_dive
 SCML 路径的关键中间产物：
 
 - `compat_specs/asterinas/scml-manifest.json`
-- `eligible_programs/asterinas_scml.targets.jsonl`
-- `eligible_programs/asterinas_scml.generated.jsonl`
-- `eligible_programs/asterinas_scml.static.jsonl`
-- `eligible_programs/asterinas_scml.jsonl`
-- `artifacts/preflight/asterinas_scml/`
-- `reports/asterinas_scml/`
+- `eligible_programs/targets/asterinas/asterinas_scml/targets.jsonl`
+- `eligible_programs/targets/asterinas/asterinas_scml/generated.jsonl`
+- `eligible_programs/targets/asterinas/asterinas_scml/static.jsonl`
+- `eligible_programs/targets/asterinas/asterinas_scml/default.jsonl`
+- `artifacts/preflight/targets/asterinas/asterinas_scml/`
+- `reports/targets/asterinas/asterinas_scml/`
 
 ## 常用命令
 
@@ -353,7 +368,24 @@ python3 tools/reduce_case.py --workflow asterinas --program-id <program_id>
 
 ## 配置方式
 
-运行时配置主要由 `configs/*.json` 决定：
+运行时配置主要由 `configs/*.json` 决定。当前仓库同时存在：
+
+- **canonical 布局**（推荐）
+- **legacy shim 布局**（兼容）
+
+canonical workflow 配置：
+
+- `configs/workflows/baseline.json`
+- `configs/workflows/asterinas.json`
+- `configs/workflows/asterinas_scml.json`
+
+canonical target 配置：
+
+- `configs/targets/asterinas/target.json`
+- `configs/targets/asterinas/runner_profiles.asterinas.json`
+- `configs/targets/asterinas/runner_profiles.asterinas_scml.json`
+
+legacy shim 配置：
 
 - `configs/baseline_rules.json`
 - `configs/asterinas_rules.json`
@@ -368,7 +400,7 @@ python3 tools/reduce_case.py --workflow asterinas --program-id <program_id>
 - 并发度和 sign-off 门槛。
 - runner profile 路径。
 
-runner profile 另存于：
+legacy runner profile shim 另存于：
 
 - `configs/runner_profiles.json`
 - `configs/runner_profiles.asterinas.json`
@@ -388,7 +420,7 @@ runner profile 另存于：
 
 ```bash
 SYZABI_WORKFLOW=asterinas python3 tools/render_summary.py
-SYZABI_CONFIG_PATH=configs/asterinas_scml_rules.json python3 orchestrator/scheduler.py --campaign smoke --limit 50
+SYZABI_CONFIG_PATH=configs/workflows/asterinas_scml.json python3 orchestrator/scheduler.py --campaign smoke --limit 50
 SYZABI_ASTERINAS_MODE=docker-qemu python3 tools/run_asterinas.py --healthcheck
 ```
 
@@ -438,7 +470,7 @@ make run-smoke
 
 ### Asterinas runner 报 revision mismatch
 
-这通常表示 `third_party/asterinas` 的当前 HEAD 与 `configs/asterinas_rules.json` 不一致。直接对齐到 pinned revision 即可：
+这通常表示 `third_party/asterinas` 的当前 HEAD 与 Asterinas target config 中的 pinned revision 不一致。直接对齐到 pinned revision 即可：
 
 ```bash
 git -C third_party/asterinas checkout f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3

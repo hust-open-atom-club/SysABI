@@ -20,9 +20,6 @@ def active_target_name(cfg: dict[str, Any]) -> str:
     target = cfg.get("target")
     if isinstance(target, str) and target:
         return target
-    workflow = str(cfg.get("workflow", "baseline"))
-    if workflow.startswith("asterinas"):
-        return "asterinas"
     return "linux"
 
 

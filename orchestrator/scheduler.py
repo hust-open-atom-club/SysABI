@@ -709,7 +709,8 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     capabilities = capabilities_from_config(cfg)
     if not capabilities.supports_batch_execution:
         return False
-    if "batch_command" not in runner_profiles()["candidate"]:
+    profile = runner_profiles()["candidate"]
+    if profile.get("kind") == "command" and profile.get("command_batching_mode") not in {"packaged_per_case", None}:
         return False
     return effective_candidate_batch_size(args, cfg) > 1
 

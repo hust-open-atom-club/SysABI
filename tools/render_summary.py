@@ -138,6 +138,12 @@ def first_divergence_details(result: dict[str, object]) -> tuple[int | None, str
 
 
 def workflow_side_labels(cfg: dict[str, object]) -> tuple[str, str]:
+    presentation = cfg.get("presentation", {})
+    if isinstance(presentation, dict):
+        reference_label = presentation.get("reference_label")
+        candidate_label = presentation.get("candidate_label")
+        if isinstance(reference_label, str) and isinstance(candidate_label, str):
+            return reference_label, candidate_label
     workflow = current_workflow(cfg)
     target = active_target_name(cfg)
     if target == "asterinas":

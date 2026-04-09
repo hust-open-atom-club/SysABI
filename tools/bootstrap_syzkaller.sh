@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG="$ROOT/configs/baseline_rules.json"
+CONFIG="$ROOT/configs/workflows/baseline.json"
+if [[ ! -f "$CONFIG" ]]; then
+  CONFIG="$ROOT/configs/baseline_rules.json"
+fi
 
 read_config() {
   python3 - <<'PY' "$CONFIG" "$1"

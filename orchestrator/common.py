@@ -116,13 +116,59 @@ def write_text(path: str | Path, content: str) -> None:
 
 
 def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
-    payload = load_json(resolved_config_path(workflow=workflow, config_path=config_path))
+    resolved_path = resolved_config_path(workflow=workflow, config_path=config_path)
+    payload = load_json(resolved_path)
+    target_name = payload.get("target")
+    if not isinstance(target_name, str) or not target_name:
+        if resolved_path.name.endswith("_rules.json"):
+            inferred_workflow = str(payload.get("workflow", workflow or runtime_workflow()))
+            if inferred_workflow.startswith("asterinas"):
+                target_name = "asterinas"
+            else:
+                target_name = "linux"
+        else:
+            target_name = "linux"
+        payload["target"] = target_name
     target_config_path = payload.get("target_config_path")
     if target_config_path:
         target_config = load_json(target_config_path)
         payload["target_config"] = target_config
-        target_name = payload.get("target")
-        if isinstance(target_name, str) and target_name and target_name not in payload:
+        if target_name not in payload:
+            payload[target_name] = target_config
+    if resolved_path.parent.name == "workflows":
+        paths = dict(payload.get("paths", {}))
+        payload["paths"] = paths
+        resolver = PathResolver(payload)
+        paths["build_dir"] = resolver.canonical_build_dir().relative_to(repo_root()).as_posix()
+        paths["artifacts_dir"] = resolver.canonical_artifacts_dir().relative_to(repo_root()).as_posix()
+        paths["reports_dir"] = resolver.canonical_reports_dir().relative_to(repo_root()).as_posix()
+        paths["eligible_file"] = resolver.canonical_eligible_file().relative_to(repo_root()).as_posix()
+        if payload.get("capabilities", {}).get("supports_batch_execution"):
+            paths["candidate_initramfs_packages_dir"] = (
+                resolver.candidate_initramfs_packages_dir().relative_to(repo_root()).as_posix()
+            )
+        if payload.get("capabilities", {}).get("supports_preflight"):
+            paths["targets_file"] = resolver.canonical_targets_file().relative_to(repo_root()).as_posix()
+            paths["generated_file"] = resolver.canonical_generated_file().relative_to(repo_root()).as_posix()
+            paths["static_eligible_file"] = resolver.canonical_static_eligible_file().relative_to(repo_root()).as_posix()
+            paths["generated_raw_dir"] = resolver.canonical_generated_raw_dir().relative_to(repo_root()).as_posix()
+            paths["generated_normalized_dir"] = resolver.canonical_generated_normalized_dir().relative_to(repo_root()).as_posix()
+            paths["generated_meta_dir"] = resolver.canonical_generated_meta_dir().relative_to(repo_root()).as_posix()
+            preflight = dict(payload.get("preflight", {}))
+            preflight["artifact_dir"] = resolver.canonical_preflight_artifact_dir().relative_to(repo_root()).as_posix()
+            preflight["source_eligible_file"] = paths["static_eligible_file"]
+            payload["preflight"] = preflight
+            derivation = dict(payload.get("derivation", {}))
+            derivation["generated_source_eligible_file"] = paths["generated_file"]
+            payload["derivation"] = derivation
+        derivation = dict(payload.get("derivation", {}))
+        if target_name != "linux":
+            derivation["source_eligible_file"] = "eligible_programs/targets/linux/baseline/default.jsonl"
+            payload["derivation"] = derivation
+        target_config = dict(payload.get("target_config", {}))
+        if target_config:
+            target_config["build_info_path"] = resolver.canonical_build_info_path().relative_to(repo_root()).as_posix()
+            payload["target_config"] = target_config
             payload[target_name] = target_config
     return payload
 

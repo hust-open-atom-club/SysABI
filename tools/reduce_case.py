@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
 from core.capabilities import capabilities_from_config
-from orchestrator.common import config, configure_runtime, dump_json, load_json, load_jsonl, read_text, report_path, runner_profiles, temp_dir, write_text
+from orchestrator.common import config, configure_runtime, dump_json, load_json, load_jsonl, path_resolver, read_text, report_path, runner_profiles, temp_dir, write_text
 from orchestrator.syzkaller import inspect_program, mutate_drop_call
 from orchestrator.vm_runner import execute_candidate_batch_with_context, execute_candidate_case_in_package, execute_side
 from targets.asterinas.scml import AsterinasSCMLGate, AsterinasSCMLSource
@@ -43,9 +43,7 @@ def divergence_spec() -> dict[str, object]:
 
 def scml_overlay_enabled(cfg: dict[str, object]) -> bool:
     capabilities = capabilities_from_config(cfg)
-    if capabilities.supports_preflight:
-        return True
-    return str(cfg.get("workflow", "")) == "asterinas_scml"
+    return capabilities.supports_preflight
 
 
 def map_event_index_to_program_call(canonical_trace: dict[str, object], event_index: int | None) -> int | None:
@@ -103,7 +101,7 @@ def scml_reduction_invariants_hold(
 
 
 def find_campaign_package_context(program_id: str, *, workflow: str) -> dict[str, object] | None:
-    package_root = Path("artifacts/asterinas/initramfs-packages")
+    package_root = path_resolver(config(workflow=workflow)).candidate_initramfs_packages_dir()
     if not package_root.exists():
         return None
     matches: list[dict[str, object]] = []

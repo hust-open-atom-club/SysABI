@@ -445,6 +445,8 @@ class SCMLReportingTests(unittest.TestCase):
                 json.dumps(
                     {
                         "workflow": "asterinas_scml",
+                        "target": "asterinas",
+                        "capabilities": {"supports_preflight": True},
                         "paths": {
                             "reports_dir": str(reports_dir),
                             "eligible_file": str(eligible_file),

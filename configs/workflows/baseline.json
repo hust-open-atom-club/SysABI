@@ -108,18 +108,22 @@
     ]
   },
   "paths": {
-    "artifacts_dir": "artifacts/runs",
-    "build_dir": "build/testcases",
+    "artifacts_dir": "artifacts/runs/targets/linux/baseline",
+    "build_dir": "build/targets/linux/baseline/testcases",
     "corpus_meta": "corpus/meta",
     "corpus_normalized": "corpus/normalized",
     "corpus_raw": "corpus/raw",
     "corpus_rejected": "corpus/rejected",
-    "eligible_file": "eligible_programs/baseline.jsonl",
+    "eligible_file": "eligible_programs/targets/linux/baseline/default.jsonl",
     "go_archive_dir": "artifacts/toolchains/go",
     "go_root": "artifacts/toolchains/go/current/go",
-    "reports_dir": "reports/baseline",
+    "reports_dir": "reports/targets/linux/baseline",
     "syzkaller_dir": "third_party/syzkaller",
     "temp_dir": "artifacts/tmp"
+  },
+  "presentation": {
+    "candidate_label": "Linux(candidate)",
+    "reference_label": "Linux(reference)"
   },
   "runner_profiles_path": "configs/runner_profiles.json",
   "schema_version": 1,

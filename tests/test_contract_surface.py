@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import textwrap
 import unittest
@@ -9,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from orchestrator.common import configure_runtime, resolved_config_path, runner_profiles
+from orchestrator.common import config, configure_runtime, resolved_config_path, runner_profiles
 from orchestrator.scheduler import candidate_batching_enabled
 from orchestrator.vm_runner import execute_side
 
@@ -50,6 +51,17 @@ class ContractSurfaceTests(unittest.TestCase):
         asterinas_scml = runner_profiles(workflow="asterinas_scml")
         self.assertEqual(asterinas_scml["candidate"]["kind"], "command")
         self.assertEqual(asterinas_scml["reference"]["work_root"], "artifacts/sandboxes/asterinas_scml/reference")
+
+    def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
+        canonical = config(workflow="asterinas")
+        self.assertEqual(canonical["target"], "asterinas")
+        self.assertEqual(canonical["paths"]["eligible_file"], "eligible_programs/targets/asterinas/asterinas/default.jsonl")
+        self.assertEqual(canonical["target_config"]["build_info_path"], "artifacts/targets/asterinas/build-info.json")
+
+        legacy = config(config_path="configs/asterinas_rules.json")
+        self.assertEqual(legacy["target"], "asterinas")
+        self.assertIn("asterinas", legacy)
+        self.assertEqual(legacy["asterinas"]["build_info_path"], "artifacts/asterinas/build-info.json")
 
     def test_execute_side_command_runner_materializes_protocol_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -217,7 +229,10 @@ class ContractSurfaceTests(unittest.TestCase):
 
     def test_candidate_batching_is_capability_driven(self) -> None:
         args = SimpleNamespace(candidate_batch_size=2)
-        with patch("orchestrator.scheduler.runner_profiles", return_value={"candidate": {"batch_command": ["echo", "batch"]}}):
+        with patch(
+            "orchestrator.scheduler.runner_profiles",
+            return_value={"candidate": {"kind": "command", "command_batching_mode": "packaged_per_case"}},
+        ):
             self.assertTrue(
                 candidate_batching_enabled(
                     args,
@@ -227,6 +242,23 @@ class ContractSurfaceTests(unittest.TestCase):
                     },
                 )
             )
+        with patch(
+            "orchestrator.scheduler.runner_profiles",
+            return_value={"candidate": {"kind": "command", "command_batching_mode": "unknown_mode"}},
+        ):
+            self.assertFalse(
+                candidate_batching_enabled(
+                    args,
+                    {
+                        "workflow": "custom_workflow",
+                        "capabilities": {"supports_batch_execution": True},
+                    },
+                )
+            )
+        with patch(
+            "orchestrator.scheduler.runner_profiles",
+            return_value={"candidate": {"kind": "command", "command_batching_mode": "packaged_per_case"}},
+        ):
             self.assertFalse(
                 candidate_batching_enabled(
                     args,
@@ -236,6 +268,38 @@ class ContractSurfaceTests(unittest.TestCase):
                     },
                 )
             )
+
+    def test_legacy_make_targets_route_through_generic_workflow_entrypoints(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        smoke = subprocess.run(
+            ["make", "-n", "run-smoke"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(smoke.returncode, 0)
+        self.assertIn("make run-workflow WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100", smoke.stdout)
+
+        asterinas = subprocess.run(
+            ["make", "-n", "run-asterinas-smoke"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(asterinas.returncode, 0)
+        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=4", asterinas.stdout)
+
+        analyze = subprocess.run(
+            ["make", "-n", "analyze-asterinas"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(analyze.returncode, 0)
+        self.assertIn("make analyze-workflow WORKFLOW=asterinas", analyze.stdout)
 
 
 if __name__ == "__main__":

@@ -172,15 +172,23 @@ def terminate_repo_containers(repo_root: Path) -> None:
 
 
 def load_asterinas_docker_image(repo_root: Path) -> str | None:
-    config_path = repo_root / "configs" / "asterinas_rules.json"
-    if not config_path.exists():
-        return None
-    payload = json.loads(config_path.read_text(encoding="utf-8"))
-    asterinas = payload.get("asterinas", {})
-    image = asterinas.get("docker_image")
-    if not isinstance(image, str) or not image:
-        return None
-    return image
+    candidates = [
+        repo_root / "configs" / "workflows" / "asterinas.json",
+        repo_root / "configs" / "asterinas_rules.json",
+    ]
+    for config_path in candidates:
+        if not config_path.exists():
+            continue
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        asterinas = payload.get("asterinas") or payload.get("target_config") or {}
+        if not asterinas and payload.get("target_config_path"):
+            target_config_path = repo_root / str(payload["target_config_path"])
+            if target_config_path.exists():
+                asterinas = json.loads(target_config_path.read_text(encoding="utf-8"))
+        image = asterinas.get("docker_image")
+        if isinstance(image, str) and image:
+            return image
+    return None
 
 
 def remove_path(path: Path) -> bool:
@@ -205,7 +213,7 @@ def remove_path(path: Path) -> bool:
 def docker_remove_paths(repo_root: Path, paths: list[Path]) -> None:
     image = load_asterinas_docker_image(repo_root)
     if image is None:
-        raise RuntimeError("permission-denied cleanup requires configs/asterinas_rules.json docker_image")
+        raise RuntimeError("permission-denied cleanup requires canonical or legacy Asterinas config with docker_image")
     relative_paths = [path.resolve().relative_to(repo_root.resolve()) for path in paths]
     command = [
         "docker",

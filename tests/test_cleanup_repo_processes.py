@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.cleanup_repo_processes import cleanup_paths, container_owned_by_repo, process_owned_by_repo, running_container_names
+from tools.cleanup_repo_processes import cleanup_paths, container_owned_by_repo, load_asterinas_docker_image, process_owned_by_repo, running_container_names
 
 
 class CleanupRepoProcessesTests(unittest.TestCase):
@@ -80,3 +80,31 @@ class CleanupRepoProcessesTests(unittest.TestCase):
             side_effect=OSError("docker missing"),
         ):
             self.assertEqual(running_container_names(), [])
+
+    def test_load_asterinas_docker_image_reads_canonical_target_config_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            workflow_dir = repo_root / "configs" / "workflows"
+            target_dir = repo_root / "configs" / "targets" / "asterinas"
+            workflow_dir.mkdir(parents=True, exist_ok=True)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            (workflow_dir / "asterinas.json").write_text(
+                '{"target":"asterinas","target_config_path":"configs/targets/asterinas/target.json"}\n',
+                encoding="utf-8",
+            )
+            (target_dir / "target.json").write_text(
+                '{"docker_image":"asterinas/asterinas:test"}\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(load_asterinas_docker_image(repo_root), "asterinas/asterinas:test")
+
+    def test_load_asterinas_docker_image_falls_back_to_legacy_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            config_dir = repo_root / "configs"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "asterinas_rules.json").write_text(
+                '{"asterinas":{"docker_image":"legacy/image:test"}}\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(load_asterinas_docker_image(repo_root), "legacy/image:test")
