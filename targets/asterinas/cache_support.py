@@ -293,7 +293,13 @@ def docker_run_command(
         command.extend(["--name", container_name])
     merged_env = {
         "CARGO_HOME": str(shared_cargo_home),
+        "CARGO_HTTP_TIMEOUT": hooks.os.environ.get("SYZABI_ASTERINAS_CARGO_HTTP_TIMEOUT", "600"),
         "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
+        "CARGO_NET_RETRY": hooks.os.environ.get("SYZABI_ASTERINAS_CARGO_NET_RETRY", "10"),
+        "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": hooks.os.environ.get(
+            "SYZABI_ASTERINAS_CARGO_REGISTRY_PROTOCOL",
+            "sparse",
+        ),
         "CARGO_TERM_PROGRESS_WHEN": "never",
         "GIT_CONFIG_GLOBAL": str(hooks.host_path_to_container_path(gitconfig_path, cfg)),
     }
