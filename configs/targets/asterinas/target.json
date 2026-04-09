@@ -7,6 +7,6 @@
   "docker_workdir": "/root/asterinas",
   "docker_workspace_dir": "/workspace",
   "repo_dir": "third_party/asterinas",
-  "revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
+  "revision": "main",
   "run_timeout_sec": 120
 }

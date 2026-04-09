@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -15,12 +16,23 @@ class BuildConfigError(RuntimeError):
     pass
 
 
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
 def build_info_path(cfg: dict[str, Any]) -> Path:
     return resolve_repo_path(cfg["asterinas"]["build_info_path"])
 
 
+def asterinas_repo_dir(cfg: dict[str, Any]) -> Path:
+    return resolve_repo_path(cfg["asterinas"]["repo_dir"])
+
+
+def configured_asterinas_ref(cfg: dict[str, Any]) -> str:
+    return str(cfg["asterinas"]["revision"])
+
+
 def current_asterinas_revision(cfg: dict[str, Any]) -> str:
-    repo = resolve_repo_path(cfg["asterinas"]["repo_dir"])
+    repo = asterinas_repo_dir(cfg)
     result = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"],
         text=True,
@@ -33,12 +45,50 @@ def current_asterinas_revision(cfg: dict[str, Any]) -> str:
     return result.stdout.strip()
 
 
+def sync_asterinas_branch(cfg: dict[str, Any], branch: str) -> str:
+    repo = asterinas_repo_dir(cfg)
+    fetch = subprocess.run(
+        ["git", "-C", str(repo), "fetch", "origin", branch],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=600,
+    )
+    if fetch.returncode != 0:
+        detail = fetch.stderr.strip() or fetch.stdout.strip() or f"failed to fetch origin/{branch}"
+        raise BuildConfigError(detail)
+
+    checkout = subprocess.run(
+        ["git", "-C", str(repo), "checkout", "-f", "-B", branch, f"origin/{branch}"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    if checkout.returncode != 0:
+        detail = checkout.stderr.strip() or checkout.stdout.strip() or f"failed to checkout {branch}"
+        raise BuildConfigError(detail)
+    reset = subprocess.run(
+        ["git", "-C", str(repo), "reset", "--hard", f"origin/{branch}"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    if reset.returncode != 0:
+        detail = reset.stderr.strip() or reset.stdout.strip() or f"failed to reset {branch}"
+        raise BuildConfigError(detail)
+    return current_asterinas_revision(cfg)
+
+
 def ensure_revision(cfg: dict[str, Any]) -> str:
-    revision = current_asterinas_revision(cfg)
-    expected = str(cfg["asterinas"]["revision"])
-    if revision != expected:
-        raise BuildConfigError(f"Asterinas revision mismatch: expected {expected}, got {revision}")
-    return revision
+    expected = configured_asterinas_ref(cfg)
+    if GIT_COMMIT_RE.fullmatch(expected):
+        revision = current_asterinas_revision(cfg)
+        if revision != expected:
+            raise BuildConfigError(f"Asterinas revision mismatch: expected {expected}, got {revision}")
+        return revision
+    return sync_asterinas_branch(cfg, expected)
 
 
 def ensure_host_build(cfg: dict[str, object], *, hooks) -> str:

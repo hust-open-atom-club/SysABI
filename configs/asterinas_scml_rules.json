@@ -9,7 +9,7 @@
   "generation_profile_path": "compat_specs/asterinas/generation-profile.json",
   "asterinas": {
     "repo_dir": "third_party/asterinas",
-    "revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
+    "revision": "main",
     "docker_image": "asterinas/asterinas:0.17.1-20260317",
     "docker_repo_dir": "/root/asterinas",
     "docker_workspace_dir": "/workspace",

@@ -46,6 +46,7 @@ from tools.run_asterinas import (
 )
 from targets.asterinas.adapter import AsterinasTargetAdapter
 from targets.asterinas import bundle as asterinas_bundle
+from targets.asterinas import build as asterinas_build
 
 
 class AsterinasPipelineTests(unittest.TestCase):
@@ -694,6 +695,35 @@ class AsterinasPipelineTests(unittest.TestCase):
         self.assertEqual(
             asterinas_bundle.build_probe_root(),
             repo_root / "artifacts" / "targets" / "asterinas" / "build-probe",
+        )
+
+    def test_ensure_revision_syncs_main_branch(self) -> None:
+        cfg = {"asterinas": {"repo_dir": "third_party/asterinas", "revision": "main"}}
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, text, capture_output, check, timeout):
+            calls.append(cmd)
+            if cmd[-2:] == ["origin", "main"]:
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if cmd[-4:] == ["-f", "-B", "main", "origin/main"]:
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if cmd[-3:] == ["reset", "--hard", "origin/main"]:
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            raise AssertionError(f"unexpected git command: {cmd}")
+
+        with patch("targets.asterinas.build.subprocess.run", side_effect=fake_run), patch(
+            "targets.asterinas.build.current_asterinas_revision",
+            return_value="rev-main",
+        ):
+            self.assertEqual(asterinas_build.ensure_revision(cfg), "rev-main")
+
+        self.assertEqual(
+            calls,
+            [
+                ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "fetch", "origin", "main"],
+                ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "checkout", "-f", "-B", "main", "origin/main"],
+                ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "reset", "--hard", "origin/main"],
+            ],
         )
 
     def test_host_direct_run_validates_packaged_bundle_before_reuse(self) -> None:

@@ -138,7 +138,7 @@ SyzABI 是一个面向 `syzkaller` 程序的离线差分回放框架。它的目
 
 - `make bootstrap` 会自动下载并固定 Go `1.26.0` 到 `artifacts/toolchains/go/current/go`，不依赖系统全局 Go。
 - baseline 路径会自动准备 `third_party/syzkaller` 并校验 pinned revision。
-- Asterinas 路径要求 `third_party/asterinas` 已存在，且 revision 与配置匹配。
+- Asterinas 路径要求 `third_party/asterinas` 已存在，并会在运行时自动同步到配置中的分支（当前为 `main`）。
 
 ### Asterinas 额外要求
 
@@ -221,11 +221,11 @@ baseline 的主要输出包括：
 
 ### 2. Asterinas bring-up 路径
 
-先确保 Asterinas 工作树已准备好，并处于固定 revision：
+先确保 Asterinas 工作树已准备好。当前配置会在执行时自动强制同步到 `main` 分支：
 
 ```bash
 git clone https://github.com/asterinas/asterinas.git third_party/asterinas
-git -C third_party/asterinas checkout f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3
+git -C third_party/asterinas checkout main
 ```
 
 从 baseline 派生 Asterinas corpus：
@@ -479,13 +479,17 @@ make run-smoke
 - `third_party/syzkaller` 是否被本地改坏
 - `artifacts/toolchains/go/current/go` 是否被部分写入
 
-### Asterinas runner 报 revision mismatch
+### Asterinas runner 同步 `main` 失败
 
-这通常表示 `third_party/asterinas` 的当前 HEAD 与 Asterinas target config 中的 pinned revision 不一致。直接对齐到 pinned revision 即可：
+这通常表示 `third_party/asterinas` 无法 fetch / checkout / reset 到 `main`。可以先手动强制同步一次：
 
 ```bash
-git -C third_party/asterinas checkout f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3
+git -C third_party/asterinas fetch origin main
+git -C third_party/asterinas checkout -f -B main origin/main
+git -C third_party/asterinas reset --hard origin/main
 ```
+
+注意：这会丢弃 `third_party/asterinas` 里的本地未提交改动。
 
 ### Asterinas 健康检查或运行失败
 
