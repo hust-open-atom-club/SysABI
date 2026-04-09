@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analyzer.classify import classify_result
 from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
+from core.capabilities import capabilities_from_config
 from orchestrator.common import clean_dir, config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, load_jsonl, report_path, reports_dir, runner_profiles
 from orchestrator.stability import all_equal, canonical_trace_hash, build_status_ok
 from orchestrator.vm_runner import build_root, execute_candidate_batch, execute_candidate_batch_with_context, execute_candidate_case_in_package, execute_side
@@ -705,7 +706,8 @@ def effective_candidate_batch_size(args: argparse.Namespace, cfg: dict[str, obje
 
 
 def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object]) -> bool:
-    if not str(cfg.get("workflow", "")).startswith("asterinas"):
+    capabilities = capabilities_from_config(cfg)
+    if not capabilities.supports_batch_execution:
         return False
     if "batch_command" not in runner_profiles()["candidate"]:
         return False

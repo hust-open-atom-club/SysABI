@@ -9,8 +9,8 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.capability import load_manifest_index
 from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, load_json, report_path
+from targets.asterinas.scml import load_manifest_index
 
 
 def parse_args() -> argparse.Namespace:

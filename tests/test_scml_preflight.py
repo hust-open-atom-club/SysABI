@@ -6,8 +6,8 @@ from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
-from orchestrator.capability import AsterinasSCMLGate, AsterinasSCMLSource, sctrace_command
 from orchestrator.common import load_json
+from targets.asterinas.scml import AsterinasSCMLGate, AsterinasSCMLSource, sctrace_command
 from tools.build_scml_manifest import build_manifest
 from tools.derive_scml_allowed_sequences import load_manifest_index
 from tools.preflight_scml_gate import (
@@ -133,10 +133,10 @@ class SCMLPreflightTests(unittest.TestCase):
             debug.parent.mkdir(parents=True, exist_ok=True)
             release.write_text("not executable", encoding="utf-8")
             debug.write_text("not executable", encoding="utf-8")
-            with patch("orchestrator.capability.resolve_repo_path", side_effect=[release, debug]), patch(
-                "orchestrator.capability.shutil.which",
+            with patch("targets.asterinas.scml.resolve_repo_path", side_effect=[release, debug]), patch(
+                "targets.asterinas.scml.shutil.which",
                 return_value="/usr/bin/sctrace",
-            ), patch("orchestrator.capability.os.access", return_value=False):
+            ), patch("targets.asterinas.scml.os.access", return_value=False):
                 command = sctrace_command([Path("a.scml")], Path("input.strace"))
         self.assertEqual(command[0], "/usr/bin/sctrace")
 

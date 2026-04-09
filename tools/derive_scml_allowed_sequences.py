@@ -10,8 +10,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, load_json, load_jsonl, report_path, resolve_repo_path
-from orchestrator.capability import load_manifest_index
 from orchestrator.models import EligibleProgram
+from targets.asterinas.scml import load_manifest_index
 
 
 def parse_args() -> argparse.Namespace:

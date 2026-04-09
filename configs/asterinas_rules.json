@@ -1,5 +1,6 @@
 {
   "workflow": "asterinas",
+  "target": "asterinas",
   "schema_version": 1,
   "target_os": "linux",
   "arch": "amd64",
@@ -28,7 +29,8 @@
     "eligible_file": "eligible_programs/asterinas.jsonl",
     "build_dir": "build/asterinas/testcases",
     "artifacts_dir": "artifacts/runs/asterinas",
-    "reports_dir": "reports/asterinas"
+    "reports_dir": "reports/asterinas",
+    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages"
   },
   "allowlist": {
     "syscalls": [
@@ -93,6 +95,11 @@
     "rerun_count": 2,
     "timeout_sec": 120,
     "baseline_invalid_threshold": 0.1
+  },
+  "capabilities": {
+    "supports_batch_execution": true,
+    "supports_preflight": false,
+    "supports_snapshot_reuse": false
   },
   "parallel": {
     "jobs": 4,

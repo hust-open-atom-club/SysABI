@@ -1,5 +1,6 @@
 {
   "workflow": "baseline",
+  "target": "linux",
   "schema_version": 1,
   "target_os": "linux",
   "arch": "amd64",
@@ -120,6 +121,11 @@
     "rerun_count": 2,
     "timeout_sec": 10,
     "baseline_invalid_threshold": 0.1
+  },
+  "capabilities": {
+    "supports_batch_execution": false,
+    "supports_preflight": false,
+    "supports_snapshot_reuse": false
   },
   "build": {
     "cflags": []

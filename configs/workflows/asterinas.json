@@ -1,0 +1,128 @@
+{
+  "allowlist": {
+    "syscalls": [
+      "open",
+      "openat",
+      "read",
+      "write",
+      "pread64",
+      "pwrite64",
+      "lseek",
+      "close",
+      "fstat",
+      "newfstatat",
+      "mkdir",
+      "unlink",
+      "rename",
+      "getpid",
+      "getppid",
+      "pipe",
+      "pipe2",
+      "eventfd",
+      "eventfd2",
+      "socketpair",
+      "exit",
+      "exit_group"
+    ]
+  },
+  "arch": "amd64",
+  "build": {
+    "cflags": [
+      "-static"
+    ]
+  },
+  "capabilities": {
+    "supports_batch_execution": true,
+    "supports_preflight": false,
+    "supports_snapshot_reuse": false
+  },
+  "classification": {
+    "baseline_invalid": "BASELINE_INVALID",
+    "bug_likely": "BUG_LIKELY",
+    "no_diff": "NO_DIFF",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE"
+  },
+  "derivation": {
+    "accept_reasons": [
+      "baseline_stable_source",
+      "asterinas_exact_supported_subset",
+      "full_name_allowlisted"
+    ],
+    "source_eligible_file": "eligible_programs/baseline.jsonl",
+    "unsupported_taxonomy": {
+      "memory_management": [
+        "mmap",
+        "munmap",
+        "mprotect",
+        "brk"
+      ],
+      "process_control": [
+        "clone",
+        "wait4"
+      ]
+    }
+  },
+  "normalization": {
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "max_probe_bytes": 4096,
+    "preview_bytes": 32,
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "parallel": {
+    "candidate_batch_size": 100,
+    "jobs": 4
+  },
+  "paths": {
+    "artifacts_dir": "artifacts/runs/asterinas",
+    "build_dir": "build/asterinas/testcases",
+    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages",
+    "corpus_meta": "corpus/meta",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_raw": "corpus/raw",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/asterinas.jsonl",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "go_root": "artifacts/toolchains/go/current/go",
+    "reports_dir": "reports/asterinas",
+    "syzkaller_dir": "third_party/syzkaller",
+    "temp_dir": "artifacts/tmp"
+  },
+  "runner_profiles_path": "configs/targets/asterinas/runner_profiles.asterinas.json",
+  "schema_version": 1,
+  "stability": {
+    "baseline_invalid_threshold": 0.1,
+    "rerun_count": 2,
+    "timeout_sec": 120
+  },
+  "target": "asterinas",
+  "target_config_path": "configs/targets/asterinas/target.json",
+  "target_os": "linux",
+  "thresholds": {
+    "signoff": {
+      "baseline_invalid_rate": 0.1,
+      "build_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.85,
+      "require_minimized_report": true,
+      "total_min": 200,
+      "trace_success_rate": 0.95
+    },
+    "smoke": {
+      "baseline_invalid_rate": 0.1,
+      "build_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.8,
+      "total_min": 50,
+      "trace_success_rate": 0.95
+    }
+  },
+  "workflow": "asterinas"
+}

@@ -22,10 +22,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from analyzer.schemas import validate_raw_trace
 from orchestrator.common import config, configure_runtime, dump_json, repo_root, resolve_repo_path, sha256_text, temp_dir as runtime_temp_dir
+from targets.asterinas.build import build_info_path, ensure_revision
+from targets.asterinas.initramfs import compose_autorun, compose_init, compose_init_hook, compose_packaged_autorun, compose_profile
+from targets.asterinas.output import guest_crash_detail
+from targets.asterinas.runtime import selected_run_timeout_sec
 from tools.run_asterinas_shared import (
     candidate_status_from_events,
     compose_batch_autorun,
-    compose_packaged_autorun,
     extract_batch_case_blocks,
     extract_section,
     materialize_batch_case_outputs,
@@ -74,16 +77,6 @@ def is_docker_access_error(detail: str) -> bool:
 
 def should_fallback_to_host_direct(exc: RunnerError) -> bool:
     return is_docker_access_error(str(exc))
-
-
-def guest_crash_detail(console_text: str) -> str | None:
-    if "Printing stack trace:" in console_text:
-        return "guest crashed before emitting autorun markers (kernel stack trace observed)"
-    lowered = console_text.lower()
-    if "panicked at" in lowered or "kernel panic" in lowered:
-        return "guest crashed before emitting autorun markers (kernel panic observed)"
-    return None
-
 
 def write_missing_marker_crash_result(
     *,
@@ -155,13 +148,6 @@ def write_runner_result(payload: dict[str, object]) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     dump_json(path, payload)
-
-
-def selected_run_timeout_sec(cfg: dict[str, object]) -> int:
-    override = os.environ.get("SYZABI_BATCH_TIMEOUT_SEC")
-    if override:
-        return int(override)
-    return int(cfg["asterinas"]["run_timeout_sec"])
 
 
 def read_workflow_config() -> dict[str, object]:
@@ -654,107 +640,6 @@ def repack_initramfs(source_dir: Path, output_path: Path) -> None:
         raise RunnerError(result.stderr.strip() or "failed to repack initramfs")
 
 
-def compose_profile() -> str:
-    return """#!/bin/sh
-if [ -f /etc/profile.d/init.sh ]; then
-    . /etc/profile.d/init.sh
-fi
-"""
-
-
-def compose_init() -> str:
-    return """#!/bin/sh
-exec /syzkabi/autorun.sh
-"""
-
-
-def compose_init_hook() -> str:
-    return """#!/bin/sh
-/syzkabi/autorun.sh
-"""
-
-
-def compose_autorun(preview_bytes: int) -> str:
-    injected_env = []
-    for name in (
-        "SYZABI_INJECT_TRACE_ENABLED",
-        "SYZABI_INJECT_TRACE_CALL_INDEX",
-        "SYZABI_INJECT_TRACE_SYSCALL",
-        "SYZABI_INJECT_TRACE_FIELD",
-        "SYZABI_INJECT_TRACE_VALUE",
-    ):
-        value = os.environ.get(name)
-        if value is None or value == "":
-            continue
-        injected_env.append(f"export {name}={shlex.quote(value)}")
-    injected_block = "\n".join(injected_env)
-    if injected_block:
-        injected_block += "\n"
-    return f"""#!/bin/sh
-set +e
-
-BUSYBOX=/usr/bin/busybox
-RUNTIME_DIR=/tmp/syzabi
-WORK_DIR="$RUNTIME_DIR/work"
-
-$BUSYBOX mkdir -p /proc /sys "$RUNTIME_DIR" "$WORK_DIR"
-$BUSYBOX mount -t proc proc /proc >/dev/null 2>&1 || true
-$BUSYBOX mount -t sysfs sysfs /sys >/dev/null 2>&1 || true
-
-export SYZABI_SIDE=candidate
-export SYZABI_TRACE_EVENTS_PATH="$RUNTIME_DIR/raw-trace.events.jsonl"
-export SYZABI_TRACE_PREVIEW_BYTES="{preview_bytes}"
-{injected_block}
-
-emit_file_section() {{
-    name="$1"
-    path="$2"
-    echo "{MARKER_PREFIX}_BEGIN_${{name}}__"
-    if [ -f "$path" ]; then
-        $BUSYBOX cat "$path"
-    fi
-    echo
-    echo "{MARKER_PREFIX}_END_${{name}}__"
-}}
-
-emit_external_state() {{
-    echo "{MARKER_PREFIX}_BEGIN_EXTERNAL_STATE__"
-    printf '{{"files":['
-    sep=""
-    $BUSYBOX find "$WORK_DIR" -type f | $BUSYBOX sort > "$RUNTIME_DIR/filelist.txt"
-    while IFS= read -r path; do
-        rel="${{path#$WORK_DIR/}}"
-        size="$($BUSYBOX stat -c %s "$path" 2>/dev/null || echo 0)"
-        sha="$($BUSYBOX sha256sum "$path" 2>/dev/null | $BUSYBOX awk '{{print $1}}')"
-        printf '%s{{"path":"%s","size":%s,"sha256":"%s"}}' "$sep" "$rel" "$size" "$sha"
-        sep=","
-    done < "$RUNTIME_DIR/filelist.txt"
-    printf ']}}'
-    echo
-    echo "{MARKER_PREFIX}_END_EXTERNAL_STATE__"
-}}
-
-$BUSYBOX chmod +x /syzkabi/testcase.bin 2>/dev/null || true
-cd "$WORK_DIR" || exit 125
-/syzkabi/testcase.bin > "$RUNTIME_DIR/stdout.txt" 2> "$RUNTIME_DIR/stderr.txt"
-EXIT_CODE=$?
-PROC_STATUS=ok
-if [ "$EXIT_CODE" -ge 128 ]; then
-    PROC_STATUS=crash
-fi
-
-echo "{MARKER_PREFIX}_BEGIN_PROCESS_EXIT__"
-printf '{{"status":"%s","exit_code":%s,"timed_out":false}}\\n' "$PROC_STATUS" "$EXIT_CODE"
-echo "{MARKER_PREFIX}_END_PROCESS_EXIT__"
-emit_file_section STDOUT "$RUNTIME_DIR/stdout.txt"
-emit_file_section STDERR "$RUNTIME_DIR/stderr.txt"
-emit_file_section EVENTS "$RUNTIME_DIR/raw-trace.events.jsonl"
-emit_external_state
-$BUSYBOX sync
-$BUSYBOX poweroff -f >/dev/null 2>&1 || $BUSYBOX halt -f >/dev/null 2>&1 || $BUSYBOX reboot -f >/dev/null 2>&1 || echo o > /proc/sysrq-trigger
-"""
-
-
 def create_minimal_initramfs(cfg: dict[str, object], binary_path: Path, work_dir: Path) -> Path:
     root = work_dir / "asterinas-minimal-initramfs"
     if root.exists():
@@ -1107,10 +992,6 @@ def create_batch_initramfs(cfg: dict[str, object], cases: list[dict[str, object]
     return output_path
 
 
-def build_info_path(cfg: dict[str, object]) -> Path:
-    return resolve_repo_path(cfg["asterinas"]["build_info_path"])
-
-
 def target_osdk_dir(cfg: dict[str, object]) -> Path:
     info_path = build_info_path(cfg)
     if info_path.exists():
@@ -1286,27 +1167,6 @@ def stop_qemu_processes(work_dir: Path) -> None:
             except ProcessLookupError:
                 continue
         time.sleep(1)
-
-
-def current_asterinas_revision(cfg: dict[str, object]) -> str:
-    repo = resolve_repo_path(cfg["asterinas"]["repo_dir"])
-    result = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RunnerError(f"failed to read Asterinas revision: {result.stderr.strip()}")
-    return result.stdout.strip()
-
-
-def ensure_revision(cfg: dict[str, object]) -> str:
-    revision = current_asterinas_revision(cfg)
-    expected = cfg["asterinas"]["revision"]
-    if revision != expected:
-        raise RunnerError(f"Asterinas revision mismatch: expected {expected}, got {revision}")
-    return revision
 
 
 def host_osdk_env(work_dir: Path, *, boot_method: str = "qemu-direct") -> dict[str, str]:

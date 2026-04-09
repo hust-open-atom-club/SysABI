@@ -1,0 +1,2 @@
+"""Asterinas target adapter."""
+

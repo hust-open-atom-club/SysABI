@@ -1,0 +1,45 @@
+{
+  "candidate": {
+    "batch_command": [
+      "python3",
+      "{repo_root}/tools/run_asterinas.py",
+      "--mode",
+      "docker-qemu",
+      "--batch-manifest",
+      "{batch_manifest}",
+      "--work-dir",
+      "{sandbox_root}"
+    ],
+    "binary_name": "testcase.candidate.bin",
+    "command": [
+      "python3",
+      "{repo_root}/tools/run_asterinas.py",
+      "--mode",
+      "docker-qemu",
+      "--binary",
+      "{binary_path}",
+      "--work-dir",
+      "{sandbox_root}"
+    ],
+    "controlled_divergence": {
+      "enabled": false,
+      "field": "return",
+      "match_syscall": "openat",
+      "value": -5
+    },
+    "kernel_build_command": "printf asterinas-docker-qemu",
+    "kind": "command",
+    "role": "candidate",
+    "snapshot_id": "asterinas-docker-qemu",
+    "timeout_sec": 600,
+    "work_root": "artifacts/sandboxes/asterinas/candidate"
+  },
+  "reference": {
+    "kernel_build_command": "uname -r",
+    "kind": "local",
+    "role": "reference",
+    "snapshot_id": "local-linux-reference-asterinas",
+    "work_root": "artifacts/sandboxes/asterinas/reference"
+  },
+  "schema_version": 1
+}

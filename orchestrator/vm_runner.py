@@ -11,12 +11,13 @@ import time
 from pathlib import Path
 
 from analyzer.schemas import validate_raw_trace
-from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, repo_root, resolve_repo_path, runner_profiles, sha256_text
+from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text
 from orchestrator.models import RunResult
+from targets.registry import get_target_adapter
 
 
 def build_root(program_id: str) -> Path:
-    return resolve_repo_path(config()["paths"]["build_dir"]) / program_id
+    return path_resolver(config()).build_dir() / program_id
 
 
 def kernel_build(command: str) -> str:
@@ -211,26 +212,11 @@ def prepare_candidate_batch_case(
 
 
 def candidate_initramfs_package_root() -> Path:
-    return ensure_dir("artifacts/asterinas/initramfs-packages")
+    return ensure_dir(path_resolver(config()).candidate_initramfs_packages_dir())
 
 
 def packaged_initramfs_template_inputs(cfg: dict[str, object]) -> dict[str, object]:
-    preview_bytes = int(cfg["normalization"]["preview_bytes"])
-    busybox_path = Path("/usr/bin/busybox")
-    return {
-        "compose_init": tools_run_asterinas().compose_init(),
-        "compose_init_hook": tools_run_asterinas().compose_init_hook(),
-        "compose_profile": tools_run_asterinas().compose_profile(),
-        "compose_packaged_autorun": tools_run_asterinas().compose_packaged_autorun(preview_bytes),
-        "busybox_path": str(busybox_path),
-        "busybox_sha256": hashlib.sha256(busybox_path.read_bytes()).hexdigest(),
-    }
-
-
-def tools_run_asterinas():
-    from tools import run_asterinas
-
-    return run_asterinas
+    return get_target_adapter(cfg).compose_template_inputs(cfg)
 
 
 def package_case_descriptor(case: dict[str, object]) -> dict[str, object]:
@@ -306,8 +292,7 @@ def execute_prepared_candidate_case(
     env["SYZABI_CONSOLE_LOG_PATH"] = str(console_path)
     env["SYZABI_RAW_TRACE_PATH"] = str(raw_trace_path)
     env["SYZABI_EXTERNAL_STATE_PATH"] = str(external_state_path)
-    env["SYZABI_ASTERINAS_PACKAGE_DIR"] = str(package_dir)
-    env["SYZABI_ASTERINAS_PACKAGE_SLOT"] = str(slot)
+    env.update(get_target_adapter(cfg).packaged_candidate_env(package_dir, slot))
     inject_trace = case.get("inject_trace")
     if inject_trace:
         env["SYZABI_INJECT_TRACE_ENABLED"] = "1"

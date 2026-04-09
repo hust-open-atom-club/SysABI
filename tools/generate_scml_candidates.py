@@ -29,9 +29,9 @@ from orchestrator.common import (
     temp_dir,
     write_text,
 )
-from orchestrator.capability import load_manifest_index
 from orchestrator.models import ProgramMeta
 from orchestrator.syzkaller import inspect_program, project_bin
+from targets.asterinas.scml import load_manifest_index
 from tools.derive_scml_allowed_sequences import derive_rejection
 
 

@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
+
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_WORKFLOW = "baseline"
@@ -16,14 +18,11 @@ TEMP_DIR_ENV = "SYZABI_TMPDIR"
 
 
 def repo_root() -> Path:
-    return ROOT
+    return core_repo_root()
 
 
 def resolve_repo_path(value: str | Path) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return ROOT / path
+    return core_resolve_repo_path(value)
 
 
 def configure_runtime(*, workflow: str | None = None, config_path: str | Path | None = None) -> None:
@@ -42,6 +41,9 @@ def resolved_config_path(*, workflow: str | None = None, config_path: str | Path
     if selected_path:
         return resolve_repo_path(selected_path)
     selected_workflow = workflow or runtime_workflow()
+    canonical = resolve_repo_path(f"configs/workflows/{selected_workflow}.json")
+    if canonical.exists():
+        return canonical
     candidate = resolve_repo_path(f"configs/{selected_workflow}_rules.json")
     if candidate.exists():
         return candidate
@@ -114,7 +116,15 @@ def write_text(path: str | Path, content: str) -> None:
 
 
 def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
-    return load_json(resolved_config_path(workflow=workflow, config_path=config_path))
+    payload = load_json(resolved_config_path(workflow=workflow, config_path=config_path))
+    target_config_path = payload.get("target_config_path")
+    if target_config_path:
+        target_config = load_json(target_config_path)
+        payload["target_config"] = target_config
+        target_name = payload.get("target")
+        if isinstance(target_name, str) and target_name and target_name not in payload:
+            payload[target_name] = target_config
+    return payload
 
 
 def current_workflow(cfg: dict[str, Any] | None = None) -> str:
@@ -124,7 +134,7 @@ def current_workflow(cfg: dict[str, Any] | None = None) -> str:
 
 def reports_dir(cfg: dict[str, Any] | None = None) -> Path:
     payload = cfg or config()
-    return resolve_repo_path(payload["paths"]["reports_dir"])
+    return PathResolver(payload).reports_dir()
 
 
 def report_path(*parts: str, cfg: dict[str, Any] | None = None) -> Path:
@@ -133,19 +143,19 @@ def report_path(*parts: str, cfg: dict[str, Any] | None = None) -> Path:
 
 def runner_profiles(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
     cfg = config(workflow=workflow, config_path=config_path)
-    return load_json(cfg.get("runner_profiles_path", "configs/runner_profiles.json"))
+    return load_json(PathResolver(cfg).runner_profiles_path())
+
+
+def path_resolver(cfg: dict[str, Any] | None = None) -> PathResolver:
+    return PathResolver(cfg or config())
 
 
 def temp_dir(cfg: dict[str, Any] | None = None) -> Path:
     override = os.environ.get(TEMP_DIR_ENV)
     if override:
         return ensure_dir(override)
-    payload = cfg or {}
-    paths = payload.get("paths", {})
-    selected = paths.get("temp_dir") if isinstance(paths, dict) else None
-    if not selected:
-        selected = "artifacts/tmp"
-    return ensure_dir(selected)
+    payload = cfg or config()
+    return ensure_dir(path_resolver(payload).temp_dir())
 
 
 def env_with_temp(base: dict[str, str] | None = None, cfg: dict[str, Any] | None = None) -> dict[str, str]:

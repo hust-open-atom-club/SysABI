@@ -1,0 +1,125 @@
+{
+  "arch": "amd64",
+  "build": {
+    "cflags": [
+      "-static"
+    ]
+  },
+  "capabilities": {
+    "supports_batch_execution": true,
+    "supports_preflight": true,
+    "supports_snapshot_reuse": false
+  },
+  "classification": {
+    "baseline_invalid": "BASELINE_INVALID",
+    "bug_likely": "BUG_LIKELY",
+    "no_diff": "NO_DIFF",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE"
+  },
+  "compat_manifest_path": "compat_specs/asterinas/scml-manifest.json",
+  "derivation": {
+    "accept_reasons": [
+      "scml_manifest_allowed",
+      "profile_enabled_category",
+      "unspecialized_sequence"
+    ],
+    "generated_source_eligible_file": "eligible_programs/asterinas_scml.generated.jsonl",
+    "rejection_taxonomy": {
+      "deferred_category": "deferred_category",
+      "manifest_disabled": "manifest_disabled",
+      "sequence_too_long": "sequence_too_long",
+      "sequence_too_short": "sequence_too_short",
+      "specialized_variant": "specialized_variant_not_allowed",
+      "syscall_not_in_manifest": "syscall_not_in_manifest"
+    },
+    "source_eligible_file": "eligible_programs/baseline.jsonl"
+  },
+  "generation_profile_path": "compat_specs/asterinas/generation-profile.json",
+  "normalization": {
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "max_probe_bytes": 4096,
+    "preview_bytes": 32,
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "parallel": {
+    "candidate_batch_size": 100,
+    "jobs": 8
+  },
+  "paths": {
+    "artifacts_dir": "artifacts/runs/asterinas_scml",
+    "build_dir": "build/asterinas_scml/testcases",
+    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages",
+    "corpus_meta": "corpus/meta",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_raw": "corpus/raw",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/asterinas_scml.jsonl",
+    "generated_file": "eligible_programs/asterinas_scml.generated.jsonl",
+    "generated_meta_dir": "artifacts/generated/asterinas_scml/meta",
+    "generated_normalized_dir": "artifacts/generated/asterinas_scml/normalized",
+    "generated_raw_dir": "artifacts/generated/asterinas_scml/raw",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "go_root": "artifacts/toolchains/go/current/go",
+    "reports_dir": "reports/asterinas_scml",
+    "static_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
+    "syzkaller_dir": "third_party/syzkaller",
+    "targets_file": "eligible_programs/asterinas_scml.targets.jsonl",
+    "temp_dir": "artifacts/tmp"
+  },
+  "preflight": {
+    "artifact_dir": "artifacts/preflight/asterinas_scml",
+    "rejection_taxonomy": {
+      "deferred_category": "deferred_category",
+      "preflight_build_failure": "preflight_build_failure",
+      "preflight_matcher_timeout": "preflight_matcher_timeout",
+      "preflight_runtime_failure": "preflight_runtime_failure",
+      "preflight_runtime_timeout": "preflight_runtime_timeout",
+      "scml_parser_gap": "scml_parser_gap",
+      "syscall_not_in_manifest": "syscall_not_in_manifest",
+      "unsupported_flag_pattern": "unsupported_flag_pattern",
+      "unsupported_path_pattern": "unsupported_path_pattern",
+      "unsupported_struct_pattern": "unsupported_struct_pattern"
+    },
+    "scml_root": "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage",
+    "source_eligible_file": "eligible_programs/asterinas_scml.static.jsonl",
+    "timeout_sec": 20
+  },
+  "runner_profiles_path": "configs/targets/asterinas/runner_profiles.asterinas_scml.json",
+  "schema_version": 1,
+  "stability": {
+    "baseline_invalid_threshold": 0.1,
+    "rerun_count": 2,
+    "timeout_sec": 120
+  },
+  "target": "asterinas",
+  "target_config_path": "configs/targets/asterinas/target.json",
+  "target_os": "linux",
+  "thresholds": {
+    "signoff": {
+      "baseline_invalid_rate": 0.05,
+      "build_success_rate": 0.98,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.92,
+      "require_minimized_report": true,
+      "total_min": 500,
+      "trace_success_rate": 0.98
+    },
+    "smoke": {
+      "baseline_invalid_rate": 0.05,
+      "build_success_rate": 0.98,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.9,
+      "total_min": 100,
+      "trace_success_rate": 0.98
+    }
+  },
+  "workflow": "asterinas_scml"
+}

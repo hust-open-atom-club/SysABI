@@ -1,0 +1,27 @@
+{
+  "baseline_invalid_rate": 0.25,
+  "build_success_rate": 1.0,
+  "campaign": "smoke",
+  "candidate_kernel_builds": [
+    "linux-6.1"
+  ],
+  "candidate_runner_kinds": [
+    "local"
+  ],
+  "canonicalization_success_rate": 1.0,
+  "classification_counts": {
+    "BASELINE_INVALID": 1,
+    "BUG_LIKELY": 1,
+    "NO_DIFF": 1,
+    "WEAK_SPEC_OR_ENV_NOISE": 1
+  },
+  "dual_execution_completion_rate": 0.75,
+  "eligible_program_count": 4,
+  "scml_preflight_pass_rate": 1.0,
+  "scml_rejected_count": 0,
+  "scml_result_counts": {},
+  "signoff_pass": false,
+  "total": 4,
+  "trace_generation_success_rate": 1.0,
+  "workflow": "baseline"
+}

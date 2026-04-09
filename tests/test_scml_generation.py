@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from orchestrator.capability import load_manifest_index
 from orchestrator.common import configure_runtime, dump_json, dump_jsonl, load_json, load_jsonl
+from targets.asterinas.scml import load_manifest_index
 from tools import export_scml_targets, generate_scml_candidates
 from tools.build_scml_manifest import build_manifest
 
@@ -38,8 +38,8 @@ class SCMLGenerationManifestTests(unittest.TestCase):
         self.assertEqual(openat["generator_class"], "base_only")
         self.assertEqual(openat["generator_gap_reason"], "none")
 
-        self.assertEqual(clone["generator_class"], "variant_only")
-        self.assertEqual(clone["generator_gap_reason"], "missing_base_definition")
+        self.assertEqual(clone["generator_class"], "helper_only")
+        self.assertEqual(clone["generator_gap_reason"], "disabled_in_syzkaller")
 
         self.assertEqual(getppid["generator_class"], "unavailable")
         self.assertEqual(getppid["generator_gap_reason"], "disabled_in_syzkaller")

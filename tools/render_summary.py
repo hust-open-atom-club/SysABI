@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from orchestrator.common import config, configure_runtime, current_workflow, dump_json, load_json, load_jsonl, report_path, resolve_repo_path
+from targets.registry import active_target_name
 
 
 def merge_scml_result_counts(
@@ -138,7 +139,8 @@ def first_divergence_details(result: dict[str, object]) -> tuple[int | None, str
 
 def workflow_side_labels(cfg: dict[str, object]) -> tuple[str, str]:
     workflow = current_workflow(cfg)
-    if workflow.startswith("asterinas"):
+    target = active_target_name(cfg)
+    if target == "asterinas":
         return "Linux", "Asterinas"
     if workflow == "baseline":
         return "Linux(reference)", "Linux(candidate)"

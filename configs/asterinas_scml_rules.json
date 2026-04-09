@@ -1,5 +1,6 @@
 {
   "workflow": "asterinas_scml",
+  "target": "asterinas",
   "schema_version": 1,
   "target_os": "linux",
   "arch": "amd64",
@@ -36,7 +37,8 @@
     "generated_meta_dir": "artifacts/generated/asterinas_scml/meta",
     "build_dir": "build/asterinas_scml/testcases",
     "artifacts_dir": "artifacts/runs/asterinas_scml",
-    "reports_dir": "reports/asterinas_scml"
+    "reports_dir": "reports/asterinas_scml",
+    "candidate_initramfs_packages_dir": "artifacts/asterinas/initramfs-packages"
   },
   "derivation": {
     "source_eligible_file": "eligible_programs/baseline.jsonl",
@@ -90,6 +92,11 @@
     "rerun_count": 2,
     "timeout_sec": 120,
     "baseline_invalid_threshold": 0.1
+  },
+  "capabilities": {
+    "supports_batch_execution": true,
+    "supports_preflight": true,
+    "supports_snapshot_reuse": false
   },
   "parallel": {
     "jobs": 8,

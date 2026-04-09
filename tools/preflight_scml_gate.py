@@ -12,9 +12,9 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.capability import AsterinasSCMLGate, AsterinasSCMLSource, parse_sctrace_lines as capability_parse_sctrace_lines
 from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, ensure_dir, env_with_temp, load_json, load_jsonl, report_path, resolve_repo_path
 from orchestrator.models import EligibleProgram
+from targets.asterinas.scml import AsterinasSCMLGate, AsterinasSCMLSource, parse_sctrace_lines as capability_parse_sctrace_lines
 from tools.prog2c_wrap import build_one
 
 

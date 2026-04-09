@@ -14,10 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
-from orchestrator.capability import AsterinasSCMLGate, AsterinasSCMLSource
+from core.capabilities import capabilities_from_config
 from orchestrator.common import config, configure_runtime, dump_json, load_json, load_jsonl, read_text, report_path, runner_profiles, temp_dir, write_text
 from orchestrator.syzkaller import inspect_program, mutate_drop_call
 from orchestrator.vm_runner import execute_candidate_batch_with_context, execute_candidate_case_in_package, execute_side
+from targets.asterinas.scml import AsterinasSCMLGate, AsterinasSCMLSource
 from tools.prog2c_wrap import build_one
 
 
@@ -38,6 +39,13 @@ def divergence_spec() -> dict[str, object]:
     spec["call_index"] = -1
     spec["syscall_name"] = spec.pop("match_syscall")
     return spec
+
+
+def scml_overlay_enabled(cfg: dict[str, object]) -> bool:
+    capabilities = capabilities_from_config(cfg)
+    if capabilities.supports_preflight:
+        return True
+    return str(cfg.get("workflow", "")) == "asterinas_scml"
 
 
 def map_event_index_to_program_call(canonical_trace: dict[str, object], event_index: int | None) -> int | None:
@@ -152,7 +160,7 @@ def run_case(
     reference_canonical = canonicalize(load_json(reference.trace_json_path), load_json(reference.external_state_path))
     package_dir = campaign_package_dir
     package_slot = campaign_package_slot
-    if cfg["workflow"] == "asterinas_scml":
+    if scml_overlay_enabled(cfg):
         if package_dir is not None and package_slot is not None and not package_binary_matches_current_build(
             package_dir,
             package_slot,
@@ -197,7 +205,7 @@ def run_case(
     dump_json(reference_canonical_path, reference_canonical)
     dump_json(candidate_canonical_path, candidate_canonical)
     comparison = compare_canonical(reference_canonical, candidate_canonical)
-    if cfg["workflow"] == "asterinas_scml" and (candidate.status != "ok" or not comparison["equivalent"]):
+    if scml_overlay_enabled(cfg) and (candidate.status != "ok" or not comparison["equivalent"]):
         for attempt in range(cfg["stability"]["rerun_count"]):
             reference = execute_side(
                 program_id=info["program_id"],
@@ -268,7 +276,7 @@ def package_binary_matches_current_build(
 
 def seed_program(fixture_name: str, program_id: str | None = None) -> tuple[Path, dict[str, object] | None]:
     cfg = config()
-    if cfg["workflow"] == "asterinas_scml":
+    if scml_overlay_enabled(cfg):
         campaign_results_path = report_path("campaign-results.jsonl", cfg=cfg)
         if not campaign_results_path.exists():
             raise SystemExit("missing campaign-results.jsonl for asterinas_scml reduce_case")
@@ -522,7 +530,7 @@ def greedy_reduce(
             campaign_package_slot=initial_package_slot,
         )
     except SystemExit as exc:
-        if cfg["workflow"] != "asterinas_scml":
+        if not scml_overlay_enabled(cfg):
             raise
         current_info = inspect_program(initial_program)
         current_info, current_comparison, current_runs, current_preflight = require_recorded_source_evidence(
@@ -531,7 +539,7 @@ def greedy_reduce(
             reason=f"fresh replay failed before reduction: {exc}",
         )
         reduction_blocked = True
-    if cfg["workflow"] == "asterinas_scml":
+    if scml_overlay_enabled(cfg):
         if current_preflight is None:
             try:
                 current_preflight = scml_preflight_for_program(initial_program, require_zero_exit=False)
@@ -569,7 +577,7 @@ def greedy_reduce(
                 if trial_comparison["equivalent"]:
                     continue
                 trial_preflight: dict[str, object] | None = None
-                if cfg["workflow"] == "asterinas_scml":
+                if scml_overlay_enabled(cfg):
                     try:
                         trial_preflight = scml_preflight_for_program(trial_path, require_zero_exit=True)
                     except SystemExit:
@@ -603,7 +611,7 @@ def main() -> None:
     minimized_text = read_text(minimized_path)
     divergence_event_index = comparison["first_divergence_index"]
     divergence_syscall_index = map_event_index_to_program_call(runs["reference_canonical"], divergence_event_index)
-    if cfg["workflow"] == "asterinas_scml" and divergence_syscall_index is None:
+    if scml_overlay_enabled(cfg) and divergence_syscall_index is None:
         raise SystemExit("asterinas_scml minimized report requires a non-null first_divergence_syscall_index")
     report = {
         "program_id": info["program_id"],
@@ -621,7 +629,7 @@ def main() -> None:
         "candidate_console_log_path": runs["candidate"]["console_log_path"],
         "run_command": (
             f"python3 tools/reduce_case.py --workflow {cfg['workflow']} --program-id {source_entry['program_id']}"
-            if cfg["workflow"] == "asterinas_scml" and source_entry
+            if scml_overlay_enabled(cfg) and source_entry
             else f"python3 tools/reduce_case.py --workflow {cfg['workflow']} --fixture {args.fixture}"
         ),
         "scml_preflight_status": minimized_preflight["status"] if minimized_preflight else (source_entry.get("scml_preflight_status", "unknown") if source_entry else "unknown"),
