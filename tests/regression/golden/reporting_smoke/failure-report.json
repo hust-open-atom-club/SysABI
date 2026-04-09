@@ -1,0 +1,81 @@
+{
+  "campaign": "smoke",
+  "classification_counts": {
+    "BASELINE_INVALID": 1,
+    "BUG_LIKELY": 1,
+    "WEAK_SPEC_OR_ENV_NOISE": 1
+  },
+  "failed_results": 3,
+  "failures_by_classification": {
+    "BASELINE_INVALID": [
+      {
+        "candidate_canonical_trace_path": "",
+        "candidate_console_log_path": "",
+        "candidate_status": null,
+        "candidate_trace_json_path": "",
+        "classification": "BASELINE_INVALID",
+        "comparison": null,
+        "first_divergence_index": null,
+        "first_divergence_syscall_name": null,
+        "meta_path": "",
+        "normalized_path": "__ROOT__/programs/case-baseline-invalid.syz",
+        "program_id": "case-baseline-invalid",
+        "reference_canonical_trace_path": "__ROOT__/runs/case-baseline-invalid/reference/canonical-trace.json",
+        "reference_console_log_path": "__ROOT__/runs/case-baseline-invalid/reference/console.log",
+        "reference_status": "timeout",
+        "reference_trace_json_path": "__ROOT__/runs/case-baseline-invalid/reference/raw-trace.json",
+        "scml_preflight_status": "not_run"
+      }
+    ],
+    "BUG_LIKELY": [
+      {
+        "candidate_canonical_trace_path": "__ROOT__/runs/case-bug/candidate/canonical-trace.json",
+        "candidate_console_log_path": "__ROOT__/runs/case-bug/candidate/console.log",
+        "candidate_status": "ok",
+        "candidate_trace_json_path": "__ROOT__/runs/case-bug/candidate/raw-trace.json",
+        "classification": "BUG_LIKELY",
+        "comparison": {
+          "final_state_equal": true,
+          "first_divergence_index": 0,
+          "process_exit_equal": true
+        },
+        "first_divergence_index": 0,
+        "first_divergence_syscall_name": "openat",
+        "meta_path": "",
+        "normalized_path": "__ROOT__/programs/case-bug.syz",
+        "program_id": "case-bug",
+        "reference_canonical_trace_path": "__ROOT__/runs/case-bug/reference/canonical-trace.json",
+        "reference_console_log_path": "__ROOT__/runs/case-bug/reference/console.log",
+        "reference_status": "ok",
+        "reference_trace_json_path": "__ROOT__/runs/case-bug/reference/raw-trace.json",
+        "scml_preflight_status": "not_run"
+      }
+    ],
+    "WEAK_SPEC_OR_ENV_NOISE": [
+      {
+        "candidate_canonical_trace_path": "__ROOT__/runs/case-noise/candidate/canonical-trace.json",
+        "candidate_console_log_path": "__ROOT__/runs/case-noise/candidate/console.log",
+        "candidate_status": "ok",
+        "candidate_trace_json_path": "__ROOT__/runs/case-noise/candidate/raw-trace.json",
+        "classification": "WEAK_SPEC_OR_ENV_NOISE",
+        "comparison": {
+          "final_state_equal": true,
+          "first_divergence_index": 0,
+          "process_exit_equal": true
+        },
+        "first_divergence_index": 0,
+        "first_divergence_syscall_name": "read",
+        "meta_path": "",
+        "normalized_path": "__ROOT__/programs/case-noise.syz",
+        "program_id": "case-noise",
+        "reference_canonical_trace_path": "__ROOT__/runs/case-noise/reference/canonical-trace.json",
+        "reference_console_log_path": "__ROOT__/runs/case-noise/reference/console.log",
+        "reference_status": "ok",
+        "reference_trace_json_path": "__ROOT__/runs/case-noise/reference/raw-trace.json",
+        "scml_preflight_status": "not_run"
+      }
+    ]
+  },
+  "total_results": 4,
+  "workflow": "reporting"
+}
