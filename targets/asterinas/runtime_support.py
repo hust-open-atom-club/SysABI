@@ -233,7 +233,7 @@ def host_osdk_env(work_dir: Path, *, hooks, boot_method: str = "qemu-direct") ->
     env["CONSOLE"] = "hvc0"
     env["BOOT_METHOD"] = boot_method
     env["OVMF"] = "off"
-    env["NETDEV"] = env.get("SYZABI_ASTERINAS_NETDEV", "none")
+    env["NETDEV"] = env.get("SYZABI_ASTERINAS_NETDEV", "user")
     env["QEMU_DISPLAY"] = "none"
     env["SMP"] = env.get("SYZABI_ASTERINAS_SMP", "1")
     env["MEM"] = env.get("SYZABI_ASTERINAS_MEM", "2G")
@@ -389,7 +389,7 @@ def docker_run_env(cfg: dict[str, object], work_dir: Path, *, hooks) -> dict[str
         "EXT2_IMAGE": str(hooks.host_path_to_container_path(work_dir / "ext2.img", cfg)),
         "EXFAT_IMAGE": str(hooks.host_path_to_container_path(work_dir / "exfat.img", cfg)),
         "MEM": hooks.os.environ.get("SYZABI_ASTERINAS_MEM", "2G"),
-        "NETDEV": hooks.os.environ.get("SYZABI_ASTERINAS_NETDEV", "none"),
+        "NETDEV": hooks.os.environ.get("SYZABI_ASTERINAS_NETDEV", "user"),
         "OSDK_OUTPUT_DIR": str(hooks.host_path_to_container_path(osdk_output_dir, cfg)),
         "OVMF": "on",
         "OVMF_CODE_FILE": hooks.container_ovmf_code_path(),

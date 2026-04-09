@@ -388,7 +388,7 @@ class AsterinasPipelineTests(unittest.TestCase):
         ):
             env = host_osdk_env(work_dir)
         self.assertEqual(env["BOOT_METHOD"], "qemu-direct")
-        self.assertEqual(env["NETDEV"], "none")
+        self.assertEqual(env["NETDEV"], "user")
         self.assertEqual(env["QEMU_LOG_FILE"], str(work_dir / "qemu.log"))
         self.assertEqual(env["QEMU_SERIAL_LOG_FILE"], str(work_dir / "qemu-serial.log"))
         self.assertEqual(env["QEMU_DISPLAY"], "none")
@@ -622,6 +622,12 @@ class AsterinasPipelineTests(unittest.TestCase):
                 RunnerError(
                     "docker: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock"
                 )
+            )
+        )
+        self.assertTrue(should_fallback_to_host_direct(RunnerError("error: no such command: `osdk`")))
+        self.assertTrue(
+            should_fallback_to_host_direct(
+                RunnerError("error: could not download file from 'https://static.rust-lang.org/dist/channel-rust-nightly.toml'")
             )
         )
         self.assertFalse(should_fallback_to_host_direct(RunnerError("failed to locate system OVMF code image")))

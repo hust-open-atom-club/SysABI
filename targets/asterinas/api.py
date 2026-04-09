@@ -123,6 +123,9 @@ def is_docker_access_error(detail: str) -> bool:
         "permission denied while trying to connect to the docker daemon socket" in normalized
         or "dial unix /var/run/docker.sock" in normalized
         or "cannot connect to the docker daemon" in normalized
+        or "no such command: `osdk`" in normalized
+        or "failed to compile `cargo-osdk" in normalized
+        or "static.rust-lang.org" in normalized
     )
 
 
