@@ -1,0 +1,149 @@
+{
+  "phase": "phase1",
+  "schema_version": 1,
+  "target_os": "linux",
+  "arch": "amd64",
+  "runner_profiles_path": "configs/runner_profiles.json",
+  "syzkaller": {
+    "repo": "https://github.com/google/syzkaller.git",
+    "commit": "5b92003d577daa0766edda7ed533d75e1ac545ff",
+    "go_version": "1.26.0",
+    "go_platform": "linux-amd64"
+  },
+  "paths": {
+    "syzkaller_dir": "third_party/syzkaller",
+    "go_root": "/tmp/fuzzasterinas-go/current/go",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "corpus_raw": "corpus/raw",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_meta": "corpus/meta",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/phase1.jsonl",
+    "build_dir": "build/testcases",
+    "artifacts_dir": "artifacts/runs",
+    "reports_dir": "reports/phase1"
+  },
+  "allowlist": {
+    "syscalls": [
+      "open",
+      "openat",
+      "read",
+      "write",
+      "pread64",
+      "pwrite64",
+      "lseek",
+      "close",
+      "fstat",
+      "newfstatat",
+      "mkdir",
+      "unlink",
+      "rename",
+      "mmap",
+      "munmap",
+      "mprotect",
+      "brk",
+      "getpid",
+      "getppid",
+      "clone",
+      "wait4",
+      "exit",
+      "exit_group",
+      "pipe",
+      "pipe2",
+      "eventfd",
+      "eventfd2",
+      "socketpair"
+    ],
+    "deny_prefixes": [
+      "epoll",
+      "poll",
+      "select",
+      "io_uring",
+      "mount",
+      "umount",
+      "pivot_root",
+      "setns",
+      "unshare",
+      "bpf",
+      "perf_event",
+      "signalfd",
+      "inotify",
+      "fanotify",
+      "kcmp",
+      "keyctl",
+      "request_key",
+      "add_key",
+      "capset",
+      "capget",
+      "quotactl",
+      "ptrace",
+      "process_vm",
+      "swapon",
+      "swapoff",
+      "reboot"
+    ],
+    "deny_name_contains": [
+      "$inet",
+      "$packet",
+      "$netlink",
+      "$bluetooth",
+      "$usb",
+      "$nfc"
+    ],
+    "pseudo_prefix": "syz_",
+    "threading_sensitive_prefixes": [
+      "futex",
+      "sched_",
+      "epoll",
+      "poll",
+      "select",
+      "rt_sig",
+      "timerfd",
+      "signalfd"
+    ]
+  },
+  "normalization": {
+    "preview_bytes": 32,
+    "max_probe_bytes": 4096,
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "stability": {
+    "rerun_count": 2,
+    "timeout_sec": 10,
+    "baseline_invalid_threshold": 0.1
+  },
+  "build": {
+    "cflags": []
+  },
+  "classification": {
+    "no_diff": "NO_DIFF",
+    "baseline_invalid": "BASELINE_INVALID",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "bug_likely": "BUG_LIKELY"
+  },
+  "thresholds": {
+    "smoke": {
+      "trace_success_rate": 0.9,
+      "canonical_success_rate": 1.0,
+      "baseline_invalid_rate": 0.2
+    },
+    "signoff": {
+      "eligible_program_count_min": 1000,
+      "import_success_rate": 0.95,
+      "build_success_rate": 0.9,
+      "dual_execution_completion_rate": 0.85,
+      "trace_success_rate": 0.95,
+      "baseline_invalid_rate": 0.1,
+      "require_minimized_report": true
+    }
+  }
+}
