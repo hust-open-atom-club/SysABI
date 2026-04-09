@@ -7,11 +7,11 @@
 >
 > 快照说明：本文档优先冻结 **Phase 0 / Round 1** 的重构前基线，用作后续结构改造的回归对照。后续轮次如果为了兼容演进添加抽象层或兼容字段，不会回溯重写这里的“旧世界快照”，而是通过测试与后续迁移文档说明差异。
 
-## 1. 用户入口与命令面
+## 1. 用户入口与命令面（Phase 0 快照）
 
-仓库当前的用户入口主要来自 `Makefile`，底层统一落到 Python 脚本：
+下表记录的是 **Phase 0 冻结时** 的用户入口快照；当前 live 仓库已经增加 canonical workflow/target 包装层与兼容 shim。
 
-| 入口 | 当前行为 | 实际脚本 |
+| 入口 | Phase 0 快照行为 | 实际脚本 |
 | --- | --- | --- |
 | `make bootstrap` | 固定 syzkaller 与 Go 工具链 | `tools/bootstrap_syzkaller.sh` |
 | `make init-layout` | 初始化目录骨架 | `tools/init_layout.py` |
@@ -54,7 +54,7 @@
 
 这些入口脚本目前既是“功能入口”，也是“契约入口”；后续重构可以重定向实现，但在兼容期内不应直接删除。
 
-## 2. workflow / config 发现逻辑
+## 2. workflow / config 发现逻辑（Phase 0 快照）
 
 当前配置发现逻辑集中在 `orchestrator/common.py`：
 
@@ -131,13 +131,15 @@
 | `batch_command` | 当前仅作为“是否允许 candidate batching”的存在性标志 |
 | `controlled_divergence` | 受控 divergence 注入配置 |
 
-### 3.2 当前耦合点
+### 3.2 Round 0 冻结的耦合点（历史快照）
 
-- Asterinas candidate 当前通过 `command` 直接调用 `tools/run_asterinas.py`；
-- `candidate_batching_enabled()` 仍以 `workflow.startswith("asterinas")` 判断是否允许 batching；
-- 虽然 profile 中存在 `batch_command`，但当前批量路径实际上走 `execute_candidate_batch_with_context()`，并没有把 batch manifest 真正交给 runner 执行。
+以下三条是 **Phase 0 冻结时** 的历史事实，用于解释为什么当时需要抽象化改造；它们不再代表当前实现：
 
-这部分耦合正是后续抽象层要去掉的内容，但在重构前属于既有契约。
+- Asterinas candidate 当时通过 `command` 直接调用 `tools/run_asterinas.py`；
+- `candidate_batching_enabled()` 当时以 `workflow.startswith("asterinas")` 判断是否允许 batching；
+- 虽然 profile 中存在 `batch_command`，但当时的批量路径实际上走 `execute_candidate_batch_with_context()`，并没有把 batch manifest 真正交给 runner 执行。
+
+这些耦合正是后续抽象层要去掉的内容，但在重构前属于既有契约。
 
 ## 4. 当前流水线契约
 
@@ -156,7 +158,7 @@
 9. `analyzer/compare.py` / `analyzer/classify.py` 生成分类与 comparison；
 10. `scheduler.py` 先写 `campaign-results.jsonl` 与中间 summary，再调用 `tools/render_summary.py` 覆盖最终 `summary.json` / `summary.md` / `signoff.md`，最后写 `failure-report.*` 与 `divergence-index.jsonl`。
 
-### 4.2 当前目录约定
+### 4.2 Round 0 冻结的 legacy 目录约定（用于回归对照）
 
 | 类别 | baseline | asterinas | asterinas_scml |
 | --- | --- | --- | --- |
@@ -165,7 +167,18 @@
 | reports | `reports/baseline` | `reports/asterinas` | `reports/asterinas_scml` |
 | eligible list | `eligible_programs/baseline.jsonl` | `eligible_programs/asterinas.jsonl` | `eligible_programs/asterinas_scml.jsonl` |
 
-当前路径语义是“workflow 名字决定目录布局”，还不是计划中的 `targets/<target>/<workflow>`。
+上表是 **Round 0 冻结时** 的 legacy 目录快照，用于 golden regression 对照；它不再代表当前推荐布局。
+
+当前 live / canonical 目录语义已经迁移为 `targets/<target>/<workflow>`：
+
+| 类别 | baseline | asterinas | asterinas_scml |
+| --- | --- | --- | --- |
+| testcase build | `build/targets/linux/baseline/testcases` | `build/targets/asterinas/asterinas/testcases` | `build/targets/asterinas/asterinas_scml/testcases` |
+| run artifacts | `artifacts/runs/targets/linux/baseline` | `artifacts/runs/targets/asterinas/asterinas` | `artifacts/runs/targets/asterinas/asterinas_scml` |
+| reports | `reports/targets/linux/baseline` | `reports/targets/asterinas/asterinas` | `reports/targets/asterinas/asterinas_scml` |
+| eligible list | `eligible_programs/targets/linux/baseline/default.jsonl` | `eligible_programs/targets/asterinas/asterinas/default.jsonl` | `eligible_programs/targets/asterinas/asterinas_scml/default.jsonl` |
+
+旧路径仍可能作为兼容 shim / 历史产物出现，但不应再被视为权威推荐布局。
 
 ## 5. 当前 artifact 生产顺序
 
@@ -208,14 +221,14 @@ workflow report 目录当前会出现：
 - `unsupported-feature.jsonl`
 - `bug_likely/` 相关二级报告
 
-## 6. 当前已知耦合（重构时必须保持行为但允许移动实现）
+## 6. Phase 0 冻结的已知耦合（历史对照，不代表当前实现）
 
-这些行为是“当前事实”，不是目标状态：
+以下条目描述的是 **Round 0 / Phase 0 冻结时** 的历史实现，用于回归对照；当前 live 实现已经把其中大部分迁入 `targets/asterinas/`、`runners/` 与 canonical config/path 层：
 
-1. `orchestrator/scheduler.py` 当前仍通过 workflow 名字判断 Asterinas candidate batching；
-2. `orchestrator/vm_runner.py` 当前直接 import `tools.run_asterinas`，并硬编码 `artifacts/asterinas/initramfs-packages`；
-3. `orchestrator/vm_runner.py` 当前直接下发 `SYZABI_ASTERINAS_PACKAGE_DIR` / `SYZABI_ASTERINAS_PACKAGE_SLOT`；
-4. `tools/run_asterinas.py` 当前既负责 build probe，也负责 Docker/QEMU/host-direct 运行、initramfs 组装、输出解析与 runner-result 回写；
-5. Asterinas / SCML config 当前重复携带 target-specific 字段与 workflow-specific 路径。
+1. `orchestrator/scheduler.py` 当时仍通过 workflow 名字判断 Asterinas candidate batching；
+2. `orchestrator/vm_runner.py` 当时直接 import `tools.run_asterinas`，并硬编码 `artifacts/asterinas/initramfs-packages`；
+3. `orchestrator/vm_runner.py` 当时直接下发 `SYZABI_ASTERINAS_PACKAGE_DIR` / `SYZABI_ASTERINAS_PACKAGE_SLOT`；
+4. `tools/run_asterinas.py` 当时既负责 build probe，也负责 Docker/QEMU/host-direct 运行、initramfs 组装、输出解析与 runner-result 回写；
+5. Asterinas / SCML config 当时重复携带 target-specific 字段与 workflow-specific 路径。
 
 Phase 0 的目标不是“修掉这些问题”，而是先把这些现状固化成可审计文档与回归基线。

@@ -45,6 +45,7 @@ from tools.run_asterinas import (
     write_missing_marker_crash_result,
 )
 from targets.asterinas.adapter import AsterinasTargetAdapter
+from targets.asterinas import bundle as asterinas_bundle
 
 
 class AsterinasPipelineTests(unittest.TestCase):
@@ -635,39 +636,65 @@ class AsterinasPipelineTests(unittest.TestCase):
             mode="docker-qemu",
         )
         with patch("tools.run_asterinas.parse_args", return_value=args), patch(
-            "tools.run_asterinas.docker_qemu_run",
+            "targets.asterinas.runtime.docker_qemu_run",
             side_effect=RunnerError(
                 "docker: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock"
             ),
-        ), patch("tools.run_asterinas.host_direct_run") as host_direct_run, patch(
+        ), patch("targets.asterinas.runtime.host_direct_run") as host_direct_run, patch(
             "tools.run_asterinas.write_runner_result"
         ):
             run_asterinas.main()
-        host_direct_run.assert_called_once_with(args)
+        host_direct_run.assert_called_once()
 
     def test_adapter_healthcheck_dispatches_via_prepare_target(self) -> None:
         adapter = AsterinasTargetAdapter()
         args = SimpleNamespace(mode="docker-qemu")
-        with patch("targets.asterinas.runner_impl.read_workflow_config", return_value={"asterinas": {"repo_dir": "x"}}), patch(
+        with patch("targets.asterinas.api.read_workflow_config", return_value={"asterinas": {"repo_dir": "x"}}), patch(
             "targets.asterinas.adapter.AsterinasTargetAdapter.prepare_target",
             return_value="rev1234567890",
-        ) as prepare_target, patch("targets.asterinas.runner_impl.write_runner_result") as write_runner_result:
+        ) as prepare_target, patch("targets.asterinas.api.write_runner_result") as write_runner_result:
             adapter.healthcheck(args)
         prepare_target.assert_called_once()
         write_runner_result.assert_called_once_with({"status": "ok", "exit_code": 0, "kernel_build": "asterinas@rev123456789"})
 
     def test_adapter_run_case_dispatches_modes(self) -> None:
         adapter = AsterinasTargetAdapter()
-        local_args = SimpleNamespace(mode="local-proxy")
-        docker_args = SimpleNamespace(mode="docker-qemu")
-        with patch("targets.asterinas.runner_impl.local_proxy") as local_proxy, patch(
-            "targets.asterinas.runner_impl.docker_qemu_run"
-        ) as docker_qemu_run, patch("targets.asterinas.runner_impl.host_direct_run") as host_direct_run:
+        local_args = SimpleNamespace(mode="local-proxy", binary="/tmp/testcase.bin", work_dir="/tmp/work")
+        docker_args = SimpleNamespace(mode="docker-qemu", binary="/tmp/testcase.bin", work_dir="/tmp/work")
+        with patch("targets.asterinas.runtime.local_proxy") as local_proxy, patch(
+            "targets.asterinas.runtime.docker_qemu_run"
+        ) as docker_qemu_run, patch("targets.asterinas.runtime.host_direct_run") as host_direct_run:
             adapter.run_case(local_args)
             adapter.run_case(docker_args)
-        local_proxy.assert_called_once_with(local_args)
-        docker_qemu_run.assert_called_once_with(docker_args)
+        local_proxy.assert_called_once()
+        docker_qemu_run.assert_called_once()
         host_direct_run.assert_not_called()
+
+    def test_adapter_uses_api_hook_surface(self) -> None:
+        from targets.asterinas import api
+
+        adapter = AsterinasTargetAdapter()
+        args = SimpleNamespace(mode="local-proxy", binary="/tmp/testcase.bin", work_dir="/tmp/work")
+        with patch("targets.asterinas.runtime.local_proxy") as local_proxy:
+            adapter.run_case(args)
+        self.assertIs(local_proxy.call_args.kwargs["hooks"], api)
+
+    def test_active_asterinas_support_paths_are_canonical_target_roots(self) -> None:
+        from tools import run_asterinas
+
+        repo_root = Path(__file__).resolve().parents[1]
+        self.assertEqual(
+            run_asterinas.asterinas_git_mirror_root(),
+            repo_root / "artifacts" / "targets" / "asterinas" / "git-mirrors",
+        )
+        self.assertEqual(
+            run_asterinas.docker_cargo_home(),
+            repo_root / "artifacts" / "targets" / "asterinas" / "docker-cargo-home",
+        )
+        self.assertEqual(
+            asterinas_bundle.build_probe_root(),
+            repo_root / "artifacts" / "targets" / "asterinas" / "build-probe",
+        )
 
     def test_host_direct_run_validates_packaged_bundle_before_reuse(self) -> None:
         from tools import run_asterinas

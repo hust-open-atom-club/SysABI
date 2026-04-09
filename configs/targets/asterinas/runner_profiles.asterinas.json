@@ -4,7 +4,7 @@
     "command_batching_mode": "packaged_per_case",
     "command": [
       "python3",
-      "{repo_root}/tools/run_asterinas.py",
+      "{repo_root}/targets/asterinas/entrypoint.py",
       "--mode",
       "docker-qemu",
       "--binary",

@@ -66,7 +66,7 @@ SyzABI 是一个面向 `syzkaller` 程序的离线差分回放框架。它的目
 8. 比较两侧结果，按 taxonomy 分类。
 9. 产出 `summary.json`、`summary.md`、`signoff.md`、`divergence-index.jsonl` 以及最小化报告。
 
-对 baseline 而言，两侧都可以是 Linux，从而先验证框架本身稳定。对 Asterinas 而言，`reference` 仍是 Linux，`candidate` 则由 [`tools/run_asterinas.py`](./tools/run_asterinas.py) 负责通过 Docker/QEMU 驱动 Asterinas。
+对 baseline 而言，两侧都可以是 Linux，从而先验证框架本身稳定。对 Asterinas 而言，`reference` 仍是 Linux，`candidate` 由 [`targets/asterinas/adapter.py`](./targets/asterinas/adapter.py) 暴露的 target adapter 驱动；[`tools/run_asterinas.py`](./tools/run_asterinas.py) 仅保留为兼容 CLI 入口。
 
 ## 仓库结构
 
@@ -408,19 +408,30 @@ legacy runner profile shim 另存于：
 
 它们定义了 `reference` / `candidate` 的执行方式，例如本地执行还是命令型 runner、sandbox 根目录、超时和 batch 命令格式。
 
+当前迁移窗口内，以下兼容入口会输出 deprecation 提示：
+
+- `configs/*_rules.json`
+- `configs/runner_profiles.asterinas*.json`
+- `build-eligible`
+- `derive-asterinas*` / `preflight-asterinas-scml`
+- `prepare-asterinas-candidate`
+- `run-asterinas-*` / `analyze-asterinas` / `report-asterinas`
+
 几个常用环境变量：
 
 - `SYZABI_WORKFLOW`: 显式指定当前 workflow。
 - `SYZABI_CONFIG_PATH`: 覆盖默认配置文件路径。
 - `SYZABI_TMPDIR`: 覆盖临时目录。
 - `SYZABI_ASTERINAS_MODE`: 选择 Asterinas runner 模式。
-- `ASTERINAS_JOBS`: `make run-asterinas-*` 的并发数。
+- `ASTERINAS_JOBS`: `make run-workflow WORKFLOW=asterinas ...`（以及兼容 alias `run-asterinas-*`）的并发数。
 
 示例：
 
 ```bash
 SYZABI_WORKFLOW=asterinas python3 tools/render_summary.py
 SYZABI_CONFIG_PATH=configs/workflows/asterinas_scml.json python3 orchestrator/scheduler.py --campaign smoke --limit 50
+SYZABI_ASTERINAS_MODE=docker-qemu make prepare-target WORKFLOW=asterinas
+# legacy compatibility alias:
 SYZABI_ASTERINAS_MODE=docker-qemu python3 tools/run_asterinas.py --healthcheck
 ```
 
@@ -484,7 +495,7 @@ git -C third_party/asterinas checkout f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3
 - QEMU 是否安装
 - `/dev/kvm` 是否可访问
 - `third_party/asterinas/test/initramfs/build/initramfs.cpio.gz` 是否存在
-- `artifacts/asterinas/build-info.json` 是否与当前 revision / mode 对齐
+- `artifacts/targets/asterinas/build-info.json` 是否与当前 revision / mode 对齐
 
 ### SCML preflight 失败
 
@@ -493,7 +504,7 @@ git -C third_party/asterinas checkout f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3
 - `strace` 是否安装
 - `sctrace` 是否可执行
 - `third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage/` 是否存在
-- `reports/asterinas_scml/debug-preflight/` 和 `artifacts/preflight/asterinas_scml/` 中的证据文件
+- `reports/targets/asterinas/asterinas_scml/debug-preflight/` 和 `artifacts/preflight/targets/asterinas/asterinas_scml/` 中的证据文件
 
 ## 清理
 

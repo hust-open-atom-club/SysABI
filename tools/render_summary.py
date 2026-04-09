@@ -144,12 +144,6 @@ def workflow_side_labels(cfg: dict[str, object]) -> tuple[str, str]:
         candidate_label = presentation.get("candidate_label")
         if isinstance(reference_label, str) and isinstance(candidate_label, str):
             return reference_label, candidate_label
-    workflow = current_workflow(cfg)
-    target = active_target_name(cfg)
-    if target == "asterinas":
-        return "Linux", "Asterinas"
-    if workflow == "baseline":
-        return "Linux(reference)", "Linux(candidate)"
     return "Reference", "Candidate"
 
 

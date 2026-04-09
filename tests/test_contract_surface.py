@@ -6,13 +6,17 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from orchestrator.common import config, configure_runtime, resolved_config_path, runner_profiles
+from orchestrator.legacy_compat import _WARNED_DEPRECATIONS
 from orchestrator.scheduler import candidate_batching_enabled
 from orchestrator.vm_runner import execute_side
+from tools.render_summary import workflow_side_labels
 
 
 class ContractSurfaceTests(unittest.TestCase):
@@ -47,10 +51,14 @@ class ContractSurfaceTests(unittest.TestCase):
         asterinas = runner_profiles(workflow="asterinas")
         self.assertEqual(asterinas["candidate"]["kind"], "command")
         self.assertEqual(asterinas["candidate"]["binary_name"], "testcase.candidate.bin")
+        self.assertIn("/targets/asterinas/entrypoint.py", " ".join(asterinas["candidate"]["command"]))
+        self.assertNotIn("/tools/run_asterinas.py", " ".join(asterinas["candidate"]["command"]))
 
         asterinas_scml = runner_profiles(workflow="asterinas_scml")
         self.assertEqual(asterinas_scml["candidate"]["kind"], "command")
         self.assertEqual(asterinas_scml["reference"]["work_root"], "artifacts/sandboxes/asterinas_scml/reference")
+        self.assertIn("/targets/asterinas/entrypoint.py", " ".join(asterinas_scml["candidate"]["command"]))
+        self.assertNotIn("/tools/run_asterinas.py", " ".join(asterinas_scml["candidate"]["command"]))
 
     def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
         canonical = config(workflow="asterinas")
@@ -58,10 +66,14 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertEqual(canonical["paths"]["eligible_file"], "eligible_programs/targets/asterinas/asterinas/default.jsonl")
         self.assertEqual(canonical["target_config"]["build_info_path"], "artifacts/targets/asterinas/build-info.json")
 
-        legacy = config(config_path="configs/asterinas_rules.json")
+        _WARNED_DEPRECATIONS.clear()
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            legacy = config(config_path="configs/asterinas_rules.json")
         self.assertEqual(legacy["target"], "asterinas")
         self.assertIn("asterinas", legacy)
         self.assertEqual(legacy["asterinas"]["build_info_path"], "artifacts/asterinas/build-info.json")
+        self.assertIn("deprecated compatibility path", stderr.getvalue())
 
     def test_execute_side_command_runner_materializes_protocol_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -227,6 +239,42 @@ class ContractSurfaceTests(unittest.TestCase):
             self.assertEqual(run_result["program_id"], program_id)
             self.assertEqual(run_result["kernel_build"], "fake-kernel")
 
+    def test_canonical_config_loading_does_not_inject_non_linux_derivation_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workflow_dir = root / "workflows"
+            workflow_dir.mkdir(parents=True, exist_ok=True)
+            config_path = workflow_dir / "custom.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "workflow": "custom",
+                        "target": "dragonos",
+                        "schema_version": 1,
+                        "runner_profiles_path": "configs/runner_profiles.json",
+                        "paths": {
+                            "build_dir": "build/targets/dragonos/custom/testcases",
+                            "artifacts_dir": "artifacts/runs/targets/dragonos/custom",
+                            "reports_dir": "reports/targets/dragonos/custom",
+                            "eligible_file": "eligible_programs/targets/dragonos/custom/default.jsonl",
+                            "temp_dir": "artifacts/tmp",
+                        },
+                        "derivation": {},
+                        "normalization": {"preview_bytes": 32},
+                        "classification": {"no_diff": "NO_DIFF"},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            loaded = config(config_path=config_path)
+        self.assertEqual(loaded["target"], "dragonos")
+        self.assertNotIn("source_eligible_file", loaded.get("derivation", {}))
+
     def test_candidate_batching_is_capability_driven(self) -> None:
         args = SimpleNamespace(candidate_batch_size=2)
         with patch(
@@ -271,6 +319,17 @@ class ContractSurfaceTests(unittest.TestCase):
 
     def test_legacy_make_targets_route_through_generic_workflow_entrypoints(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
+        build = subprocess.run(
+            ["make", "-n", "build-eligible"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(build.returncode, 0)
+        self.assertIn("build-eligible is deprecated", build.stdout)
+        self.assertIn("make build-workflow WORKFLOW=baseline", build.stdout)
+
         smoke = subprocess.run(
             ["make", "-n", "run-smoke"],
             cwd=repo_root,
@@ -300,6 +359,74 @@ class ContractSurfaceTests(unittest.TestCase):
         )
         self.assertEqual(analyze.returncode, 0)
         self.assertIn("make analyze-workflow WORKFLOW=asterinas", analyze.stdout)
+
+        derive_scml = subprocess.run(
+            ["make", "-n", "derive-asterinas-scml"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(derive_scml.returncode, 0)
+        self.assertIn("derive-asterinas-scml is deprecated", derive_scml.stdout)
+        self.assertIn("make derive-workflow WORKFLOW=asterinas_scml", derive_scml.stdout)
+        self.assertIn("make preflight-workflow WORKFLOW=asterinas_scml", derive_scml.stdout)
+
+        preflight_scml = subprocess.run(
+            ["make", "-n", "preflight-asterinas-scml"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(preflight_scml.returncode, 0)
+        self.assertIn("preflight-asterinas-scml is deprecated", preflight_scml.stdout)
+        self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key preflight.source_eligible_file", preflight_scml.stdout)
+
+        prepare = subprocess.run(
+            ["make", "-n", "prepare-asterinas-candidate"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(prepare.returncode, 0)
+        self.assertIn("prepare-asterinas-candidate is deprecated", prepare.stdout)
+        self.assertIn("make prepare-target WORKFLOW=asterinas", prepare.stdout)
+
+        prepare_scml = subprocess.run(
+            ["make", "-n", "prepare-target", "WORKFLOW=asterinas_scml"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(prepare_scml.returncode, 0)
+        self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key target", prepare_scml.stdout)
+        self.assertIn("targets/asterinas/entrypoint.py --mode docker-qemu --healthcheck", prepare_scml.stdout)
+        self.assertNotIn("tools/run_asterinas.py", prepare_scml.stdout)
+
+        clean = subprocess.run(
+            ["make", "-n", "clean"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(clean.returncode, 0)
+        self.assertIn('tools/cleanup_repo_processes.py --repo-root "', clean.stdout)
+        self.assertNotIn("--remove", clean.stdout)
+
+    def test_render_summary_falls_back_to_generic_labels_without_presentation(self) -> None:
+        self.assertEqual(workflow_side_labels({"target": "asterinas"}), ("Reference", "Candidate"))
+
+    def test_current_contracts_labels_round0_coupling_as_historical(self) -> None:
+        content = (Path(__file__).resolve().parents[1] / "docs" / "architecture" / "current-contracts.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Round 0 冻结的耦合点", content)
+        self.assertIn("Phase 0 冻结的已知耦合", content)
+        self.assertNotIn("`candidate_batching_enabled()` 仍以 `workflow.startswith(\"asterinas\")` 判断是否允许 batching；", content)
 
 
 if __name__ == "__main__":

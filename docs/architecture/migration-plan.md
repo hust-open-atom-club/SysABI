@@ -109,9 +109,9 @@
 
 建议节奏：
 
-- **当前版本线**：保留并标注兼容
-- **下一个稳定迁移点**：开始输出 deprecation 提示
-- **再下一个迁移点**：删除无必要 shim
+- **当前版本线**：保留并标注兼容，并且在运行 legacy `*_rules.json` / legacy make alias / legacy runner profile shim 时输出 deprecation 提示
+- **下一个稳定迁移点**：把 README / 脚本示例全部切到 canonical workflow/target 路径，只在兼容章节保留旧名称
+- **再下一个迁移点**：删除无必要 shim，仅保留极少数需要历史回放的 alias
 
 ## Rollback Strategy
 

@@ -10,6 +10,7 @@ from orchestrator.common import resolve_repo_path
 from targets.asterinas.build import build_info_path, ensure_revision
 from targets.asterinas.common import RunnerError
 from targets.asterinas.initramfs import create_minimal_initramfs
+from targets.asterinas import paths as path_mod
 
 
 def packaged_bundle_metadata_path(package_dir: Path) -> Path:
@@ -50,7 +51,7 @@ def built_bundle_dir(cfg: dict[str, object]) -> Path:
 
 
 def build_probe_root() -> Path:
-    root = resolve_repo_path("artifacts/asterinas/build-probe")
+    root = path_mod.build_probe_root()
     root.mkdir(parents=True, exist_ok=True)
     return root
 

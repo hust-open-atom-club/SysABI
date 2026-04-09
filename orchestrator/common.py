@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
+from orchestrator.legacy_compat import default_presentation, emit_deprecation_warning_once, infer_legacy_target
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,13 +40,27 @@ def runtime_workflow() -> str:
 def resolved_config_path(*, workflow: str | None = None, config_path: str | Path | None = None) -> Path:
     selected_path = config_path or os.environ.get(CONFIG_PATH_ENV)
     if selected_path:
-        return resolve_repo_path(selected_path)
+        resolved = resolve_repo_path(selected_path)
+        if resolved.name.endswith("_rules.json"):
+            try:
+                display_path = resolved.relative_to(repo_root())
+            except ValueError:
+                display_path = resolved
+            emit_deprecation_warning_once(
+                f"legacy-config:{resolved}",
+                f"{display_path} -> use configs/workflows/{workflow or runtime_workflow()}.json instead",
+            )
+        return resolved
     selected_workflow = workflow or runtime_workflow()
     canonical = resolve_repo_path(f"configs/workflows/{selected_workflow}.json")
     if canonical.exists():
         return canonical
     candidate = resolve_repo_path(f"configs/{selected_workflow}_rules.json")
     if candidate.exists():
+        emit_deprecation_warning_once(
+            f"legacy-workflow-config:{selected_workflow}",
+            f"{candidate.relative_to(repo_root())} -> add/use configs/workflows/{selected_workflow}.json",
+        )
         return candidate
     if selected_workflow != DEFAULT_WORKFLOW:
         raise FileNotFoundError(f"missing config for workflow {selected_workflow}: {candidate}")
@@ -121,11 +136,7 @@ def config(*, workflow: str | None = None, config_path: str | Path | None = None
     target_name = payload.get("target")
     if not isinstance(target_name, str) or not target_name:
         if resolved_path.name.endswith("_rules.json"):
-            inferred_workflow = str(payload.get("workflow", workflow or runtime_workflow()))
-            if inferred_workflow.startswith("asterinas"):
-                target_name = "asterinas"
-            else:
-                target_name = "linux"
+            target_name = infer_legacy_target(payload, workflow=workflow or runtime_workflow())
         else:
             target_name = "linux"
         payload["target"] = target_name
@@ -135,6 +146,11 @@ def config(*, workflow: str | None = None, config_path: str | Path | None = None
         payload["target_config"] = target_config
         if target_name not in payload:
             payload[target_name] = target_config
+    presentation = payload.get("presentation")
+    if not isinstance(presentation, dict):
+        workflow_name = str(payload.get("workflow", workflow or runtime_workflow()))
+        presentation = default_presentation(target=target_name, workflow=workflow_name)
+        payload["presentation"] = presentation
     if resolved_path.parent.name == "workflows":
         paths = dict(payload.get("paths", {}))
         payload["paths"] = paths
@@ -161,10 +177,6 @@ def config(*, workflow: str | None = None, config_path: str | Path | None = None
             derivation = dict(payload.get("derivation", {}))
             derivation["generated_source_eligible_file"] = paths["generated_file"]
             payload["derivation"] = derivation
-        derivation = dict(payload.get("derivation", {}))
-        if target_name != "linux":
-            derivation["source_eligible_file"] = "eligible_programs/targets/linux/baseline/default.jsonl"
-            payload["derivation"] = derivation
         target_config = dict(payload.get("target_config", {}))
         if target_config:
             target_config["build_info_path"] = resolver.canonical_build_info_path().relative_to(repo_root()).as_posix()
@@ -189,7 +201,16 @@ def report_path(*parts: str, cfg: dict[str, Any] | None = None) -> Path:
 
 def runner_profiles(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
     cfg = config(workflow=workflow, config_path=config_path)
-    return load_json(PathResolver(cfg).runner_profiles_path())
+    path = PathResolver(cfg).runner_profiles_path()
+    if path.parent == resolve_repo_path("configs") and path.name in {
+        "runner_profiles.asterinas.json",
+        "runner_profiles.asterinas_scml.json",
+    }:
+        emit_deprecation_warning_once(
+            f"legacy-runner-profiles:{path}",
+            f"{path.relative_to(repo_root())} -> use configs/targets/<target>/runner_profiles.<workflow>.json",
+        )
+    return load_json(path)
 
 
 def path_resolver(cfg: dict[str, Any] | None = None) -> PathResolver:

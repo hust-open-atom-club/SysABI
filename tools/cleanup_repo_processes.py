@@ -15,8 +15,29 @@ from pathlib import Path
 PROCESS_PATTERNS = (
     "python3 orchestrator/scheduler.py",
     "tools/run_asterinas.py",
+    "targets/asterinas/entrypoint.py",
     "qemu-system-x86_64",
     "cargo +nightly-2025-12-06 osdk",
+)
+LEGACY_CLEANUP_TARGETS = (
+    "artifacts/runs/asterinas",
+    "artifacts/runs/asterinas_scml",
+    "artifacts/sandboxes/asterinas",
+    "artifacts/preflight/asterinas_scml",
+    "artifacts/asterinas/build",
+    "artifacts/asterinas/build-probe",
+    "artifacts/asterinas/host-target",
+    "artifacts/asterinas/initramfs-packages",
+    "build/asterinas/testcases",
+    "build/asterinas_scml/testcases",
+    "artifacts/generated/asterinas_scml",
+    "eligible_programs/asterinas.jsonl",
+    "eligible_programs/asterinas_scml.targets.jsonl",
+    "eligible_programs/asterinas_scml.generated.jsonl",
+    "eligible_programs/asterinas_scml.jsonl",
+    "eligible_programs/asterinas_scml.static.jsonl",
+    "reports/asterinas",
+    "reports/asterinas_scml",
 )
 
 
@@ -191,6 +212,67 @@ def load_asterinas_docker_image(repo_root: Path) -> str | None:
     return None
 
 
+def canonical_cleanup_targets(repo_root: Path) -> list[str]:
+    workflow_dir = repo_root / "configs" / "workflows"
+    targets: set[str] = set()
+    if not workflow_dir.exists():
+        return []
+    for config_path in workflow_dir.glob("*.json"):
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        paths = payload.get("paths", {})
+        if isinstance(paths, dict):
+            for key in (
+                "artifacts_dir",
+                "build_dir",
+                "reports_dir",
+                "eligible_file",
+                "generated_file",
+                "generated_raw_dir",
+                "generated_normalized_dir",
+                "generated_meta_dir",
+                "targets_file",
+                "static_eligible_file",
+                "candidate_initramfs_packages_dir",
+            ):
+                value = paths.get(key)
+                if isinstance(value, str) and value:
+                    targets.add(value)
+        preflight = payload.get("preflight", {})
+        if isinstance(preflight, dict):
+            artifact_dir = preflight.get("artifact_dir")
+            if isinstance(artifact_dir, str) and artifact_dir:
+                targets.add(artifact_dir)
+        target_config_path = payload.get("target_config_path")
+        if isinstance(target_config_path, str) and target_config_path:
+            resolved_target_config = repo_root / target_config_path
+            if resolved_target_config.exists():
+                target_payload = json.loads(resolved_target_config.read_text(encoding="utf-8"))
+                build_info_path = target_payload.get("build_info_path")
+                if isinstance(build_info_path, str) and build_info_path:
+                    targets.add(str(Path(build_info_path).parent / "build"))
+                if payload.get("target") == "asterinas":
+                    targets.update(
+                        {
+                            "artifacts/targets/asterinas/build-probe",
+                            "artifacts/targets/asterinas/docker-cargo-home",
+                            "artifacts/targets/asterinas/git-mirrors",
+                            "artifacts/targets/asterinas/host-gitconfig",
+                            "artifacts/targets/asterinas/docker-gitconfig",
+                            "artifacts/targets/asterinas/host-target",
+                            "artifacts/targets/asterinas/host-tools",
+                            "artifacts/targets/asterinas/linux-vdso",
+                        }
+                    )
+    return sorted(targets)
+
+
+def default_cleanup_targets(repo_root: Path) -> list[str]:
+    repo_root = repo_root.resolve()
+    merged = set(LEGACY_CLEANUP_TARGETS)
+    merged.update(canonical_cleanup_targets(repo_root))
+    return sorted(merged)
+
+
 def remove_path(path: Path) -> bool:
     try:
         if not path.exists() and not path.is_symlink():
@@ -238,7 +320,7 @@ def docker_remove_paths(repo_root: Path, paths: list[Path]) -> None:
 
 def cleanup_paths(repo_root: Path, targets: list[str]) -> None:
     if not targets:
-        return
+        targets = default_cleanup_targets(repo_root)
     repo_root = repo_root.resolve()
     pending_docker_cleanup: list[Path] = []
     for target in targets:

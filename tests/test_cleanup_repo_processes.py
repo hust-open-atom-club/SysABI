@@ -5,7 +5,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.cleanup_repo_processes import cleanup_paths, container_owned_by_repo, load_asterinas_docker_image, process_owned_by_repo, running_container_names
+from tools.cleanup_repo_processes import (
+    canonical_cleanup_targets,
+    cleanup_paths,
+    container_owned_by_repo,
+    default_cleanup_targets,
+    load_asterinas_docker_image,
+    process_owned_by_repo,
+    running_container_names,
+)
 
 
 class CleanupRepoProcessesTests(unittest.TestCase):
@@ -108,3 +116,34 @@ class CleanupRepoProcessesTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(load_asterinas_docker_image(repo_root), "legacy/image:test")
+
+    def test_default_cleanup_targets_merge_canonical_and_legacy_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            workflow_dir = repo_root / "configs" / "workflows"
+            target_dir = repo_root / "configs" / "targets" / "asterinas"
+            workflow_dir.mkdir(parents=True, exist_ok=True)
+            target_dir.mkdir(parents=True, exist_ok=True)
+            (workflow_dir / "baseline.json").write_text(
+                '{"paths":{"build_dir":"build/targets/linux/baseline/testcases","artifacts_dir":"artifacts/runs/targets/linux/baseline","reports_dir":"reports/targets/linux/baseline","eligible_file":"eligible_programs/targets/linux/baseline/default.jsonl"}}\n',
+                encoding="utf-8",
+            )
+            (workflow_dir / "asterinas.json").write_text(
+                '{"target":"asterinas","paths":{"candidate_initramfs_packages_dir":"artifacts/targets/asterinas/initramfs-packages"},"target_config_path":"configs/targets/asterinas/target.json"}\n',
+                encoding="utf-8",
+            )
+            (target_dir / "target.json").write_text(
+                '{"build_info_path":"artifacts/targets/asterinas/build-info.json"}\n',
+                encoding="utf-8",
+            )
+
+            canonical = canonical_cleanup_targets(repo_root)
+            merged = default_cleanup_targets(repo_root)
+
+        self.assertIn("build/targets/linux/baseline/testcases", canonical)
+        self.assertIn("artifacts/targets/asterinas/initramfs-packages", canonical)
+        self.assertIn("artifacts/targets/asterinas/build", canonical)
+        self.assertIn("artifacts/targets/asterinas/docker-cargo-home", canonical)
+        self.assertIn("artifacts/targets/asterinas/build-probe", canonical)
+        self.assertIn("reports/asterinas", merged)
+        self.assertIn("build/targets/linux/baseline/testcases", merged)
