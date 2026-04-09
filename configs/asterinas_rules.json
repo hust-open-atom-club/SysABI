@@ -1,0 +1,131 @@
+{
+  "workflow": "asterinas",
+  "schema_version": 1,
+  "target_os": "linux",
+  "arch": "amd64",
+  "runner_profiles_path": "configs/runner_profiles.asterinas.json",
+  "asterinas": {
+    "repo_dir": "third_party/asterinas",
+    "revision": "f05e89b615c5dcb3f7c74accf24bdc23f96fcfc3",
+    "docker_image": "asterinas/asterinas:0.17.1-20260319",
+    "docker_repo_dir": "/root/asterinas",
+    "docker_workspace_dir": "/workspace",
+    "docker_workdir": "/root/asterinas",
+    "build_timeout_sec": 3600,
+    "run_timeout_sec": 120,
+    "base_initramfs_path": "third_party/asterinas/test/initramfs/build/initramfs.cpio.gz",
+    "build_info_path": "artifacts/asterinas/build-info.json"
+  },
+  "paths": {
+    "syzkaller_dir": "third_party/syzkaller",
+    "go_root": "artifacts/toolchains/go/current/go",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "temp_dir": "artifacts/tmp",
+    "corpus_raw": "corpus/raw",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_meta": "corpus/meta",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/asterinas.jsonl",
+    "build_dir": "build/asterinas/testcases",
+    "artifacts_dir": "artifacts/runs/asterinas",
+    "reports_dir": "reports/asterinas"
+  },
+  "allowlist": {
+    "syscalls": [
+      "open",
+      "openat",
+      "read",
+      "write",
+      "pread64",
+      "pwrite64",
+      "lseek",
+      "close",
+      "fstat",
+      "newfstatat",
+      "mkdir",
+      "unlink",
+      "rename",
+      "getpid",
+      "getppid",
+      "pipe",
+      "pipe2",
+      "eventfd",
+      "eventfd2",
+      "socketpair",
+      "exit",
+      "exit_group"
+    ]
+  },
+  "derivation": {
+    "source_eligible_file": "eligible_programs/baseline.jsonl",
+    "accept_reasons": [
+      "baseline_stable_source",
+      "asterinas_exact_supported_subset",
+      "full_name_allowlisted"
+    ],
+    "unsupported_taxonomy": {
+      "memory_management": [
+        "mmap",
+        "munmap",
+        "mprotect",
+        "brk"
+      ],
+      "process_control": [
+        "clone",
+        "wait4"
+      ]
+    }
+  },
+  "normalization": {
+    "preview_bytes": 32,
+    "max_probe_bytes": 4096,
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "stability": {
+    "rerun_count": 2,
+    "timeout_sec": 120,
+    "baseline_invalid_threshold": 0.1
+  },
+  "parallel": {
+    "jobs": 4
+  },
+  "build": {
+    "cflags": [
+      "-static"
+    ]
+  },
+  "classification": {
+    "no_diff": "NO_DIFF",
+    "baseline_invalid": "BASELINE_INVALID",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "bug_likely": "BUG_LIKELY"
+  },
+  "thresholds": {
+    "smoke": {
+      "total_min": 50,
+      "build_success_rate": 0.95,
+      "dual_execution_completion_rate": 0.8,
+      "trace_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "baseline_invalid_rate": 0.1
+    },
+    "signoff": {
+      "total_min": 200,
+      "build_success_rate": 0.95,
+      "dual_execution_completion_rate": 0.85,
+      "trace_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "baseline_invalid_rate": 0.1,
+      "require_minimized_report": true
+    }
+  }
+}

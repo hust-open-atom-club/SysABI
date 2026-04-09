@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import shlex
 import subprocess
 import time
 from pathlib import Path
 
 from analyzer.schemas import validate_raw_trace
-from orchestrator.common import clean_dir, config, dump_json, ensure_dir, resolve_repo_path, runner_profiles, sha256_text
+from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, repo_root, resolve_repo_path, runner_profiles, sha256_text
 from orchestrator.models import RunResult
 
 
@@ -17,7 +18,7 @@ def build_root(program_id: str) -> Path:
 
 
 def kernel_build(command: str) -> str:
-    return subprocess.run(command, shell=True, text=True, check=True, capture_output=True).stdout.strip()
+    return subprocess.run(command, shell=True, text=True, check=True, capture_output=True, env=env_with_temp()).stdout.strip()
 
 
 def safe_kernel_build(command: str) -> str:
@@ -65,6 +66,81 @@ def classify_process_returncode(returncode: int) -> str:
     return "ok"
 
 
+def execution_context(
+    *,
+    program_id: str,
+    side: str,
+    run_id: str,
+    timeout_sec: int,
+    sandbox_root: Path,
+    artifact_root: Path,
+    binary_path: Path,
+    stdout_path: Path,
+    stderr_path: Path,
+    console_path: Path,
+    events_path: Path,
+    raw_trace_path: Path,
+    external_state_path: Path,
+    runner_result_path: Path,
+) -> dict[str, str]:
+    return {
+        "program_id": program_id,
+        "side": side,
+        "run_id": run_id,
+        "repo_root": str(repo_root()),
+        "timeout_sec": str(timeout_sec),
+        "sandbox_root": str(sandbox_root),
+        "artifact_root": str(artifact_root),
+        "binary_path": str(binary_path),
+        "stdout_path": str(stdout_path),
+        "stderr_path": str(stderr_path),
+        "console_path": str(console_path),
+        "events_path": str(events_path),
+        "raw_trace_path": str(raw_trace_path),
+        "external_state_path": str(external_state_path),
+        "runner_result_path": str(runner_result_path),
+    }
+
+
+def resolve_command(profile: dict[str, object], context: dict[str, str]) -> list[str]:
+    command = profile.get("command")
+    if not command:
+        raise ValueError("command runner profile is missing `command`")
+    if isinstance(command, str):
+        return [token.format(**context) for token in shlex.split(command)]
+    if isinstance(command, list):
+        return [str(token).format(**context) for token in command]
+    raise TypeError(f"unsupported command profile type: {type(command)!r}")
+
+
+def load_runner_result(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def finalize_process_result(
+    *,
+    profile_kind: str,
+    completed_returncode: int | None,
+    runner_result: dict[str, object] | None,
+    fallback_kernel_build: str,
+) -> tuple[str, int | None, str | None, str]:
+    exit_code = completed_returncode
+    if profile_kind == "command":
+        status = "ok" if completed_returncode == 0 else "infra_error"
+    else:
+        status = classify_process_returncode(completed_returncode or 0)
+    status_detail = None
+    kernel_build_value = fallback_kernel_build
+    if runner_result:
+        status = str(runner_result.get("status", status))
+        exit_code = runner_result.get("exit_code", exit_code)
+        status_detail = runner_result.get("status_detail") or runner_result.get("detail")
+        kernel_build_value = str(runner_result.get("kernel_build", fallback_kernel_build))
+    return status, exit_code, status_detail, kernel_build_value
+
+
 def execute_side(
     *,
     program_id: str,
@@ -75,12 +151,13 @@ def execute_side(
 ) -> RunResult:
     cfg = config()
     profile = runner_profiles()[side]
+    binary_name = str(profile.get("binary_name", "testcase.bin"))
     effective_timeout_sec = int(profile.get("timeout_sec", timeout_sec))
     artifact_root = ensure_dir(Path(cfg["paths"]["artifacts_dir"]) / program_id / run_id / side)
     build_artifacts = build_root(program_id)
     sandbox_root = clean_dir(Path(profile["work_root"]) / program_id / run_id)
 
-    for name in ("testcase.c", "testcase.instrumented.c", "testcase.bin", "build-result.json"):
+    for name in ("testcase.c", "testcase.instrumented.c", "testcase.bin", "testcase.candidate.bin", "build-result.json"):
         source = build_artifacts / name
         if source.exists():
             shutil.copy2(source, artifact_root / name)
@@ -91,16 +168,18 @@ def execute_side(
     events_path = artifact_root / "raw-trace.events.jsonl"
     raw_trace_path = artifact_root / "raw-trace.json"
     external_state_path = artifact_root / "external-state.json"
-    binary_path = artifact_root / "testcase.bin"
-    for stale_path in (events_path, raw_trace_path, external_state_path, stdout_path, stderr_path, console_path):
+    runner_result_path = artifact_root / "runner-result.json"
+    binary_path = artifact_root / binary_name
+    for stale_path in (events_path, raw_trace_path, external_state_path, stdout_path, stderr_path, console_path, runner_result_path):
         stale_path.unlink(missing_ok=True)
 
-    env = os.environ.copy()
+    env = env_with_temp()
     env["SYZABI_SIDE"] = side
     env["SYZABI_PROGRAM_ID"] = program_id
     env["SYZABI_RUN_ID"] = run_id
     env["SYZABI_TRACE_EVENTS_PATH"] = str(events_path)
     env["SYZABI_TRACE_PREVIEW_BYTES"] = str(cfg["normalization"]["preview_bytes"])
+    env["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result_path)
     env["SYZABI_WORK_DIR"] = str(sandbox_root)
     env["SYZABI_BINARY_PATH"] = str(binary_path)
     env["SYZABI_STDOUT_PATH"] = str(stdout_path)
@@ -115,8 +194,27 @@ def execute_side(
         env["SYZABI_INJECT_TRACE_FIELD"] = str(inject_trace.get("field", "return"))
         env["SYZABI_INJECT_TRACE_VALUE"] = str(inject_trace.get("value", 0))
 
-    runner_kind = "local"
-    command = [str(binary_path)]
+    runner_kind = profile.get("kind", "local")
+    command_context = execution_context(
+        program_id=program_id,
+        side=side,
+        run_id=run_id,
+        timeout_sec=effective_timeout_sec,
+        sandbox_root=sandbox_root,
+        artifact_root=artifact_root,
+        binary_path=binary_path,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        console_path=console_path,
+        events_path=events_path,
+        raw_trace_path=raw_trace_path,
+        external_state_path=external_state_path,
+        runner_result_path=runner_result_path,
+    )
+    if runner_kind == "command":
+        command = resolve_command(profile, command_context)
+    else:
+        command = [str(binary_path)]
 
     start = time.monotonic()
     status = "ok"
@@ -135,10 +233,13 @@ def execute_side(
         )
         stdout = completed.stdout
         stderr = completed.stderr
-        exit_code = completed.returncode
-        status = classify_process_returncode(completed.returncode)
-        status_detail = None
-        kernel_build_value = safe_kernel_build(profile["kernel_build_command"])
+        fallback_kernel_build = safe_kernel_build(profile["kernel_build_command"])
+        status, exit_code, status_detail, kernel_build_value = finalize_process_result(
+            profile_kind=runner_kind,
+            completed_returncode=completed.returncode,
+            runner_result=load_runner_result(runner_result_path),
+            fallback_kernel_build=fallback_kernel_build,
+        )
     except subprocess.TimeoutExpired as exc:
         status = "timeout"
         stdout = exc.stdout or ""
