@@ -9,9 +9,10 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PHASE = "phase1"
-PHASE_ENV = "SYZABI_PHASE"
+DEFAULT_WORKFLOW = "baseline"
+WORKFLOW_ENV = "SYZABI_WORKFLOW"
 CONFIG_PATH_ENV = "SYZABI_CONFIG_PATH"
+TEMP_DIR_ENV = "SYZABI_TMPDIR"
 
 
 def repo_root() -> Path:
@@ -25,28 +26,28 @@ def resolve_repo_path(value: str | Path) -> Path:
     return ROOT / path
 
 
-def configure_runtime(*, phase: str | None = None, config_path: str | Path | None = None) -> None:
-    if phase is not None:
-        os.environ[PHASE_ENV] = phase
+def configure_runtime(*, workflow: str | None = None, config_path: str | Path | None = None) -> None:
+    if workflow is not None:
+        os.environ[WORKFLOW_ENV] = workflow
     if config_path is not None:
         os.environ[CONFIG_PATH_ENV] = str(config_path)
 
 
-def runtime_phase() -> str:
-    return os.environ.get(PHASE_ENV, DEFAULT_PHASE)
+def runtime_workflow() -> str:
+    return os.environ.get(WORKFLOW_ENV, DEFAULT_WORKFLOW)
 
 
-def resolved_config_path(*, phase: str | None = None, config_path: str | Path | None = None) -> Path:
+def resolved_config_path(*, workflow: str | None = None, config_path: str | Path | None = None) -> Path:
     selected_path = config_path or os.environ.get(CONFIG_PATH_ENV)
     if selected_path:
         return resolve_repo_path(selected_path)
-    selected_phase = phase or runtime_phase()
-    candidate = resolve_repo_path(f"configs/{selected_phase}_rules.json")
+    selected_workflow = workflow or runtime_workflow()
+    candidate = resolve_repo_path(f"configs/{selected_workflow}_rules.json")
     if candidate.exists():
         return candidate
-    if selected_phase != DEFAULT_PHASE:
-        raise FileNotFoundError(f"missing config for phase {selected_phase}: {candidate}")
-    return resolve_repo_path("configs/phase1_rules.json")
+    if selected_workflow != DEFAULT_WORKFLOW:
+        raise FileNotFoundError(f"missing config for workflow {selected_workflow}: {candidate}")
+    return resolve_repo_path("configs/baseline_rules.json")
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
@@ -112,13 +113,13 @@ def write_text(path: str | Path, content: str) -> None:
         handle.write(content)
 
 
-def config(*, phase: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
-    return load_json(resolved_config_path(phase=phase, config_path=config_path))
+def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
+    return load_json(resolved_config_path(workflow=workflow, config_path=config_path))
 
 
-def current_phase(cfg: dict[str, Any] | None = None) -> str:
+def current_workflow(cfg: dict[str, Any] | None = None) -> str:
     payload = cfg or config()
-    return str(payload.get("phase", runtime_phase()))
+    return str(payload.get("workflow", runtime_workflow()))
 
 
 def reports_dir(cfg: dict[str, Any] | None = None) -> Path:
@@ -130,14 +131,32 @@ def report_path(*parts: str, cfg: dict[str, Any] | None = None) -> Path:
     return reports_dir(cfg).joinpath(*parts)
 
 
-def runner_profiles(*, phase: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
-    cfg = config(phase=phase, config_path=config_path)
+def runner_profiles(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
+    cfg = config(workflow=workflow, config_path=config_path)
     return load_json(cfg.get("runner_profiles_path", "configs/runner_profiles.json"))
+
+
+def temp_dir(cfg: dict[str, Any] | None = None) -> Path:
+    override = os.environ.get(TEMP_DIR_ENV)
+    if override:
+        return ensure_dir(override)
+    payload = cfg or {}
+    paths = payload.get("paths", {})
+    selected = paths.get("temp_dir") if isinstance(paths, dict) else None
+    if not selected:
+        selected = "artifacts/tmp"
+    return ensure_dir(selected)
+
+
+def env_with_temp(base: dict[str, str] | None = None, cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    env = dict(base) if base is not None else os.environ.copy()
+    env["TMPDIR"] = str(temp_dir(cfg))
+    return env
 
 
 def env_with_go() -> dict[str, str]:
     cfg = config()
-    env = os.environ.copy()
+    env = env_with_temp(cfg=cfg)
     go_root = resolve_repo_path(cfg["paths"]["go_root"])
     env["GOROOT"] = str(go_root)
     env["PATH"] = f"{go_root / 'bin'}:{env.get('PATH', '')}"

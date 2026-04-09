@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, dump_json, ensure_dir, read_text, resolve_repo_path, sha256_text, write_text
+from orchestrator.common import config, dump_json, ensure_dir, read_text, resolve_repo_path, sha256_text, temp_dir, write_text
 from orchestrator.models import ProgramMeta
 from orchestrator.syzkaller import inspect_program
 
@@ -89,7 +89,7 @@ def inspect_candidate(file_path: Path, source_type: str, strict: bool) -> dict[s
             "reason": "parse_error",
             "detail": "empty_candidate_program",
         }
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".syz", delete=False) as handle:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".syz", delete=False, dir=temp_dir()) as handle:
         handle.write(prepared_text)
         temp_path = Path(handle.name)
     try:
@@ -180,7 +180,7 @@ def main() -> None:
             summaries["parse_error"] += 1
 
     dump_json(
-        "reports/phase1/import-summary.json",
+        "reports/baseline/import-summary.json",
         {
             "input_dir": str(input_dir),
             "source_type": args.source_type,

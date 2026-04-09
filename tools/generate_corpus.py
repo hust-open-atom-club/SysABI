@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, dump_json, ensure_dir, resolve_repo_path
+from orchestrator.common import config, dump_json, ensure_dir, env_with_temp, resolve_repo_path
 from orchestrator.syzkaller import project_bin
 
 
@@ -47,9 +47,9 @@ def main() -> None:
         "-allow",
         allow,
     ]
-    subprocess.run(cmd, check=True, text=True)
+    subprocess.run(cmd, check=True, text=True, env=env_with_temp())
     dump_json(
-        "reports/phase1/generated-corpus-summary.json",
+        "reports/baseline/generated-corpus-summary.json",
         {
             "count": args.count,
             "output_dir": str(resolve_repo_path(args.output_dir)),

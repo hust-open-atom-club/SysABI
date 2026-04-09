@@ -1,5 +1,5 @@
 {
-  "phase": "phase1",
+  "workflow": "baseline",
   "schema_version": 1,
   "target_os": "linux",
   "arch": "amd64",
@@ -12,16 +12,17 @@
   },
   "paths": {
     "syzkaller_dir": "third_party/syzkaller",
-    "go_root": "/tmp/fuzzasterinas-go/current/go",
+    "go_root": "artifacts/toolchains/go/current/go",
     "go_archive_dir": "artifacts/toolchains/go",
+    "temp_dir": "artifacts/tmp",
     "corpus_raw": "corpus/raw",
     "corpus_normalized": "corpus/normalized",
     "corpus_meta": "corpus/meta",
     "corpus_rejected": "corpus/rejected",
-    "eligible_file": "eligible_programs/phase1.jsonl",
+    "eligible_file": "eligible_programs/baseline.jsonl",
     "build_dir": "build/testcases",
     "artifacts_dir": "artifacts/runs",
-    "reports_dir": "reports/phase1"
+    "reports_dir": "reports/baseline"
   },
   "allowlist": {
     "syscalls": [

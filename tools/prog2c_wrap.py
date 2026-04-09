@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, configure_runtime, dump_json, load_jsonl, report_path, write_text
+from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, write_text
 from orchestrator.syzkaller import build_prog2c
 
 
@@ -21,7 +21,7 @@ SYSCALL_PATTERN = re.compile(r"(?P<prefix>.*?)(?P<call>\bsyscall\s*\((?P<body>.*
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--phase", default="phase1")
+    parser.add_argument("--workflow", default="baseline")
     parser.add_argument("--eligible-file")
     parser.add_argument("--program-id")
     parser.add_argument("--limit", type=int)
@@ -97,6 +97,8 @@ def instrument_source(source: str) -> tuple[str, int]:
 def compile_testcase(
     instrumented_path: Path,
     binary_path: Path,
+    *,
+    runner_source: str,
 ) -> subprocess.CompletedProcess[str]:
     extra_cflags = config().get("build", {}).get("cflags", [])
     cmd = [
@@ -112,11 +114,11 @@ def compile_testcase(
         "agent/linux",
         str(instrumented_path),
         "agent/linux/trace.c",
-        "agent/linux/runner.c",
+        runner_source,
         "-o",
         str(binary_path),
     ]
-    return subprocess.run(cmd, check=False, text=True, capture_output=True)
+    return subprocess.run(cmd, check=False, text=True, capture_output=True, env=env_with_temp())
 
 
 def build_one(entry: dict[str, object]) -> dict[str, object]:
@@ -129,8 +131,10 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     testcase_c = build_root / "testcase.c"
     testcase_instrumented = build_root / "testcase.instrumented.c"
     testcase_bin = build_root / "testcase.bin"
+    candidate_bin = build_root / "testcase.candidate.bin"
     prog2c_stderr = build_root / "prog2c.stderr.txt"
     compile_stderr = build_root / "compile.reference.stderr.txt"
+    candidate_compile_stderr = build_root / "compile.candidate.stderr.txt"
     prog2c_stderr.write_text(prog2c_result.stderr, encoding="utf-8")
 
     if prog2c_result.returncode != 0:
@@ -147,20 +151,37 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     testcase_c.write_text(prog2c_result.stdout, encoding="utf-8")
     instrumented_source, wrapped_count = instrument_source(prog2c_result.stdout)
     testcase_instrumented.write_text(instrumented_source, encoding="utf-8")
-    compile_result = compile_testcase(testcase_instrumented, testcase_bin)
+    compile_result = compile_testcase(
+        testcase_instrumented,
+        testcase_bin,
+        runner_source="agent/linux/runner.c",
+    )
     compile_stderr.write_text(compile_result.stderr, encoding="utf-8")
+    candidate_compile_result: subprocess.CompletedProcess[str] | None = None
+    if cfg.get("workflow") == "asterinas":
+        candidate_compile_result = compile_testcase(
+            testcase_instrumented,
+            candidate_bin,
+            runner_source="agent/asterinas/runner.c",
+        )
+        candidate_compile_stderr.write_text(candidate_compile_result.stderr, encoding="utf-8")
+
     status = "ok" if compile_result.returncode == 0 else "build_failure"
+    if candidate_compile_result is not None and candidate_compile_result.returncode != 0:
+        status = "build_failure"
     result = {
         "program_id": program_id,
         "status": status,
         "stage": "compile" if status != "ok" else "done",
-        "returncode": compile_result.returncode,
+        "returncode": compile_result.returncode if status == "ok" or candidate_compile_result is None else candidate_compile_result.returncode,
         "wrapped_syscalls": wrapped_count,
         "testcase_c": str(testcase_c),
         "testcase_instrumented_c": str(testcase_instrumented),
         "testcase_bin": str(testcase_bin),
+        "candidate_testcase_bin": str(candidate_bin) if candidate_compile_result is not None else None,
         "prog2c_stderr": str(prog2c_stderr),
         "compile_stderr": str(compile_stderr),
+        "candidate_compile_stderr": str(candidate_compile_stderr) if candidate_compile_result is not None else None,
     }
     dump_json(build_root / "build-result.json", result)
     return result
@@ -177,7 +198,7 @@ def selected_entries(args: argparse.Namespace) -> list[dict[str, object]]:
 
 def main() -> None:
     args = parse_args()
-    configure_runtime(phase=args.phase)
+    configure_runtime(workflow=args.workflow)
     cfg = config()
     if not args.eligible_file:
         args.eligible_file = cfg["paths"]["eligible_file"]

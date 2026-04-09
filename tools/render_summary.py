@@ -6,14 +6,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, configure_runtime, current_phase, dump_json, load_json, load_jsonl, report_path, resolve_repo_path
+from orchestrator.common import config, configure_runtime, current_workflow, dump_json, load_json, load_jsonl, report_path, resolve_repo_path
 
 
 def main() -> None:
-    phase = "phase1"
-    if len(sys.argv) == 3 and sys.argv[1] == "--phase":
-        phase = sys.argv[2]
-    configure_runtime(phase=phase)
+    workflow = "baseline"
+    if len(sys.argv) == 3 and sys.argv[1] == "--workflow":
+        workflow = sys.argv[2]
+    configure_runtime(workflow=workflow)
     cfg = config()
     campaign_results = load_jsonl(report_path("campaign-results.jsonl", cfg=cfg))
     build_summary = load_json(report_path("build-summary.json", cfg=cfg))
@@ -38,7 +38,7 @@ def main() -> None:
     candidate_runs = [result["candidate_run"] for result in campaign_results if "candidate_run" in result]
     summary = {
         "campaign": load_json(report_path("summary.json", cfg=cfg)).get("campaign", "full"),
-        "phase": current_phase(cfg),
+        "workflow": current_workflow(cfg),
         "total": total,
         "classification_counts": classification_counts,
         "eligible_program_count": sum(1 for _ in resolve_repo_path(cfg["paths"]["eligible_file"]).open("r", encoding="utf-8")),
@@ -77,7 +77,7 @@ def main() -> None:
 
     dump_json(report_path("summary.json", cfg=cfg), summary)
     lines = [
-        f"# {summary['phase']} {summary['campaign']} summary",
+        f"# {summary['workflow']} {summary['campaign']} summary",
         "",
         f"- total: {summary['total']}",
         f"- eligible_program_count: {summary['eligible_program_count']}",
@@ -100,7 +100,7 @@ def main() -> None:
         lines.append(f"- {key}: {value}")
     report_path("summary.md", cfg=cfg).write_text("\n".join(lines) + "\n", encoding="utf-8")
     signoff_lines = [
-        f"# {summary['phase']} sign-off",
+        f"# {summary['workflow']} sign-off",
         "",
         f"- campaign: {summary['campaign']}",
         f"- eligible_program_count: {summary['eligible_program_count']}",

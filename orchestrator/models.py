@@ -28,11 +28,11 @@ class ProgramMeta:
 @dataclass(slots=True)
 class EligibleProgram:
     program_id: str
-    phase: str
+    workflow: str
     reason: list[str]
     normalized_path: str
     meta_path: str
-    source_phase: str = ""
+    source_workflow: str = ""
     source_program_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:

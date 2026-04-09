@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG="$ROOT/configs/phase1_rules.json"
+CONFIG="$ROOT/configs/baseline_rules.json"
 
 read_config() {
   python3 - <<'PY' "$CONFIG" "$1"
@@ -34,13 +34,14 @@ GO_PLATFORM="$(read_config syzkaller.go_platform)"
 SYZKALLER_DIR="$(resolve_path "$(read_config paths.syzkaller_dir)")"
 GO_ARCHIVE_DIR="$(resolve_path "$(read_config paths.go_archive_dir)")"
 GO_ROOT="$(resolve_path "$(read_config paths.go_root)")"
+TMPDIR_ROOT="$(resolve_path "$(read_config paths.temp_dir)")"
 GO_PARENT="$(dirname "$GO_ROOT")"
 GO_ARCHIVE="$GO_ARCHIVE_DIR/go${GO_VERSION}.${GO_PLATFORM}.tar.gz"
 BUILD_BIN_DIR="$ROOT/build/bin"
 LEGACY_GO_ROOT="$ROOT/artifacts/toolchains/go/current"
 LEGACY_TMP_GO_ROOT="$ROOT/tmp/fuzzasterinas-go/current"
 
-mkdir -p "$GO_ARCHIVE_DIR" "$GO_PARENT" "$BUILD_BIN_DIR"
+mkdir -p "$GO_ARCHIVE_DIR" "$GO_PARENT" "$BUILD_BIN_DIR" "$TMPDIR_ROOT"
 rm -rf "$LEGACY_GO_ROOT"
 rm -rf "$LEGACY_TMP_GO_ROOT"
 
@@ -56,6 +57,7 @@ export GOROOT="$GO_ROOT"
 export PATH="$GOROOT/bin:$PATH"
 export GO111MODULE=on
 export GOBIN="$ROOT/build/bin"
+export TMPDIR="$TMPDIR_ROOT"
 
 if [[ ! -d "$SYZKALLER_DIR/.git" ]]; then
   git clone --filter=blob:none "$SYZKALLER_REPO" "$SYZKALLER_DIR"

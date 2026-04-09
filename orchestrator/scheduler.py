@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import time
 import sys
@@ -20,10 +21,11 @@ from orchestrator.vm_runner import build_root, execute_side
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--phase", default="phase1")
+    parser.add_argument("--workflow", default="baseline")
     parser.add_argument("--campaign", default="smoke")
     parser.add_argument("--eligible-file")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--jobs", type=int)
     parser.add_argument("--program-id")
     parser.add_argument("--controlled-divergence", action="store_true")
     return parser.parse_args()
@@ -176,6 +178,30 @@ def selected_entries(args: argparse.Namespace) -> list[dict[str, object]]:
     return rows
 
 
+def effective_jobs(args: argparse.Namespace, cfg: dict[str, object]) -> int:
+    if args.jobs is not None:
+        return max(1, args.jobs)
+    parallel = cfg.get("parallel", {})
+    if isinstance(parallel, dict):
+        return max(1, int(parallel.get("jobs", 1)))
+    return 1
+
+
+def schedule_entries(entries: list[dict[str, object]], args: argparse.Namespace, jobs: int) -> list[dict[str, object]]:
+    if jobs <= 1 or len(entries) <= 1:
+        return [schedule_one(entry, args) for entry in entries]
+
+    results: list[dict[str, object] | None] = [None] * len(entries)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+        future_map = {
+            executor.submit(schedule_one, entry, args): index
+            for index, entry in enumerate(entries)
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            results[future_map[future]] = future.result()
+    return [result for result in results if result is not None]
+
+
 def write_summary(results: list[dict[str, object]], campaign: str) -> None:
     cfg = config()
     classes = Counter(result["classification"] for result in results)
@@ -193,7 +219,7 @@ def write_summary(results: list[dict[str, object]], campaign: str) -> None:
     reports_dir(cfg).mkdir(parents=True, exist_ok=True)
     dump_json(report_path("summary.json", cfg=cfg), summary)
     lines = [
-        f"# {cfg['phase']} {campaign} summary",
+        f"# {cfg['workflow']} {campaign} summary",
         "",
         f"- total: {summary['total']}",
         f"- dual execution completion rate: {summary['dual_execution_completion_rate']:.3f}",
@@ -220,11 +246,12 @@ def write_summary(results: list[dict[str, object]], campaign: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    configure_runtime(phase=args.phase)
+    configure_runtime(workflow=args.workflow)
     cfg = config()
     if not args.eligible_file:
         args.eligible_file = cfg["paths"]["eligible_file"]
-    results = [schedule_one(entry, args) for entry in selected_entries(args)]
+    entries = selected_entries(args)
+    results = schedule_entries(entries, args, effective_jobs(args, cfg))
     dump_jsonl(report_path("campaign-results.jsonl", cfg=cfg), results)
     write_summary(results, args.campaign)
 

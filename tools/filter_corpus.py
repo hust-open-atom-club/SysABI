@@ -73,7 +73,7 @@ def main() -> None:
             continue
         row = EligibleProgram(
             program_id=meta["program_id"],
-            phase="phase1",
+            workflow="baseline",
             reason=["allowed_syscalls_only", "no_pseudo", "single_thread_safe"],
             normalized_path=meta["normalized_path"],
             meta_path=str(meta_path),
@@ -83,7 +83,7 @@ def main() -> None:
     eligible_rows.sort(key=lambda row: row["program_id"])
     dump_jsonl(cfg["paths"]["eligible_file"], eligible_rows)
     dump_json(
-        "reports/phase1/filter-summary.json",
+        "reports/baseline/filter-summary.json",
         {
             "total_meta": total,
             "eligible": len(eligible_rows),

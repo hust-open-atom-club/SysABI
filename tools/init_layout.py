@@ -9,14 +9,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from orchestrator.common import config, configure_runtime, ensure_dir, runner_profiles
 
 
-def parse_phase() -> str:
-    if len(sys.argv) == 3 and sys.argv[1] == "--phase":
+def parse_workflow() -> str:
+    if len(sys.argv) == 3 and sys.argv[1] == "--workflow":
         return sys.argv[2]
-    return "phase1"
+    return "baseline"
 
 
 def main() -> None:
-    configure_runtime(phase=parse_phase())
+    configure_runtime(workflow=parse_workflow())
     cfg = config()
     for path in cfg["paths"].values():
         if isinstance(path, str) and not path.endswith(".jsonl"):
