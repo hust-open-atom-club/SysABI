@@ -231,6 +231,18 @@ def docker_cargo_home() -> Path:
     return cache_support.docker_cargo_home(hooks=sys.modules[__name__])
 
 
+def cargo_mirror_settings(cfg: dict[str, object] | None = None) -> dict[str, str]:
+    return cache_support.cargo_mirror_settings(cfg, hooks=sys.modules[__name__])
+
+
+def cargo_config_contents(cfg: dict[str, object] | None = None) -> str:
+    return cache_support.cargo_config_contents(cfg, hooks=sys.modules[__name__])
+
+
+def ensure_docker_cargo_config(cfg: dict[str, object] | None = None, *, cargo_home: Path | None = None) -> Path:
+    return cache_support.ensure_docker_cargo_config(cfg, hooks=sys.modules[__name__], cargo_home=cargo_home)
+
+
 def shared_cargo_osdk_path() -> Path:
     return cache_support.shared_cargo_osdk_path(hooks=sys.modules[__name__])
 
@@ -239,8 +251,8 @@ def container_cargo_home(cfg: dict[str, object]) -> Path:
     return cache_support.container_cargo_home(cfg, hooks=sys.modules[__name__])
 
 
-def ensure_docker_cargo_cache_dirs() -> tuple[Path, Path]:
-    return cache_support.ensure_docker_cargo_cache_dirs(hooks=sys.modules[__name__])
+def ensure_docker_cargo_cache_dirs(cfg: dict[str, object] | None = None) -> tuple[Path, Path]:
+    return cache_support.ensure_docker_cargo_cache_dirs(hooks=sys.modules[__name__], cfg=cfg)
 
 
 def prepare_run_cargo_home(work_dir: Path) -> Path:

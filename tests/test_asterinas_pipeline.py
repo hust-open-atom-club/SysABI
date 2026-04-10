@@ -46,6 +46,7 @@ from tools.run_asterinas import (
     strict_docker_only,
     target_osdk_dir,
     write_missing_marker_crash_result,
+    cargo_config_contents,
 )
 from targets.asterinas.adapter import AsterinasTargetAdapter
 from targets.asterinas import bundle as asterinas_bundle
@@ -621,6 +622,26 @@ class AsterinasPipelineTests(unittest.TestCase):
         env = subprocess_run.call_args.kwargs["env"]
         self.assertEqual(env["GIT_CONFIG_GLOBAL"], str(host_gitconfig))
         self.assertEqual(env["CARGO_HOME"], str(cargo_home))
+        self.assertEqual(env["RUSTUP_DIST_SERVER"], "https://rsproxy.cn")
+        self.assertEqual(env["RUSTUP_UPDATE_ROOT"], "https://rsproxy.cn/rustup")
+
+    def test_cargo_config_contents_use_rsproxy_sparse_mirror_by_default(self) -> None:
+        contents = cargo_config_contents({"asterinas": {}})
+        self.assertIn('replace-with = "rsproxy-sparse"', contents)
+        self.assertIn('registry = "sparse+https://rsproxy.cn/index/"', contents)
+        self.assertIn('registry = "https://rsproxy.cn/crates.io-index"', contents)
+
+    def test_ensure_docker_cargo_cache_dirs_materializes_mirror_config(self) -> None:
+        from tools.run_asterinas import ensure_docker_cargo_cache_dirs
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cargo_home = Path(tmpdir) / "cargo-home"
+            with patch("tools.run_asterinas.docker_cargo_home", return_value=cargo_home):
+                ensure_docker_cargo_cache_dirs()
+            config_path = cargo_home / "config.toml"
+            self.assertTrue(config_path.exists())
+            contents = config_path.read_text(encoding="utf-8")
+            self.assertIn("rsproxy.cn", contents)
 
     def test_ensure_git_mirror_keeps_existing_clone_when_remote_update_fails(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

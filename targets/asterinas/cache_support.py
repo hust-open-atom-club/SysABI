@@ -10,6 +10,80 @@ from pathlib import Path
 from targets.asterinas import paths as path_mod
 
 
+DEFAULT_CARGO_REGISTRY_PROTOCOL = "sparse"
+DEFAULT_CARGO_REGISTRY_SPARSE_INDEX = "sparse+https://rsproxy.cn/index/"
+DEFAULT_CARGO_REGISTRY_GIT_INDEX = "https://rsproxy.cn/crates.io-index"
+DEFAULT_RUSTUP_DIST_SERVER = "https://rsproxy.cn"
+DEFAULT_RUSTUP_UPDATE_ROOT = "https://rsproxy.cn/rustup"
+
+
+def cargo_mirror_settings(cfg: dict[str, object] | None, *, hooks) -> dict[str, str]:
+    asterinas_cfg = cfg.get("asterinas", {}) if isinstance(cfg, dict) else {}
+    return {
+        "cargo_registry_protocol": str(
+            hooks.os.environ.get(
+                "SYZABI_ASTERINAS_CARGO_REGISTRY_PROTOCOL",
+                asterinas_cfg.get("cargo_registry_protocol", DEFAULT_CARGO_REGISTRY_PROTOCOL),
+            )
+        ),
+        "cargo_registry_sparse_index": str(
+            hooks.os.environ.get(
+                "SYZABI_ASTERINAS_CARGO_REGISTRY_SPARSE_INDEX",
+                asterinas_cfg.get("cargo_registry_sparse_index", DEFAULT_CARGO_REGISTRY_SPARSE_INDEX),
+            )
+        ),
+        "cargo_registry_git_index": str(
+            hooks.os.environ.get(
+                "SYZABI_ASTERINAS_CARGO_REGISTRY_GIT_INDEX",
+                asterinas_cfg.get("cargo_registry_git_index", DEFAULT_CARGO_REGISTRY_GIT_INDEX),
+            )
+        ),
+        "rustup_dist_server": str(
+            hooks.os.environ.get(
+                "SYZABI_ASTERINAS_RUSTUP_DIST_SERVER",
+                asterinas_cfg.get("rustup_dist_server", DEFAULT_RUSTUP_DIST_SERVER),
+            )
+        ),
+        "rustup_update_root": str(
+            hooks.os.environ.get(
+                "SYZABI_ASTERINAS_RUSTUP_UPDATE_ROOT",
+                asterinas_cfg.get("rustup_update_root", DEFAULT_RUSTUP_UPDATE_ROOT),
+            )
+        ),
+    }
+
+
+def cargo_config_contents(cfg: dict[str, object] | None, *, hooks) -> str:
+    settings = cargo_mirror_settings(cfg, hooks=hooks)
+    return "\n".join(
+        [
+            "[source.crates-io]",
+            'replace-with = "rsproxy-sparse"',
+            "",
+            "[source.rsproxy]",
+            f'registry = "{settings["cargo_registry_git_index"]}"',
+            "",
+            "[source.rsproxy-sparse]",
+            f'registry = "{settings["cargo_registry_sparse_index"]}"',
+            "",
+            "[registries.crates-io]",
+            f'protocol = "{settings["cargo_registry_protocol"]}"',
+            "",
+            "[net]",
+            "git-fetch-with-cli = true",
+            "",
+        ]
+    )
+
+
+def ensure_docker_cargo_config(cfg: dict[str, object] | None, *, hooks, cargo_home: Path | None = None) -> Path:
+    root = cargo_home or hooks.docker_cargo_home()
+    root.mkdir(parents=True, exist_ok=True)
+    config_path = root / "config.toml"
+    config_path.write_text(cargo_config_contents(cfg, hooks=hooks), encoding="utf-8")
+    return config_path
+
+
 def asterinas_git_mirror_root(*, hooks) -> Path:
     return path_mod.git_mirror_root()
 
@@ -74,13 +148,14 @@ def container_cargo_home(cfg: dict[str, object], *, hooks) -> Path:
     return hooks.host_path_to_container_path(hooks.docker_cargo_home(), cfg)
 
 
-def ensure_docker_cargo_cache_dirs(*, hooks) -> tuple[Path, Path]:
+def ensure_docker_cargo_cache_dirs(*, hooks, cfg: dict[str, object] | None = None) -> tuple[Path, Path]:
     cargo_root = hooks.docker_cargo_home()
     git_dir = cargo_root / "git"
     registry_dir = cargo_root / "registry"
     (cargo_root / "bin").mkdir(parents=True, exist_ok=True)
     git_dir.mkdir(parents=True, exist_ok=True)
     registry_dir.mkdir(parents=True, exist_ok=True)
+    hooks.ensure_docker_cargo_config(cfg, cargo_home=cargo_root)
     package_cache = cargo_root / ".package-cache"
     package_cache.touch(exist_ok=True)
     return git_dir, registry_dir
@@ -166,9 +241,10 @@ def ensure_shared_package_cargo_home(package_dir: Path, *, hooks, refresh: bool 
 def prime_docker_cargo_cache(cfg: dict[str, object], *, hooks) -> None:
     cargo_home = hooks.docker_cargo_home()
     cargo_home.mkdir(parents=True, exist_ok=True)
-    hooks.ensure_docker_cargo_cache_dirs()
+    hooks.ensure_docker_cargo_cache_dirs(cfg)
     manifest_path = hooks.resolve_repo_path(cfg["asterinas"]["repo_dir"]) / "Cargo.toml"
     gitconfig_path = hooks.prepare_host_gitconfig(cfg)
+    mirror_settings = hooks.cargo_mirror_settings(cfg)
     fetch = hooks.subprocess.run(
         ["cargo", "fetch", "--locked", "--manifest-path", str(manifest_path)],
         text=True,
@@ -179,8 +255,11 @@ def prime_docker_cargo_cache(cfg: dict[str, object], *, hooks) -> None:
             **hooks.os.environ,
             "CARGO_HOME": str(cargo_home),
             "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
+            "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": mirror_settings["cargo_registry_protocol"],
             "CARGO_TERM_PROGRESS_WHEN": "never",
             "GIT_CONFIG_GLOBAL": str(gitconfig_path),
+            "RUSTUP_DIST_SERVER": mirror_settings["rustup_dist_server"],
+            "RUSTUP_UPDATE_ROOT": mirror_settings["rustup_update_root"],
             "TMPDIR": str(hooks.local_tmp_dir()),
         },
     )
@@ -296,12 +375,11 @@ def docker_run_command(
         "CARGO_HTTP_TIMEOUT": hooks.os.environ.get("SYZABI_ASTERINAS_CARGO_HTTP_TIMEOUT", "600"),
         "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
         "CARGO_NET_RETRY": hooks.os.environ.get("SYZABI_ASTERINAS_CARGO_NET_RETRY", "10"),
-        "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": hooks.os.environ.get(
-            "SYZABI_ASTERINAS_CARGO_REGISTRY_PROTOCOL",
-            "sparse",
-        ),
+        "CARGO_REGISTRIES_CRATES_IO_PROTOCOL": hooks.cargo_mirror_settings(cfg)["cargo_registry_protocol"],
         "CARGO_TERM_PROGRESS_WHEN": "never",
         "GIT_CONFIG_GLOBAL": str(hooks.host_path_to_container_path(gitconfig_path, cfg)),
+        "RUSTUP_DIST_SERVER": hooks.cargo_mirror_settings(cfg)["rustup_dist_server"],
+        "RUSTUP_UPDATE_ROOT": hooks.cargo_mirror_settings(cfg)["rustup_update_root"],
     }
     if extra_env:
         merged_env.update(extra_env)

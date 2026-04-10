@@ -424,6 +424,12 @@ legacy runner profile shim 另存于：
 - `SYZABI_TMPDIR`: 覆盖临时目录。
 - `SYZABI_ASTERINAS_MODE`: 选择 Asterinas runner 模式。
 - `SYZABI_ASTERINAS_STRICT_DOCKER=1`: 禁止 `docker-qemu` 失败后回退到 `host-direct`，用于纯容器问题定位。
+- Asterinas Docker 路径默认会自动写入 `rsproxy.cn` 的 Cargo/Rustup 镜像配置；如需覆盖，可设置：
+  - `SYZABI_ASTERINAS_CARGO_REGISTRY_PROTOCOL`
+  - `SYZABI_ASTERINAS_CARGO_REGISTRY_SPARSE_INDEX`
+  - `SYZABI_ASTERINAS_CARGO_REGISTRY_GIT_INDEX`
+  - `SYZABI_ASTERINAS_RUSTUP_DIST_SERVER`
+  - `SYZABI_ASTERINAS_RUSTUP_UPDATE_ROOT`
 - `ASTERINAS_JOBS`: `make run-workflow WORKFLOW=asterinas ...`（以及兼容 alias `run-asterinas-*`）的并发数。
 
 示例：

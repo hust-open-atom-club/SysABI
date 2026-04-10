@@ -6,7 +6,12 @@
   "docker_repo_dir": "/root/asterinas",
   "docker_workdir": "/root/asterinas",
   "docker_workspace_dir": "/workspace",
+  "cargo_registry_git_index": "https://rsproxy.cn/crates.io-index",
+  "cargo_registry_protocol": "sparse",
+  "cargo_registry_sparse_index": "sparse+https://rsproxy.cn/index/",
   "repo_dir": "third_party/asterinas",
   "revision": "main",
+  "rustup_dist_server": "https://rsproxy.cn",
+  "rustup_update_root": "https://rsproxy.cn/rustup",
   "run_timeout_sec": 120
 }

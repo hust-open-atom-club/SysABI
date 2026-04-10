@@ -12,10 +12,15 @@
     "docker_repo_dir": "/root/asterinas",
     "docker_workspace_dir": "/workspace",
     "docker_workdir": "/root/asterinas",
+    "cargo_registry_git_index": "https://rsproxy.cn/crates.io-index",
+    "cargo_registry_protocol": "sparse",
+    "cargo_registry_sparse_index": "sparse+https://rsproxy.cn/index/",
     "build_timeout_sec": 3600,
     "run_timeout_sec": 120,
     "base_initramfs_path": "third_party/asterinas/test/initramfs/build/initramfs.cpio.gz",
-    "build_info_path": "artifacts/asterinas/build-info.json"
+    "build_info_path": "artifacts/asterinas/build-info.json",
+    "rustup_dist_server": "https://rsproxy.cn",
+    "rustup_update_root": "https://rsproxy.cn/rustup"
   },
   "paths": {
     "syzkaller_dir": "third_party/syzkaller",
