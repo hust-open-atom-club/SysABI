@@ -435,20 +435,41 @@ class AsterinasPipelineTests(unittest.TestCase):
         cfg = {"asterinas": {"repo_dir": "third_party/asterinas"}}
         completed = SimpleNamespace(
             returncode=0,
-            stdout='-chardev stdio,id=mux,mux=on,signal=off,logfile=qemu.log -serial file:qemu-serial.log',
+            stdout='-cpu Icelake-Server,+x2apic -chardev stdio,id=mux,mux=on,signal=off,logfile=qemu.log -serial file:qemu-serial.log -drive if=none,format=raw,id=x0,file=./test/initramfs/build/ext2.img -drive if=none,format=raw,id=x1,file=./test/initramfs/build/exfat.img',
             stderr="",
         )
         env = {
             "QEMU_LOG_FILE": "/tmp/work/qemu.log",
             "QEMU_SERIAL_LOG_FILE": "/tmp/work/qemu-serial.log",
+            "EXT2_IMAGE": "/tmp/work/ext2.img",
+            "EXFAT_IMAGE": "/tmp/work/exfat.img",
         }
         with patch("tools.run_asterinas.subprocess.run", return_value=completed), patch(
             "tools.run_asterinas.resolve_repo_path",
             return_value=Path("/tmp/asterinas"),
-        ):
+        ), patch("tools.run_asterinas.kvm_accessible", return_value=False):
             tokens = qemu_args_tokens(cfg, env)
+        self.assertIn("max", tokens)
+        self.assertNotIn("Icelake-Server,+x2apic", tokens)
         self.assertIn("stdio,id=mux,mux=on,signal=off,logfile=/tmp/work/qemu.log", tokens)
         self.assertIn("file:/tmp/work/qemu-serial.log", tokens)
+        self.assertIn("if=none,format=raw,id=x0,file=/tmp/work/ext2.img", tokens)
+        self.assertIn("if=none,format=raw,id=x1,file=/tmp/work/exfat.img", tokens)
+
+    def test_qemu_args_tokens_keep_host_cpu_model_when_kvm_is_available(self) -> None:
+        cfg = {"asterinas": {"repo_dir": "third_party/asterinas"}}
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout='-cpu Icelake-Server,+x2apic',
+            stderr="",
+        )
+        env = {}
+        with patch("tools.run_asterinas.subprocess.run", return_value=completed), patch(
+            "tools.run_asterinas.resolve_repo_path",
+            return_value=Path("/tmp/asterinas"),
+        ), patch("tools.run_asterinas.kvm_accessible", return_value=True):
+            tokens = qemu_args_tokens(cfg, env)
+        self.assertIn("Icelake-Server,+x2apic", tokens)
 
     def test_containerized_qemu_direct_command_forwards_guest_kcmd_args(self) -> None:
         cfg = {"asterinas": {"repo_dir": "third_party/asterinas", "docker_workspace_dir": "/workspace"}}

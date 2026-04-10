@@ -319,12 +319,21 @@ def qemu_args_tokens(cfg: dict[str, object], env: dict[str, str], *, hooks) -> l
     tokens = shlex.split(result.stdout.strip())
     qemu_log_file = env.get("QEMU_LOG_FILE")
     qemu_serial_log_file = env.get("QEMU_SERIAL_LOG_FILE")
+    ext2_image = env.get("EXT2_IMAGE")
+    exfat_image = env.get("EXFAT_IMAGE")
+    tcg_cpu_model = env.get("SYZABI_ASTERINAS_TCG_CPU_MODEL", "max")
     rewritten: list[str] = []
     for token in tokens:
         if qemu_log_file:
             token = token.replace("logfile=qemu.log", f"logfile={qemu_log_file}")
         if qemu_serial_log_file:
             token = token.replace("file:qemu-serial.log", f"file:{qemu_serial_log_file}")
+        if ext2_image:
+            token = token.replace("file=./test/initramfs/build/ext2.img", f"file={ext2_image}")
+        if exfat_image:
+            token = token.replace("file=./test/initramfs/build/exfat.img", f"file={exfat_image}")
+        if not hooks.kvm_accessible() and token == "Icelake-Server,+x2apic":
+            token = tcg_cpu_model
         rewritten.append(token)
     return rewritten
 
