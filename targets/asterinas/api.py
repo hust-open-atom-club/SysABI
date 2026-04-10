@@ -38,7 +38,7 @@ from orchestrator.common import (
 from targets.asterinas import build as build_mod
 from targets.asterinas import cache_support, runtime_support
 from targets.asterinas import runtime as runtime_mod
-from targets.asterinas.build import build_info_path, ensure_revision
+from targets.asterinas.build import build_info_path, current_asterinas_revision, ensure_revision
 from targets.asterinas.bundle import (
     build_lock_path,
     build_probe_initramfs,
@@ -569,6 +569,37 @@ def main() -> None:
             return
         adapter.run_case(args)
     except subprocess.TimeoutExpired as exc:
+        recovered_crash = False
+        if args.work_dir:
+            work_dir = Path(args.work_dir)
+            qemu_log_path, qemu_serial_log_path = qemu_log_paths(work_dir)
+            console_text = read_console_text(qemu_log_path, qemu_serial_log_path)
+            if not console_text:
+                console_text = "\n".join(
+                    part for part in (str(exc.output or ""), str(exc.stderr or "")) if part
+                )
+            if console_text:
+                try:
+                    cfg = read_workflow_config()
+                    revision = current_asterinas_revision(cfg)
+                    recovered_crash = write_missing_marker_crash_result(
+                        console_text=console_text,
+                        raw_trace_path=required_env_path("SYZABI_RAW_TRACE_PATH"),
+                        external_state_path=required_env_path("SYZABI_EXTERNAL_STATE_PATH"),
+                        kernel_build=f"asterinas@{revision[:12]}",
+                    )
+                except Exception:
+                    recovered_crash = False
+            if recovered_crash:
+                write_runner_result(
+                    {
+                        "status": "crash",
+                        "exit_code": None,
+                        "status_detail": guest_crash_detail(console_text) or "guest crashed before emitting autorun markers",
+                        "kernel_build": f"asterinas@{revision[:12]}",
+                    }
+                )
+                return
         write_runner_result(
             {
                 "status": "timeout",

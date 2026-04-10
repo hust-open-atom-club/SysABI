@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -37,6 +38,7 @@ from tools.run_asterinas import (
     materialize_guest_env_file,
     prepare_run_cargo_home,
     parse_batch_case_results,
+    qemu_args_tokens,
     qemu_direct_command,
     qemu_log_paths,
     selected_guest_cmdline_append,
@@ -429,6 +431,25 @@ class AsterinasPipelineTests(unittest.TestCase):
             command, _ = qemu_direct_command(cfg, Path("/tmp/initramfs.cpio.gz"), {})
         self.assertEqual(command[-2:], ["-accel", "kvm"])
 
+    def test_qemu_args_tokens_rewrite_log_paths_from_env(self) -> None:
+        cfg = {"asterinas": {"repo_dir": "third_party/asterinas"}}
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout='-chardev stdio,id=mux,mux=on,signal=off,logfile=qemu.log -serial file:qemu-serial.log',
+            stderr="",
+        )
+        env = {
+            "QEMU_LOG_FILE": "/tmp/work/qemu.log",
+            "QEMU_SERIAL_LOG_FILE": "/tmp/work/qemu-serial.log",
+        }
+        with patch("tools.run_asterinas.subprocess.run", return_value=completed), patch(
+            "tools.run_asterinas.resolve_repo_path",
+            return_value=Path("/tmp/asterinas"),
+        ):
+            tokens = qemu_args_tokens(cfg, env)
+        self.assertIn("stdio,id=mux,mux=on,signal=off,logfile=/tmp/work/qemu.log", tokens)
+        self.assertIn("file:/tmp/work/qemu-serial.log", tokens)
+
     def test_containerized_qemu_direct_command_forwards_guest_kcmd_args(self) -> None:
         cfg = {"asterinas": {"repo_dir": "third_party/asterinas", "docker_workspace_dir": "/workspace"}}
         observed_env = {}
@@ -652,6 +673,45 @@ class AsterinasPipelineTests(unittest.TestCase):
         ):
             run_asterinas.main()
         host_direct_run.assert_called_once()
+
+    def test_main_recovers_timeout_with_guest_stack_trace_as_crash(self) -> None:
+        from tools import run_asterinas
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            work_dir = root / "work"
+            work_dir.mkdir()
+            (work_dir / "qemu-serial.log").write_text("Printing stack trace:\n", encoding="utf-8")
+            raw_trace_path = root / "raw-trace.json"
+            external_state_path = root / "external-state.json"
+            args = SimpleNamespace(
+                binary="/tmp/testcase.bin",
+                batch_manifest=None,
+                work_dir=str(work_dir),
+                healthcheck=False,
+                mode="docker-qemu",
+            )
+            timeout_exc = subprocess.TimeoutExpired(["runner"], 120, output="", stderr="")
+            with patch("tools.run_asterinas.parse_args", return_value=args), patch(
+                "targets.asterinas.adapter.AsterinasTargetAdapter.run_case",
+                side_effect=timeout_exc,
+            ), patch(
+                "tools.run_asterinas.read_workflow_config",
+                return_value={"asterinas": {"repo_dir": "third_party/asterinas"}},
+            ), patch(
+                "tools.run_asterinas.current_asterinas_revision",
+                return_value="rev1234567890",
+            ), patch(
+                "tools.run_asterinas.required_env_path",
+                side_effect=lambda name: {
+                    "SYZABI_RAW_TRACE_PATH": raw_trace_path,
+                    "SYZABI_EXTERNAL_STATE_PATH": external_state_path,
+                }[name],
+            ), patch("tools.run_asterinas.write_runner_result") as write_runner_result:
+                run_asterinas.main()
+
+        statuses = [call.args[0]["status"] for call in write_runner_result.call_args_list]
+        self.assertIn("crash", statuses)
 
     def test_adapter_healthcheck_dispatches_via_prepare_target(self) -> None:
         adapter = AsterinasTargetAdapter()

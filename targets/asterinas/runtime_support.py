@@ -316,7 +316,17 @@ def qemu_args_tokens(cfg: dict[str, object], env: dict[str, str], *, hooks) -> l
     )
     if result.returncode != 0:
         raise hooks.RunnerError(result.stderr.strip() or result.stdout.strip() or "failed to render qemu args")
-    return shlex.split(result.stdout.strip())
+    tokens = shlex.split(result.stdout.strip())
+    qemu_log_file = env.get("QEMU_LOG_FILE")
+    qemu_serial_log_file = env.get("QEMU_SERIAL_LOG_FILE")
+    rewritten: list[str] = []
+    for token in tokens:
+        if qemu_log_file:
+            token = token.replace("logfile=qemu.log", f"logfile={qemu_log_file}")
+        if qemu_serial_log_file:
+            token = token.replace("file:qemu-serial.log", f"file:{qemu_serial_log_file}")
+        rewritten.append(token)
+    return rewritten
 
 
 def kvm_accessible(*, hooks) -> bool:

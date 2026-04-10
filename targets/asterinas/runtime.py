@@ -199,6 +199,17 @@ def host_direct_run(args: argparse.Namespace, *, hooks) -> None:
         while True:
             console_preview = hooks.read_console_text(qemu_log_path, qemu_serial_log_path, cargo_stdout_path, cargo_stderr_path)
             markers_complete = hooks.extract_section(console_preview, "PROCESS_EXIT") is not None and hooks.extract_section(console_preview, "EXTERNAL_STATE") is not None
+            if hooks.extract_section(console_preview, "PROCESS_EXIT") is None:
+                if hooks.write_missing_marker_crash_result(
+                    console_text=console_preview,
+                    raw_trace_path=raw_trace_path,
+                    external_state_path=external_state_path,
+                    kernel_build=f"asterinas@{revision[:12]}",
+                ):
+                    console_log_path.write_text(console_preview, encoding="utf-8")
+                    hooks.stop_qemu_processes(work_dir)
+                    hooks.stop_process(run)
+                    return
             if markers_complete:
                 hooks.stop_qemu_processes(work_dir)
                 hooks.stop_process(run)
@@ -307,6 +318,17 @@ def docker_qemu_run(args: argparse.Namespace, *, hooks) -> None:
             while True:
                 console_preview = hooks.read_console_text(qemu_log_path, qemu_serial_log_path, cargo_stdout_path, cargo_stderr_path)
                 markers_complete = hooks.extract_section(console_preview, "PROCESS_EXIT") is not None and hooks.extract_section(console_preview, "EXTERNAL_STATE") is not None
+                if hooks.extract_section(console_preview, "PROCESS_EXIT") is None:
+                    if hooks.write_missing_marker_crash_result(
+                        console_text=console_preview,
+                        raw_trace_path=raw_trace_path,
+                        external_state_path=external_state_path,
+                        kernel_build=f"asterinas@{revision[:12]}",
+                    ):
+                        console_log_path.write_text(console_preview, encoding="utf-8")
+                        hooks.force_remove_container(container_name)
+                        hooks.stop_process(run)
+                        return
                 if markers_complete:
                     hooks.force_remove_container(container_name)
                     hooks.stop_process(run)
