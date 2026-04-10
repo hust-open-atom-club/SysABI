@@ -110,6 +110,10 @@ ASTERINAS_GIT_MIRRORS = {
 }
 
 
+def strict_docker_only() -> bool:
+    return os.environ.get("SYZABI_ASTERINAS_STRICT_DOCKER", "0") == "1"
+
+
 def local_tmp_dir() -> Path:
     try:
         return runtime_temp_dir(config())
@@ -130,6 +134,8 @@ def is_docker_access_error(detail: str) -> bool:
 
 
 def should_fallback_to_host_direct(exc: RunnerError) -> bool:
+    if strict_docker_only():
+        return False
     return is_docker_access_error(str(exc))
 
 

@@ -43,6 +43,7 @@ from tools.run_asterinas import (
     qemu_log_paths,
     selected_guest_cmdline_append,
     should_fallback_to_host_direct,
+    strict_docker_only,
     target_osdk_dir,
     write_missing_marker_crash_result,
 )
@@ -673,6 +674,17 @@ class AsterinasPipelineTests(unittest.TestCase):
             )
         )
         self.assertFalse(should_fallback_to_host_direct(RunnerError("failed to locate system OVMF code image")))
+
+    def test_strict_docker_mode_disables_host_direct_fallback(self) -> None:
+        with patch.dict(os.environ, {"SYZABI_ASTERINAS_STRICT_DOCKER": "1"}, clear=False):
+            self.assertTrue(strict_docker_only())
+            self.assertFalse(
+                should_fallback_to_host_direct(
+                    RunnerError(
+                        "docker: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock"
+                    )
+                )
+            )
 
     def test_main_falls_back_to_host_direct_when_docker_daemon_is_unavailable(self) -> None:
         from tools import run_asterinas

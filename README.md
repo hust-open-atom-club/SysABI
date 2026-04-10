@@ -423,6 +423,7 @@ legacy runner profile shim 另存于：
 - `SYZABI_CONFIG_PATH`: 覆盖默认配置文件路径。
 - `SYZABI_TMPDIR`: 覆盖临时目录。
 - `SYZABI_ASTERINAS_MODE`: 选择 Asterinas runner 模式。
+- `SYZABI_ASTERINAS_STRICT_DOCKER=1`: 禁止 `docker-qemu` 失败后回退到 `host-direct`，用于纯容器问题定位。
 - `ASTERINAS_JOBS`: `make run-workflow WORKFLOW=asterinas ...`（以及兼容 alias `run-asterinas-*`）的并发数。
 
 示例：
@@ -431,6 +432,7 @@ legacy runner profile shim 另存于：
 SYZABI_WORKFLOW=asterinas python3 tools/render_summary.py
 SYZABI_CONFIG_PATH=configs/workflows/asterinas_scml.json python3 orchestrator/scheduler.py --campaign smoke --limit 50
 SYZABI_ASTERINAS_MODE=docker-qemu make prepare-target WORKFLOW=asterinas
+SYZABI_ASTERINAS_STRICT_DOCKER=1 SYZABI_ASTERINAS_MODE=docker-qemu make prepare-target WORKFLOW=asterinas
 # legacy compatibility alias:
 SYZABI_ASTERINAS_MODE=docker-qemu python3 tools/run_asterinas.py --healthcheck
 ```
