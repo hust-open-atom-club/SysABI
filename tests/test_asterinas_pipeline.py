@@ -389,14 +389,31 @@ class AsterinasPipelineTests(unittest.TestCase):
         work_dir = Path("/tmp/asterinas-run")
         with patch("tools.run_asterinas.ensure_vdso_dir", return_value=Path("/vdso")), patch(
             "tools.run_asterinas.ensure_local_mtools", return_value=None
-        ):
+        ), patch("tools.run_asterinas.choose_available_tcp_port", side_effect=[43001] + list(range(43010, 43017))):
             env = host_osdk_env(work_dir)
         self.assertEqual(env["BOOT_METHOD"], "qemu-direct")
         self.assertEqual(env["NETDEV"], "user")
+        self.assertEqual(env["VNC_PORT"], "43001")
+        self.assertEqual(env["SSH_PORT"], "43010")
+        self.assertEqual(env["NGINX_PORT"], "43011")
         self.assertEqual(env["QEMU_LOG_FILE"], str(work_dir / "qemu.log"))
         self.assertEqual(env["QEMU_SERIAL_LOG_FILE"], str(work_dir / "qemu-serial.log"))
         self.assertEqual(env["QEMU_DISPLAY"], "none")
         self.assertEqual(env["RUSTUP_TOOLCHAIN"], "nightly-2025-12-06")
+
+    def test_docker_run_env_sets_dynamic_vnc_port(self) -> None:
+        cfg = {"asterinas": {"docker_workspace_dir": "/workspace"}}
+        work_dir = Path("/tmp/work")
+        with patch("tools.run_asterinas.host_path_to_container_path", side_effect=lambda path, _cfg: Path("/workspace") / Path(path).name), patch(
+            "tools.run_asterinas.container_ovmf_code_path",
+            return_value="/root/ovmf/release/OVMF_CODE.fd",
+        ), patch("tools.run_asterinas.choose_available_tcp_port", side_effect=[43002] + list(range(43110, 43117))):
+            env = __import__("tools.run_asterinas", fromlist=["docker_run_env"]).docker_run_env(cfg, work_dir)
+        self.assertEqual(env["VNC_PORT"], "43002")
+        self.assertEqual(env["SSH_PORT"], "43110")
+        self.assertEqual(env["NGINX_PORT"], "43111")
+        self.assertEqual(env["QEMU_LOG_FILE"], "/workspace/qemu.log")
+        self.assertEqual(env["QEMU_SERIAL_LOG_FILE"], "/workspace/qemu-serial.log")
 
     def test_kvm_enabled_honors_explicit_disable_switch(self) -> None:
         self.assertFalse(kvm_enabled({"SYZABI_ASTERINAS_ENABLE_KVM": "0"}))
@@ -818,13 +835,21 @@ class AsterinasPipelineTests(unittest.TestCase):
         )
 
     def test_ensure_revision_syncs_main_branch(self) -> None:
-        cfg = {"asterinas": {"repo_dir": "third_party/asterinas", "revision": "main"}}
+        cfg = {
+            "asterinas": {
+                "repo_dir": "third_party/asterinas",
+                "revision": "main",
+                "build_info_path": "artifacts/targets/asterinas/build-info.json",
+            }
+        }
         calls: list[list[str]] = []
 
         def fake_run(cmd, text, capture_output, check, timeout):
             calls.append(cmd)
             if cmd[-2:] == ["origin", "main"]:
                 return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if cmd[-3:] == ["rev-parse", "--abbrev-ref", "HEAD"]:
+                return SimpleNamespace(returncode=0, stdout="detached\n", stderr="")
             if cmd[-4:] == ["-f", "-B", "main", "origin/main"]:
                 return SimpleNamespace(returncode=0, stdout="", stderr="")
             if cmd[-3:] == ["reset", "--hard", "origin/main"]:
@@ -840,10 +865,55 @@ class AsterinasPipelineTests(unittest.TestCase):
         self.assertEqual(
             calls,
             [
+                ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "rev-parse", "--abbrev-ref", "HEAD"],
                 ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "fetch", "origin", "main"],
                 ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "checkout", "-f", "-B", "main", "origin/main"],
                 ["git", "-C", str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"), "reset", "--hard", "origin/main"],
             ],
+        )
+
+    def test_ensure_revision_skips_redundant_main_sync_with_fresh_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            target_dir = root / "targets" / "asterinas"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            cfg = {
+                "asterinas": {
+                    "repo_dir": "third_party/asterinas",
+                    "revision": "main",
+                    "build_info_path": str(target_dir / "build-info.json"),
+                }
+            }
+            calls: list[list[str]] = []
+
+            def fake_run(cmd, text, capture_output, check, timeout):
+                calls.append(cmd)
+                if cmd[-3:] == ["rev-parse", "--abbrev-ref", "HEAD"]:
+                    return SimpleNamespace(returncode=0, stdout="main\n", stderr="")
+                raise AssertionError(f"unexpected git command: {cmd}")
+
+            state_path = target_dir / "repo-sync.json"
+            state_path.write_text(
+                json.dumps({"branch": "main", "revision": "rev-main", "synced_at": int(time.time())}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            with patch("targets.asterinas.build.subprocess.run", side_effect=fake_run), patch(
+                "targets.asterinas.build.current_asterinas_revision",
+                return_value="rev-main",
+            ):
+                self.assertEqual(asterinas_build.ensure_revision(cfg), "rev-main")
+
+        self.assertEqual(
+            calls,
+            [[
+                "git",
+                "-C",
+                str(Path(__file__).resolve().parents[1] / "third_party" / "asterinas"),
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
+            ]],
         )
 
     def test_host_direct_run_validates_packaged_bundle_before_reuse(self) -> None:

@@ -4,6 +4,7 @@ import fcntl
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ class BuildConfigError(RuntimeError):
 
 
 GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+SYNC_CACHE_TTL_SEC = 600
 
 
 def build_info_path(cfg: dict[str, Any]) -> Path:
@@ -29,6 +31,14 @@ def asterinas_repo_dir(cfg: dict[str, Any]) -> Path:
 
 def configured_asterinas_ref(cfg: dict[str, Any]) -> str:
     return str(cfg["asterinas"]["revision"])
+
+
+def repo_sync_lock_path(cfg: dict[str, Any]) -> Path:
+    return build_info_path(cfg).with_name("repo-sync.lock")
+
+
+def repo_sync_state_path(cfg: dict[str, Any]) -> Path:
+    return build_info_path(cfg).with_name("repo-sync.json")
 
 
 def current_asterinas_revision(cfg: dict[str, Any]) -> str:
@@ -45,40 +55,110 @@ def current_asterinas_revision(cfg: dict[str, Any]) -> str:
     return result.stdout.strip()
 
 
+def current_asterinas_branch(cfg: dict[str, Any]) -> str:
+    repo = asterinas_repo_dir(cfg)
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "failed to read Asterinas branch"
+        raise BuildConfigError(detail)
+    return result.stdout.strip()
+
+
+def load_repo_sync_state(cfg: dict[str, Any]) -> dict[str, object] | None:
+    path = repo_sync_state_path(cfg)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def write_repo_sync_state(cfg: dict[str, Any], *, branch: str, revision: str) -> None:
+    path = repo_sync_state_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "branch": branch,
+                "revision": revision,
+                "synced_at": int(time.time()),
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def can_skip_repo_sync(cfg: dict[str, Any], *, branch: str, revision: str) -> bool:
+    state = load_repo_sync_state(cfg)
+    if state is None:
+        return False
+    if state.get("branch") != branch:
+        return False
+    if state.get("revision") != revision:
+        return False
+    synced_at = state.get("synced_at")
+    if not isinstance(synced_at, int):
+        return False
+    return int(time.time()) - synced_at < SYNC_CACHE_TTL_SEC
+
+
 def sync_asterinas_branch(cfg: dict[str, Any], branch: str) -> str:
     repo = asterinas_repo_dir(cfg)
-    fetch = subprocess.run(
-        ["git", "-C", str(repo), "fetch", "origin", branch],
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=600,
-    )
-    if fetch.returncode != 0:
-        detail = fetch.stderr.strip() or fetch.stdout.strip() or f"failed to fetch origin/{branch}"
-        raise BuildConfigError(detail)
+    lock_path = repo_sync_lock_path(cfg)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w", encoding="utf-8") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        revision = current_asterinas_revision(cfg)
+        current_branch = current_asterinas_branch(cfg)
+        if current_branch == branch and can_skip_repo_sync(cfg, branch=branch, revision=revision):
+            return revision
 
-    checkout = subprocess.run(
-        ["git", "-C", str(repo), "checkout", "-f", "-B", branch, f"origin/{branch}"],
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=60,
-    )
-    if checkout.returncode != 0:
-        detail = checkout.stderr.strip() or checkout.stdout.strip() or f"failed to checkout {branch}"
-        raise BuildConfigError(detail)
-    reset = subprocess.run(
-        ["git", "-C", str(repo), "reset", "--hard", f"origin/{branch}"],
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=60,
-    )
-    if reset.returncode != 0:
-        detail = reset.stderr.strip() or reset.stdout.strip() or f"failed to reset {branch}"
-        raise BuildConfigError(detail)
-    return current_asterinas_revision(cfg)
+        fetch = subprocess.run(
+            ["git", "-C", str(repo), "fetch", "origin", branch],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=600,
+        )
+        if fetch.returncode != 0:
+            detail = fetch.stderr.strip() or fetch.stdout.strip() or f"failed to fetch origin/{branch}"
+            raise BuildConfigError(detail)
+
+        checkout = subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-f", "-B", branch, f"origin/{branch}"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+        if checkout.returncode != 0:
+            detail = checkout.stderr.strip() or checkout.stdout.strip() or f"failed to checkout {branch}"
+            raise BuildConfigError(detail)
+        reset = subprocess.run(
+            ["git", "-C", str(repo), "reset", "--hard", f"origin/{branch}"],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=60,
+        )
+        if reset.returncode != 0:
+            detail = reset.stderr.strip() or reset.stdout.strip() or f"failed to reset {branch}"
+            raise BuildConfigError(detail)
+        revision = current_asterinas_revision(cfg)
+        write_repo_sync_state(cfg, branch=branch, revision=revision)
+        return revision
 
 
 def ensure_revision(cfg: dict[str, Any]) -> str:

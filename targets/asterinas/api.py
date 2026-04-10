@@ -439,6 +439,10 @@ def reserve_tcp_port():
     return runtime_support.reserve_tcp_port()
 
 
+def choose_available_tcp_port() -> int:
+    return runtime_support.choose_available_tcp_port()
+
+
 def reserve_qemu_ports() -> tuple[list[object], dict[str, int]]:
     return runtime_support.reserve_qemu_ports(hooks=sys.modules[__name__])
 

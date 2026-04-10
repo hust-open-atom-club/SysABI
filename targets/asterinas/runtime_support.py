@@ -235,8 +235,11 @@ def host_osdk_env(work_dir: Path, *, hooks, boot_method: str = "qemu-direct") ->
     env["OVMF"] = "off"
     env["NETDEV"] = env.get("SYZABI_ASTERINAS_NETDEV", "user")
     env["QEMU_DISPLAY"] = "none"
+    env["VNC_PORT"] = env.get("SYZABI_ASTERINAS_VNC_PORT", str(hooks.choose_available_tcp_port()))
     env["SMP"] = env.get("SYZABI_ASTERINAS_SMP", "1")
     env["MEM"] = env.get("SYZABI_ASTERINAS_MEM", "2G")
+    for port_env in hooks.NETWORK_PORT_ENV_NAMES:
+        env[port_env] = env.get(port_env, str(hooks.choose_available_tcp_port()))
     qemu_log_path, qemu_serial_log_path = hooks.qemu_log_paths(work_dir)
     env["QEMU_LOG_FILE"] = str(qemu_log_path)
     env["QEMU_SERIAL_LOG_FILE"] = str(qemu_serial_log_path)
@@ -255,6 +258,17 @@ def reserve_tcp_port() -> tuple[socket.socket, int]:
     sock.bind(("127.0.0.1", 0))
     sock.listen(1)
     return sock, int(sock.getsockname()[1])
+
+
+def choose_available_tcp_port() -> int:
+    sock, port = reserve_tcp_port()
+    try:
+        return port
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass
 
 
 def reserve_qemu_ports(*, hooks) -> tuple[list[socket.socket], dict[str, int]]:
@@ -402,7 +416,7 @@ def container_ovmf_vars_seed_path() -> str:
 def docker_run_env(cfg: dict[str, object], work_dir: Path, *, hooks) -> dict[str, str]:
     qemu_log_path, qemu_serial_log_path = hooks.qemu_log_paths(work_dir)
     osdk_output_dir = work_dir / "osdk-output"
-    return {
+    env = {
         "BOOT_METHOD": "grub-rescue-iso",
         "CONSOLE": "hvc0",
         "EXT2_IMAGE": str(hooks.host_path_to_container_path(work_dir / "ext2.img", cfg)),
@@ -416,5 +430,9 @@ def docker_run_env(cfg: dict[str, object], work_dir: Path, *, hooks) -> dict[str
         "QEMU_DISPLAY": "none",
         "QEMU_LOG_FILE": str(hooks.host_path_to_container_path(qemu_log_path, cfg)),
         "QEMU_SERIAL_LOG_FILE": str(hooks.host_path_to_container_path(qemu_serial_log_path, cfg)),
+        "VNC_PORT": hooks.os.environ.get("SYZABI_ASTERINAS_VNC_PORT", str(hooks.choose_available_tcp_port())),
         "SMP": hooks.os.environ.get("SYZABI_ASTERINAS_SMP", "1"),
     }
+    for port_env in hooks.NETWORK_PORT_ENV_NAMES:
+        env[port_env] = hooks.os.environ.get(port_env, str(hooks.choose_available_tcp_port()))
+    return env
