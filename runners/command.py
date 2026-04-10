@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 from dataclasses import dataclass
 from typing import Any
@@ -26,25 +28,31 @@ class CommandRunner:
         timeout_sec: int,
     ) -> RunnerExecution:
         try:
-            completed = subprocess.run(
+            process = subprocess.Popen(
                 command,
                 cwd=cwd,
                 env=env,
                 text=True,
-                capture_output=True,
-                timeout=timeout_sec,
-                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
             )
+            stdout, stderr = process.communicate(timeout=timeout_sec)
             return RunnerExecution(
-                returncode=completed.returncode,
-                stdout=completed.stdout,
-                stderr=completed.stderr,
+                returncode=process.returncode,
+                stdout=stdout,
+                stderr=stderr,
             )
         except subprocess.TimeoutExpired as exc:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except Exception:
+                process.kill()
+            stdout, stderr = process.communicate()
             return RunnerExecution(
                 returncode=None,
-                stdout=exc.stdout or "",
-                stderr=exc.stderr or "",
+                stdout=stdout or exc.stdout or "",
+                stderr=stderr or exc.stderr or "",
                 timed_out=True,
             )
         except OSError as exc:
