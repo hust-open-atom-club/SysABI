@@ -35,12 +35,11 @@ run:
 	$(PYTHON) tools/init_layout.py --workflow asterinas
 	$(MAKE) filter-corpus
 	$(MAKE) derive-workflow WORKFLOW=asterinas
-	$(MAKE) prepare-target WORKFLOW=asterinas
-	$(MAKE) build-workflow WORKFLOW=asterinas
+	$(MAKE) build-workflow WORKFLOW=asterinas LIMIT=$(RUN_LIMIT) JOBS=$(ASTERINAS_JOBS)
 	$(MAKE) run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=$(RUN_LIMIT) JOBS=$(ASTERINAS_JOBS)
 
 build-workflow:
-	$(PYTHON) tools/prog2c_wrap.py --workflow $(WORKFLOW) $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),)
+	$(PYTHON) tools/prog2c_wrap.py --workflow $(WORKFLOW) $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) $(if $(JOBS),--jobs $(JOBS),)
 
 run-workflow:
 	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
