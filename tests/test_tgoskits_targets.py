@@ -8,7 +8,9 @@ import textwrap
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from targets import entrypoint as target_entrypoint
 from targets.tgoskits_arceos import api as arceos_api
 from targets.tgoskits_starryos import api as starry_api
 
@@ -206,8 +208,6 @@ class TGOSKitsTargetTests(unittest.TestCase):
 
             os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
             os.environ["SYZABI_CONSOLE_LOG_PATH"] = str(console_log)
-            from unittest.mock import patch
-
             with patch("targets.tgoskits_starryos.api.ShellSession", FakeSession):
                 starry_api.healthcheck(SimpleNamespace(healthcheck=True, binary=None, batch_manifest=None, work_dir=str(root), mode="shell-qemu"))
                 self.assertEqual(json.loads(runner_result.read_text(encoding="utf-8"))["status"], "ok")
@@ -267,7 +267,8 @@ class TGOSKitsTargetTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-                starry_api.run_batch(SimpleNamespace(batch_manifest=str(batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
+                with patch("sys.argv", ["targets/entrypoint.py", "--batch-manifest", str(batch_manifest)]):
+                    target_entrypoint.main()
                 self.assertEqual(json.loads(case_a_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
                 self.assertEqual(json.loads(case_b_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
 
@@ -293,7 +294,8 @@ class TGOSKitsTargetTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-                starry_api.run_batch(SimpleNamespace(batch_manifest=str(missing_batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
+                with patch("sys.argv", ["targets/entrypoint.py", "--batch-manifest", str(missing_batch_manifest)]):
+                    target_entrypoint.main()
                 missing_batch_result = json.loads((root / "case-missing.result.json").read_text(encoding="utf-8"))
                 self.assertEqual(missing_batch_result["status"], "infra_error")
                 self.assertFalse((root / "case-missing.raw.json").exists())
