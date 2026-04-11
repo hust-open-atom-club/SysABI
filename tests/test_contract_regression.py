@@ -140,6 +140,7 @@ class ContractRegressionTests(unittest.TestCase):
     def test_scheduler_reporting_outputs_match_golden_fixtures(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
+            build_dir = root / "build"
             reports_dir = root / "reports"
             eligible_file = root / "eligible.jsonl"
             config_path = root / "reporting_rules.json"
@@ -152,13 +153,18 @@ class ContractRegressionTests(unittest.TestCase):
                 {"program_id": "case-baseline-invalid"},
             ]
             write_jsonl(eligible_file, eligible_rows)
+            for program_id in ("case-no-diff", "case-bug", "case-noise", "case-baseline-invalid"):
+                write_json(build_dir / program_id / "build-result.json", {"status": "ok"})
             write_json(
                 config_path,
                 {
                     "workflow": "reporting",
                     "paths": {
+                        "build_dir": str(build_dir),
+                        "artifacts_dir": str(root / "artifacts"),
                         "reports_dir": str(reports_dir),
                         "eligible_file": str(eligible_file),
+                        "temp_dir": str(root / "tmp"),
                     },
                     "classification": {
                         "no_diff": "NO_DIFF",
@@ -347,6 +353,7 @@ class ContractRegressionTests(unittest.TestCase):
     def test_scheduler_baseline_named_outputs_match_golden_fixtures(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
+            build_dir = root / "build"
             reports_dir = root / "reports"
             eligible_file = root / "eligible.jsonl"
             config_path = root / "baseline_rules.json"
@@ -359,8 +366,11 @@ class ContractRegressionTests(unittest.TestCase):
                 {"program_id": "case-baseline-invalid"},
             ]
             write_jsonl(eligible_file, eligible_rows)
+            for program_id in ("case-no-diff", "case-bug", "case-noise", "case-baseline-invalid"):
+                write_json(build_dir / program_id / "build-result.json", {"status": "ok"})
 
             baseline_cfg = json.loads((Path(__file__).resolve().parents[1] / "configs" / "baseline_rules.json").read_text(encoding="utf-8"))
+            baseline_cfg["paths"]["build_dir"] = str(build_dir)
             baseline_cfg["paths"]["reports_dir"] = str(reports_dir)
             baseline_cfg["paths"]["eligible_file"] = str(eligible_file)
             write_json(config_path, baseline_cfg)

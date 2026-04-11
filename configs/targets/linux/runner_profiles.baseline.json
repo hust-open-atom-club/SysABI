@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "kind": "local",
+    "role": "reference",
+    "snapshot_id": "local-linux-reference",
+    "work_root": "artifacts/sandboxes/reference",
+    "kernel_build_command": "uname -r"
+  },
+  "candidate": {
+    "kind": "local",
+    "role": "candidate",
+    "snapshot_id": "local-linux-candidate",
+    "work_root": "artifacts/sandboxes/candidate",
+    "kernel_build_command": "uname -r",
+    "controlled_divergence": {
+      "enabled": false,
+      "match_syscall": "openat",
+      "field": "return",
+      "value": -5
+    }
+  }
+}

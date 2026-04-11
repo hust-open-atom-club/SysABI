@@ -6,6 +6,7 @@ from typing import Any
 
 from targets.asterinas import api
 from targets.asterinas.common import RunnerError
+from orchestrator.common import runner_profiles
 
 from . import initramfs
 
@@ -30,6 +31,25 @@ class AsterinasTargetAdapter:
             "SYZABI_ASTERINAS_PACKAGE_DIR": str(package_dir),
             "SYZABI_ASTERINAS_PACKAGE_SLOT": str(slot),
         }
+
+    def prewarm_candidate_batch(
+        self,
+        *,
+        prepared_cases: list[dict[str, object]],
+        package_dir: Path,
+        cfg: dict[str, object],
+    ) -> None:
+        if not prepared_cases:
+            return
+        profile = runner_profiles()["candidate"]
+        if profile.get("kind") != "command":
+            return
+        first_case = prepared_cases[0]
+        binary_path = Path(str(first_case["binary_path"])).resolve()
+        sandbox_root = Path(str(first_case["sandbox_root"])).resolve()
+        custom_initramfs = api.selected_initramfs(cfg, binary_path, sandbox_root)
+        guest_kcmd_args = " ".join(part for part in ("console=hvc0", api.selected_guest_cmdline_append()) if part)
+        api.ensure_packaged_docker_bundle(cfg, package_dir, custom_initramfs, kcmd_args=guest_kcmd_args)
 
     def prepare_target(self, *, cfg: dict[str, Any], mode: str) -> str:
         from targets.asterinas import build as build_mod
@@ -71,3 +91,7 @@ class AsterinasTargetAdapter:
             runtime_mod.docker_qemu_run(args, hooks=api)
             return
         runtime_mod.host_direct_run(args, hooks=api)
+
+
+def build_target_adapter() -> AsterinasTargetAdapter:
+    return AsterinasTargetAdapter()

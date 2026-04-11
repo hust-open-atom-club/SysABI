@@ -15,7 +15,9 @@ from unittest.mock import patch
 from orchestrator.common import config, configure_runtime, resolved_config_path, runner_profiles
 from orchestrator.legacy_compat import _WARNED_DEPRECATIONS
 from orchestrator.scheduler import candidate_batching_enabled
-from orchestrator.vm_runner import execute_side
+from orchestrator.vm_runner import TRACE_EVENT_STDOUT_PREFIX, execute_side
+from runners.factory import build_runner
+from targets.registry import TargetLookupError, get_target_adapter
 from tools.render_summary import workflow_side_labels
 
 
@@ -42,6 +44,10 @@ class ContractSurfaceTests(unittest.TestCase):
             resolved_config_path(workflow="asterinas_scml"),
             repo_root / "configs" / "workflows" / "asterinas_scml.json",
         )
+        self.assertEqual(
+            resolved_config_path(workflow="tgoskits_starryos"),
+            repo_root / "configs" / "workflows" / "tgoskits_starryos.json",
+        )
 
     def test_runner_profiles_load_for_builtin_workflows(self) -> None:
         baseline = runner_profiles(workflow="baseline")
@@ -60,11 +66,24 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("/targets/asterinas/entrypoint.py", " ".join(asterinas_scml["candidate"]["command"]))
         self.assertNotIn("/tools/run_asterinas.py", " ".join(asterinas_scml["candidate"]["command"]))
 
+        starry = runner_profiles(workflow="tgoskits_starryos")
+        self.assertEqual(starry["candidate"]["kind"], "command")
+        self.assertIn("/targets/tgoskits_starryos/entrypoint.py", " ".join(starry["candidate"]["command"]))
+
     def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
+        baseline = config(workflow="baseline")
+        self.assertEqual(baseline["target"], "linux")
+        self.assertEqual(baseline["target_config"]["build_info_path"], "artifacts/targets/linux/build-info.json")
+
         canonical = config(workflow="asterinas")
         self.assertEqual(canonical["target"], "asterinas")
         self.assertEqual(canonical["paths"]["eligible_file"], "eligible_programs/targets/asterinas/asterinas/default.jsonl")
         self.assertEqual(canonical["target_config"]["build_info_path"], "artifacts/targets/asterinas/build-info.json")
+
+        starry = config(workflow="tgoskits_starryos")
+        self.assertEqual(starry["target"], "tgoskits_starryos")
+        self.assertEqual(starry["trace"]["events_transport"], "stdout")
+        self.assertEqual(starry["target_config"]["build_info_path"], "artifacts/targets/tgoskits_starryos/build-info.json")
 
         _WARNED_DEPRECATIONS.clear()
         stderr = StringIO()
@@ -238,6 +257,162 @@ class ContractSurfaceTests(unittest.TestCase):
             self.assertEqual(external_state["files"][0]["path"], "out.txt")
             self.assertEqual(run_result["program_id"], program_id)
             self.assertEqual(run_result["kernel_build"], "fake-kernel")
+
+    def test_execute_side_can_extract_stdout_framed_trace_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            build_dir = root / "build"
+            artifacts_dir = root / "artifacts"
+            sandboxes_dir = root / "sandboxes"
+            reports_dir = root / "reports"
+            eligible_file = root / "eligible.jsonl"
+            runner_script = root / "fake_stdout_trace_runner.py"
+            profiles_path = root / "runner_profiles.json"
+            config_path = root / "stdout_trace.json"
+
+            program_id = "case-stdout-trace"
+            build_root = build_dir / program_id
+            build_root.mkdir(parents=True, exist_ok=True)
+            (build_root / "testcase.bin").write_text("binary", encoding="utf-8")
+            (build_root / "build-result.json").write_text(json.dumps({"status": "ok"}), encoding="utf-8")
+            eligible_file.write_text("", encoding="utf-8")
+
+            runner_script.write_text(
+                textwrap.dedent(
+                    f"""
+                    import json
+                    import os
+                    import sys
+                    from pathlib import Path
+
+                    Path(os.environ["SYZABI_RUNNER_RESULT_PATH"]).write_text(
+                        json.dumps({{"status": "ok", "exit_code": 0, "kernel_build": "stdout-trace-kernel"}}, sort_keys=True),
+                        encoding="utf-8",
+                    )
+                    print("boot noise before trace")
+                    print("{TRACE_EVENT_STDOUT_PREFIX}" + json.dumps(
+                        {{
+                            "event_index": 0,
+                            "side": os.environ["SYZABI_SIDE"],
+                            "syscall_name": "close",
+                            "syscall_number": 3,
+                            "args": [3, 0, 0, 0, 0, 0],
+                            "return_value": 0,
+                            "errno": 0,
+                            "start_ns": 1,
+                            "end_ns": 2,
+                            "outputs": [],
+                        }},
+                        sort_keys=True,
+                    ))
+                    print("{TRACE_EVENT_STDOUT_PREFIX}" + json.dumps(
+                        {{
+                            "event_index": 1,
+                            "side": os.environ["SYZABI_SIDE"],
+                            "syscall_name": "getpid",
+                            "syscall_number": 39,
+                            "args": [0, 0, 0, 0, 0, 0],
+                            "return_value": 123,
+                            "errno": 0,
+                            "start_ns": 3,
+                            "end_ns": 4,
+                            "outputs": [],
+                        }},
+                        sort_keys=True,
+                    ), file=sys.stderr)
+                    print("boot noise after trace", file=sys.stderr)
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "reference": {
+                            "kind": "command",
+                            "role": "reference",
+                            "snapshot_id": "stdout-reference",
+                            "work_root": str(sandboxes_dir / "reference"),
+                            "kernel_build_command": "printf stdout-reference",
+                            "command": ["python3", str(runner_script)],
+                        },
+                        "candidate": {
+                            "kind": "command",
+                            "role": "candidate",
+                            "snapshot_id": "stdout-candidate",
+                            "work_root": str(sandboxes_dir / "candidate"),
+                            "kernel_build_command": "printf stdout-candidate",
+                            "command": ["python3", str(runner_script)],
+                        },
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "workflow": "stdout_trace",
+                        "target": "linux",
+                        "schema_version": 1,
+                        "runner_profiles_path": str(profiles_path),
+                        "target_config_path": "configs/targets/linux/target.json",
+                        "trace": {"events_transport": "stdout"},
+                        "paths": {
+                            "build_dir": str(build_dir),
+                            "artifacts_dir": str(artifacts_dir),
+                            "reports_dir": str(reports_dir),
+                            "eligible_file": str(eligible_file),
+                            "temp_dir": str(root / "tmp"),
+                        },
+                        "normalization": {"preview_bytes": 32},
+                        "classification": {
+                            "no_diff": "NO_DIFF",
+                            "baseline_invalid": "BASELINE_INVALID",
+                            "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE",
+                            "unsupported_feature": "UNSUPPORTED_FEATURE",
+                            "bug_likely": "BUG_LIKELY",
+                        },
+                        "thresholds": {"smoke": {}, "signoff": {}},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            configure_runtime(workflow="stdout_trace", config_path=config_path)
+            result = execute_side(program_id=program_id, side="reference", timeout_sec=5, run_id="stdout-ref0")
+
+            artifact_root = artifacts_dir / program_id / "stdout-ref0" / "reference"
+            raw_trace = json.loads((artifact_root / "raw-trace.json").read_text(encoding="utf-8"))
+            extracted_events = (artifact_root / "raw-trace.events.jsonl").read_text(encoding="utf-8")
+
+            self.assertEqual(result.status, "ok")
+            self.assertEqual(raw_trace["events"][0]["syscall_name"], "close")
+            self.assertEqual(raw_trace["events"][1]["syscall_name"], "getpid")
+            self.assertEqual(raw_trace["events"][0]["side"], "reference")
+            self.assertIn('"syscall_name": "close"', extracted_events)
+            self.assertIn('"syscall_name": "getpid"', extracted_events)
+
+    def test_registry_rejects_unknown_targets_and_runner_kinds(self) -> None:
+        adapter = get_target_adapter({"target": "tgoskits_starryos"})
+        self.assertEqual(adapter.name, "tgoskits_starryos")
+
+        with self.assertRaises(TargetLookupError):
+            get_target_adapter({"target": "unknown_target"})
+
+        with self.assertRaises(ValueError):
+            build_runner({"kind": "unknown_kind"})
 
     def test_canonical_config_loading_does_not_inject_non_linux_derivation_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

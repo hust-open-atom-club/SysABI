@@ -1,0 +1,1 @@
+"""TGOSKits StarryOS target adapter."""

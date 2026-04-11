@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import importlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from targets.asterinas.adapter import AsterinasTargetAdapter
+from targets.base import TargetAdapter
 
 
-class GenericTargetAdapter:
-    name = "generic"
+class TargetLookupError(LookupError):
+    """Raised when a workflow references an unsupported target."""
 
-    def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
-        raise NotImplementedError("generic target has no packaged initramfs template inputs")
 
-    def packaged_candidate_env(self, package_dir: Path, slot: int) -> dict[str, str]:
-        return {}
+TargetAdapterFactory = Callable[[], TargetAdapter]
+
+_TARGET_ADAPTER_FACTORIES: dict[str, TargetAdapterFactory] = {}
+
+
+def register_target_adapter(name: str, factory: TargetAdapterFactory) -> None:
+    _TARGET_ADAPTER_FACTORIES[name] = factory
 
 
 def active_target_name(cfg: dict[str, Any]) -> str:
@@ -23,8 +28,39 @@ def active_target_name(cfg: dict[str, Any]) -> str:
     return "linux"
 
 
-def get_target_adapter(cfg: dict[str, Any]) -> GenericTargetAdapter | AsterinasTargetAdapter:
+def _discover_target_adapter_factory(target: str) -> TargetAdapterFactory:
+    module_name = f"targets.{target}.adapter"
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name not in {module_name, f"targets.{target}"}:
+            raise
+        raise TargetLookupError(f"unsupported target: {target}") from exc
+
+    factory = getattr(module, "build_target_adapter", None)
+    if callable(factory):
+        return factory
+
+    for value in vars(module).values():
+        if isinstance(value, type) and value.__name__.endswith("TargetAdapter"):
+            return value
+
+    raise TargetLookupError(f"target adapter module {module_name} did not expose an adapter factory")
+
+
+def get_target_adapter(cfg: dict[str, Any]) -> TargetAdapter:
     target = active_target_name(cfg)
-    if target == "asterinas":
-        return AsterinasTargetAdapter()
-    return GenericTargetAdapter()
+    factory = _TARGET_ADAPTER_FACTORIES.get(target)
+    if factory is None:
+        factory = _discover_target_adapter_factory(target)
+        register_target_adapter(target, factory)
+    return factory()
+
+
+def available_targets() -> tuple[str, ...]:
+    return tuple(sorted(_TARGET_ADAPTER_FACTORIES))
+
+
+from targets.linux.adapter import build_target_adapter as build_linux_target_adapter
+
+register_target_adapter("linux", build_linux_target_adapter)

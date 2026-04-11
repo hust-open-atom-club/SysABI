@@ -17,6 +17,8 @@ class SCMLManifestTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.repo_dir = Path("third_party/asterinas")
         cls.source_root = cls.repo_dir / "book/src/kernel/linux-compatibility/syscall-flag-coverage"
+        if not cls.source_root.exists():
+            raise unittest.SkipTest("requires third_party/asterinas SCML coverage checkout")
         cls.manifest = build_manifest(
             target="asterinas",
             repo_dir=cls.repo_dir,

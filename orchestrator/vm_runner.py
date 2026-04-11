@@ -11,10 +11,13 @@ import time
 from pathlib import Path
 
 from analyzer.schemas import validate_raw_trace
+from core.workflow_contract import trace_events_transport
 from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text
 from orchestrator.models import RunResult
 from runners import build_runner
 from targets.registry import get_target_adapter
+
+TRACE_EVENT_STDOUT_PREFIX = "__SYZABI_TRACE_EVENT__ "
 
 
 def build_root(program_id: str) -> Path:
@@ -66,6 +69,62 @@ def parse_events(path: Path) -> list[dict[str, object]]:
             continue
         events.append(json.loads(line))
     return events
+
+
+def extract_framed_events(text: str) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for raw_line in text.splitlines():
+        if not raw_line.startswith(TRACE_EVENT_STDOUT_PREFIX):
+            continue
+        payload = raw_line[len(TRACE_EVENT_STDOUT_PREFIX) :].strip()
+        if not payload:
+            continue
+        events.append(json.loads(payload))
+    return events
+
+
+def persisted_trace_events(
+    *,
+    cfg: dict[str, object],
+    events_path: Path,
+    stdout_text: str,
+    stderr_text: str,
+    console_path: Path,
+) -> list[dict[str, object]]:
+    try:
+        file_events = parse_events(events_path)
+    except json.JSONDecodeError:
+        file_events = []
+    if file_events:
+        return file_events
+    if trace_events_transport(cfg) != "stdout":
+        return []
+
+    extracted: list[dict[str, object]] = []
+    seen: set[str] = set()
+    candidates = [stdout_text, stderr_text]
+    if console_path.exists():
+        candidates.append(console_path.read_text(encoding="utf-8", errors="replace"))
+    for candidate in candidates:
+        for event in extract_framed_events(candidate):
+            digest = json.dumps(event, ensure_ascii=False, sort_keys=True)
+            if digest in seen:
+                continue
+            seen.add(digest)
+            extracted.append(event)
+    if extracted and not events_path.exists():
+        events_path.write_text(
+            "".join(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n" for event in extracted),
+            encoding="utf-8",
+        )
+    return extracted
+
+
+def trace_events_destination(*, cfg: dict[str, object], events_path: Path) -> str:
+    transport = trace_events_transport(cfg)
+    if transport == "stdout":
+        return "stdout"
+    return str(events_path)
 
 
 def classify_process_returncode(returncode: int) -> str:
@@ -253,20 +312,11 @@ def prewarm_packaged_candidate_bundle(
     package_dir: Path,
     cfg: dict[str, object],
 ) -> None:
-    if not prepared_cases or str(cfg.get("target", "")) != "asterinas":
-        return
-    profile = runner_profiles()["candidate"]
-    if profile.get("kind") != "command":
-        return
-
-    from targets.asterinas import api as asterinas_api
-
-    first_case = prepared_cases[0]
-    binary_path = Path(str(first_case["binary_path"])).resolve()
-    sandbox_root = Path(str(first_case["sandbox_root"])).resolve()
-    custom_initramfs = asterinas_api.selected_initramfs(cfg, binary_path, sandbox_root)
-    guest_kcmd_args = " ".join(part for part in ("console=hvc0", asterinas_api.selected_guest_cmdline_append()) if part)
-    asterinas_api.ensure_packaged_docker_bundle(cfg, package_dir, custom_initramfs, kcmd_args=guest_kcmd_args)
+    get_target_adapter(cfg).prewarm_candidate_batch(
+        prepared_cases=prepared_cases,
+        package_dir=package_dir,
+        cfg=cfg,
+    )
 
 
 def execute_prepared_candidate_case(
@@ -293,7 +343,7 @@ def execute_prepared_candidate_case(
     env["SYZABI_SIDE"] = "candidate"
     env["SYZABI_PROGRAM_ID"] = str(case["program_id"])
     env["SYZABI_RUN_ID"] = str(case["run_id"])
-    env["SYZABI_TRACE_EVENTS_PATH"] = str(events_path)
+    env["SYZABI_TRACE_EVENTS_PATH"] = trace_events_destination(cfg=cfg, events_path=events_path)
     env["SYZABI_TRACE_PREVIEW_BYTES"] = str(cfg["normalization"]["preview_bytes"])
     env["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result_path)
     env["SYZABI_WORK_DIR"] = str(sandbox_root)
@@ -400,12 +450,19 @@ def execute_prepared_candidate_case(
     if raw_trace_path.exists():
         validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
     else:
+        events = persisted_trace_events(
+            cfg=cfg,
+            events_path=events_path,
+            stdout_text=stdout,
+            stderr_text=stderr,
+            console_path=console_path,
+        )
         raw_trace = {
             "program_id": str(case["program_id"]),
             "side": "candidate",
             "run_id": str(case["run_id"]),
             "status": status,
-            "events": parse_events(events_path),
+            "events": events,
             "process_exit": {
                 "status": status,
                 "exit_code": exit_code,
@@ -466,6 +523,7 @@ def finalize_batch_case_result(
     case: dict[str, object],
     elapsed_ms: int,
 ) -> RunResult:
+    cfg = config()
     raw_trace_path = Path(str(case["raw_trace_path"]))
     external_state_path = Path(str(case["external_state_path"]))
     stdout_path = Path(str(case["stdout_path"]))
@@ -490,12 +548,21 @@ def finalize_batch_case_result(
     if raw_trace_path.exists():
         validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
     else:
+        stdout_text = stdout_path.read_text(encoding="utf-8", errors="replace") if stdout_path.exists() else ""
+        stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace") if stderr_path.exists() else ""
+        events = persisted_trace_events(
+            cfg=cfg,
+            events_path=Path(str(case["events_path"])),
+            stdout_text=stdout_text,
+            stderr_text=stderr_text,
+            console_path=console_path,
+        )
         raw_trace = {
             "program_id": str(case["program_id"]),
             "side": "candidate",
             "run_id": str(case["run_id"]),
             "status": status,
-            "events": parse_events(Path(str(case["events_path"]))),
+            "events": events,
             "process_exit": {
                 "status": status,
                 "exit_code": exit_code,
@@ -645,7 +712,7 @@ def execute_side(
     env["SYZABI_SIDE"] = side
     env["SYZABI_PROGRAM_ID"] = program_id
     env["SYZABI_RUN_ID"] = run_id
-    env["SYZABI_TRACE_EVENTS_PATH"] = str(events_path)
+    env["SYZABI_TRACE_EVENTS_PATH"] = trace_events_destination(cfg=cfg, events_path=events_path)
     env["SYZABI_TRACE_PREVIEW_BYTES"] = str(cfg["normalization"]["preview_bytes"])
     env["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result_path)
     env["SYZABI_WORK_DIR"] = str(sandbox_root)
@@ -752,12 +819,19 @@ def execute_side(
     if raw_trace_path.exists():
         validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
     else:
+        events = persisted_trace_events(
+            cfg=cfg,
+            events_path=events_path,
+            stdout_text=stdout,
+            stderr_text=stderr,
+            console_path=console_path,
+        )
         raw_trace = {
             "program_id": program_id,
             "side": side,
             "run_id": run_id,
             "status": status,
-            "events": parse_events(events_path),
+            "events": events,
             "process_exit": {
                 "status": status,
                 "exit_code": exit_code,

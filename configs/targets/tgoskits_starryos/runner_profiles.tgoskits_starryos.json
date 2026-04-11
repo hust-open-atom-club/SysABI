@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "kind": "local",
+    "role": "reference",
+    "snapshot_id": "local-linux-reference-tgoskits-starryos",
+    "work_root": "artifacts/sandboxes/tgoskits_starryos/reference",
+    "kernel_build_command": "uname -r"
+  },
+  "candidate": {
+    "binary_name": "testcase.candidate.bin",
+    "command": [
+      "python3",
+      "{repo_root}/targets/tgoskits_starryos/entrypoint.py",
+      "--mode",
+      "host-direct",
+      "--binary",
+      "{binary_path}",
+      "--work-dir",
+      "{sandbox_root}"
+    ],
+    "kernel_build_command": "printf tgoskits-starryos",
+    "kind": "command",
+    "role": "candidate",
+    "snapshot_id": "tgoskits-starryos-host-direct",
+    "timeout_sec": 300,
+    "work_root": "artifacts/sandboxes/tgoskits_starryos/candidate"
+  }
+}

@@ -425,7 +425,11 @@ class AsterinasPipelineTests(unittest.TestCase):
         self.assertEqual(env["QEMU_LOG_FILE"], str(work_dir / "qemu.log"))
         self.assertEqual(env["QEMU_SERIAL_LOG_FILE"], str(work_dir / "qemu-serial.log"))
         self.assertEqual(env["QEMU_DISPLAY"], "none")
-        self.assertEqual(env["RUSTUP_TOOLCHAIN"], "nightly-2025-12-06")
+        expected_toolchain = __import__("tools.run_asterinas", fromlist=["asterinas_rust_toolchain"]).asterinas_rust_toolchain()
+        if expected_toolchain:
+            self.assertEqual(env["RUSTUP_TOOLCHAIN"], expected_toolchain)
+        else:
+            self.assertNotIn("RUSTUP_TOOLCHAIN", env)
 
     def test_docker_run_env_sets_dynamic_vnc_port(self) -> None:
         cfg = {"asterinas": {"docker_workspace_dir": "/workspace"}}
@@ -2083,11 +2087,14 @@ class AsterinasPipelineTests(unittest.TestCase):
     def test_scheduler_main_writes_summary_signoff_and_failure_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
+            build_dir = root / "build"
             reports_dir = root / "reports"
             eligible_file = root / "eligible.jsonl"
             config_path = root / "reporting_rules.json"
 
             eligible_file.write_text('{"program_id":"bug"}\n', encoding="utf-8")
+            (build_dir / "bug").mkdir(parents=True, exist_ok=True)
+            (build_dir / "bug" / "build-result.json").write_text(json.dumps({"status": "ok"}), encoding="utf-8")
             (reports_dir / "build-summary.json").parent.mkdir(parents=True, exist_ok=True)
             (reports_dir / "build-summary.json").write_text(json.dumps({"success": 1, "total": 1}), encoding="utf-8")
 
@@ -2129,8 +2136,11 @@ class AsterinasPipelineTests(unittest.TestCase):
             config_path.write_text(json.dumps({
                 "workflow": "reporting",
                 "paths": {
+                    "build_dir": str(build_dir),
+                    "artifacts_dir": str(root / "artifacts"),
                     "reports_dir": str(reports_dir),
                     "eligible_file": str(eligible_file),
+                    "temp_dir": str(root / "tmp"),
                 },
                 "classification": {
                     "no_diff": "NO_DIFF",
