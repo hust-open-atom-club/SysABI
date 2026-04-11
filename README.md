@@ -80,6 +80,7 @@ ASTERINAS_JOBS=80 RUN_LIMIT=100 make run
 | `asterinas` | run Linux vs Asterinas differential replay | Linux `reference` vs Asterinas `candidate` |
 | `asterinas_scml` | add SCML-aware filtering and preflight | Linux `reference` vs Asterinas `candidate` |
 | `tgoskits_starryos` | external-workspace StarryOS integration path | Linux `reference` vs TGOSKits StarryOS `candidate` |
+| `tgoskits_arceos_smoke` | external-workspace ArceOS smoke / PoC path | Linux `reference` vs TGOSKits ArceOS `candidate` |
 
 ## Most Useful Commands
 
@@ -197,7 +198,9 @@ The following surfaces are intentionally preserved while the platform layer evol
 For the TGOSKits StarryOS workflow:
 
 - the repo does not vendor TGOSKits; point the workflow at an external checkout with `SYZABI_TGOSKITS_DIR`
+- external TGOSKits targets are explicitly gated by `SYZABI_ENABLE_TGOSKITS=1`
 - `trace.events_transport=stdout` is used so guest-side trace events can be recovered from framed stdout lines when a writable guest file path is not available
+- `tgoskits_arceos_smoke` is intentionally smoke-only and does not claim syscall differential replay support
 
 ## Repository Layout
 

@@ -1,0 +1,73 @@
+name: CI Fast
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Unit Test Suite
+        run: python3 -m unittest discover -s tests -v
+      - name: Exercise Threshold Gate Tooling
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          repo = Path.cwd()
+          with tempfile.TemporaryDirectory() as tmpdir:
+              root = Path(tmpdir)
+              config_path = root / "workflow.json"
+              summary_path = root / "summary.json"
+              config_path.write_text(json.dumps({
+                  "workflow": "thresholds",
+                  "target": "linux",
+                  "arch": "amd64",
+                  "runner_profiles_path": "configs/targets/linux/runner_profiles.baseline.json",
+                  "target_config_path": "configs/targets/linux/target.json",
+                  "paths": {
+                      "build_dir": str(root / "build"),
+                      "artifacts_dir": str(root / "artifacts"),
+                      "reports_dir": str(root / "reports"),
+                      "eligible_file": str(root / "eligible.jsonl"),
+                      "temp_dir": str(root / "tmp"),
+                  },
+                  "normalization": {"preview_bytes": 32},
+                  "classification": {"no_diff": "NO_DIFF"},
+                  "thresholds": {
+                      "smoke": {
+                          "build_success_rate": 0.5,
+                          "dual_execution_completion_rate": 0.5,
+                          "trace_success_rate": 0.5,
+                          "canonical_success_rate": 0.5,
+                          "baseline_invalid_rate": 0.5,
+                          "total_min": 1,
+                      }
+                  },
+              }, indent=2))
+              summary_path.write_text(json.dumps({
+                  "build_success_rate": 1.0,
+                  "dual_execution_completion_rate": 1.0,
+                  "trace_generation_success_rate": 1.0,
+                  "canonicalization_success_rate": 1.0,
+                  "baseline_invalid_rate": 0.0,
+                  "total": 2,
+              }, indent=2))
+              env = os.environ.copy()
+              env["SYZABI_CONFIG_PATH"] = str(config_path)
+              subprocess.run(
+                  ["python3", "tools/check_workflow_thresholds.py", "--workflow", "thresholds", "--campaign", "smoke", "--summary", str(summary_path)],
+                  cwd=repo,
+                  env=env,
+                  check=True,
+              )
+          PY

@@ -19,6 +19,35 @@ REQUIRED_PATH_KEYS = (
 
 ALLOWED_TRACE_EVENT_TRANSPORTS = {"file", "stdout"}
 
+TARGET_REQUIRED_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
+    "tgoskits_starryos": (
+        "default_mode",
+        "revision",
+        "repo_dir_env",
+        "supported_arches",
+        "toolchain_probes",
+        "workspace_subdir",
+        "disk_image_path",
+        "guest_binary_path",
+        "shell_prompt",
+        "shell_launch_command",
+        "healthcheck_shell_command",
+        "prepare_commands",
+        "trace_marker_prefix",
+        "feature_flag_env",
+    ),
+    "tgoskits_arceos": (
+        "default_mode",
+        "revision",
+        "repo_dir_env",
+        "supported_targets",
+        "toolchain_probes",
+        "prepare_commands",
+        "healthcheck_command",
+        "feature_flag_env",
+    ),
+}
+
 
 def is_repo_owned_canonical_workflow(*, resolved_path: Path, repo_root: Path) -> bool:
     canonical_root = repo_root / "configs" / "workflows"
@@ -113,3 +142,25 @@ def validate_repo_workflow_payload(
     if not is_repo_owned_canonical_workflow(resolved_path=resolved_path, repo_root=repo_root):
         return None
     return WorkflowContract.from_payload(payload)
+
+
+def validate_target_config_payload(
+    target_config: dict[str, Any],
+    *,
+    workflow_payload: dict[str, Any],
+) -> None:
+    target = str(workflow_payload.get("target", ""))
+    required = TARGET_REQUIRED_CONFIG_KEYS.get(target, ())
+    for key in required:
+        if key not in target_config:
+            raise WorkflowContractError(f"target_config for {target} is missing required key: {key}")
+        value = target_config.get(key)
+        if value in (None, ""):
+            raise WorkflowContractError(f"target_config for {target} is missing required key: {key}")
+
+    if target == "tgoskits_starryos":
+        supported_arches = target_config.get("supported_arches", [])
+        if str(workflow_payload.get("arch", "")) not in {str(item) for item in supported_arches}:
+            raise WorkflowContractError(
+                f"workflow arch={workflow_payload.get('arch')!r} is not listed in target_config.supported_arches"
+            )

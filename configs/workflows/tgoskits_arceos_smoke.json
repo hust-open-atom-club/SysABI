@@ -1,0 +1,85 @@
+{
+  "allowlist": {
+    "syscalls": [
+      "open",
+      "read",
+      "write",
+      "close",
+      "exit",
+      "exit_group"
+    ]
+  },
+  "arch": "riscv64",
+  "build": {
+    "cflags": [
+      "-static"
+    ]
+  },
+  "capabilities": {
+    "supports_batch_execution": false,
+    "supports_preflight": false,
+    "supports_snapshot_reuse": false
+  },
+  "classification": {
+    "baseline_invalid": "BASELINE_INVALID",
+    "bug_likely": "BUG_LIKELY",
+    "no_diff": "NO_DIFF",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE"
+  },
+  "normalization": {
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "max_probe_bytes": 4096,
+    "preview_bytes": 32,
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "parallel": {
+    "jobs": 1
+  },
+  "paths": {
+    "artifacts_dir": "artifacts/runs/targets/tgoskits_arceos/tgoskits_arceos_smoke",
+    "build_dir": "build/targets/tgoskits_arceos/tgoskits_arceos_smoke/testcases",
+    "corpus_meta": "corpus/meta",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_raw": "corpus/raw",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/targets/tgoskits_arceos/tgoskits_arceos_smoke/default.jsonl",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "go_root": "artifacts/toolchains/go/current/go",
+    "reports_dir": "reports/targets/tgoskits_arceos/tgoskits_arceos_smoke",
+    "syzkaller_dir": "third_party/syzkaller",
+    "temp_dir": "artifacts/tmp"
+  },
+  "presentation": {
+    "candidate_label": "TGOSKits ArceOS(smoke)",
+    "reference_label": "Linux"
+  },
+  "runner_profiles_path": "configs/targets/tgoskits_arceos/runner_profiles.tgoskits_arceos_smoke.json",
+  "schema_version": 1,
+  "stability": {
+    "baseline_invalid_threshold": 0.1,
+    "rerun_count": 1,
+    "timeout_sec": 120
+  },
+  "target": "tgoskits_arceos",
+  "target_config_path": "configs/targets/tgoskits_arceos/target.json",
+  "target_os": "linux",
+  "thresholds": {
+    "smoke": {
+      "baseline_invalid_rate": 1.0,
+      "build_success_rate": 0.0,
+      "canonical_success_rate": 0.0,
+      "dual_execution_completion_rate": 0.0,
+      "total_min": 0,
+      "trace_success_rate": 0.0
+    }
+  },
+  "workflow": "tgoskits_arceos_smoke"
+}

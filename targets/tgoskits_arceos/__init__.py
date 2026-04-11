@@ -1,0 +1,1 @@
+"""TGOSKits ArceOS smoke target."""

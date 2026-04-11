@@ -1,0 +1,32 @@
+name: Nightly External Targets
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  arceos-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - name: Install QEMU
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-misc
+      - name: Clone TGOSKits
+        run: git clone --depth 1 https://github.com/rcore-os/tgoskits.git "$RUNNER_TEMP/tgoskits"
+      - name: Run ArceOS Smoke Healthcheck
+        env:
+          SYZABI_ENABLE_TGOSKITS: "1"
+          SYZABI_TGOSKITS_DIR: ${{ runner.temp }}/tgoskits
+        run: python3 tools/run_external_target_smoke.py --workflow tgoskits_arceos_smoke
+      - name: Upload Smoke Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tgoskits-arceos-smoke
+          path: artifacts/smoke/tgoskits_arceos_smoke/

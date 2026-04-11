@@ -149,6 +149,7 @@ def execution_context(
     raw_trace_path: Path,
     external_state_path: Path,
     runner_result_path: Path,
+    batch_manifest_path: Path | None = None,
 ) -> dict[str, str]:
     return {
         "program_id": program_id,
@@ -166,13 +167,14 @@ def execution_context(
         "raw_trace_path": str(raw_trace_path),
         "external_state_path": str(external_state_path),
         "runner_result_path": str(runner_result_path),
+        "batch_manifest_path": str(batch_manifest_path) if batch_manifest_path is not None else "",
     }
 
 
-def resolve_command(profile: dict[str, object], context: dict[str, str]) -> list[str]:
-    command = profile.get("command")
+def resolve_command(profile: dict[str, object], context: dict[str, str], *, key: str = "command") -> list[str]:
+    command = profile.get(key)
     if not command:
-        raise ValueError("command runner profile is missing `command`")
+        raise ValueError(f"command runner profile is missing `{key}`")
     if isinstance(command, str):
         return [token.format(**context) for token in shlex.split(command)]
     if isinstance(command, list):
@@ -305,6 +307,35 @@ def prepare_candidate_initramfs_package(cases: list[dict[str, object]], cfg: dic
     }
     dump_json(manifest_path, manifest_payload)
     return package_dir, {str(case["program_id"]): slot for slot, case in enumerate(cases)}
+
+
+def prepare_shared_batch_manifest(cases: list[dict[str, object]], cfg: dict[str, object]) -> Path:
+    payload = {
+        "workflow": str(cfg.get("workflow", "")),
+        "target": str(cfg.get("target", "")),
+        "arch": str(cfg.get("arch", "")),
+        "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
+        "cases": [
+            {
+                "program_id": str(case["program_id"]),
+                "run_id": str(case["run_id"]),
+                "binary_path": str(case["binary_path"]),
+                "stdout_path": str(case["stdout_path"]),
+                "stderr_path": str(case["stderr_path"]),
+                "console_path": str(case["console_path"]),
+                "events_path": str(case["events_path"]),
+                "raw_trace_path": str(case["raw_trace_path"]),
+                "external_state_path": str(case["external_state_path"]),
+                "runner_result_path": str(case["runner_result_path"]),
+            }
+            for case in cases
+        ],
+    }
+    manifest_dir = ensure_dir(path_resolver(cfg).temp_dir() / "target-batches")
+    batch_id = sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    manifest_path = manifest_dir / f"{batch_id}.json"
+    dump_json(manifest_path, payload)
+    return manifest_path
 
 
 def prewarm_packaged_candidate_bundle(
@@ -621,14 +652,15 @@ def execute_candidate_batch_with_context(
     batch_cases: list[dict[str, object]],
     timeout_sec: int,
     max_workers: int | None = None,
-) -> tuple[dict[str, RunResult], Path, dict[str, int]]:
+) -> tuple[dict[str, RunResult], Path | None, dict[str, int | None]]:
     if not batch_cases:
-        return {}, Path(), {}
+        return {}, None, {}
 
     cfg = config()
     profile = runner_profiles()["candidate"]
     if profile.get("kind") != "command":
         raise ValueError("candidate batch execution requires a command runner profile")
+    command_batching_mode = str(profile.get("command_batching_mode") or "packaged_per_case")
 
     prepared_cases = [
         prepare_candidate_batch_case(
@@ -639,6 +671,62 @@ def execute_candidate_batch_with_context(
         )
         for case in batch_cases
     ]
+    if command_batching_mode == "shared_guest_shell":
+        manifest_path = prepare_shared_batch_manifest(prepared_cases, cfg)
+        manifest_dir = manifest_path.parent
+        command_context = execution_context(
+            program_id="candidate-batch",
+            side="candidate",
+            run_id=manifest_path.stem,
+            timeout_sec=timeout_sec,
+            sandbox_root=manifest_dir,
+            artifact_root=manifest_dir,
+            binary_path=manifest_dir / "unused.bin",
+            stdout_path=manifest_dir / "stdout.txt",
+            stderr_path=manifest_dir / "stderr.txt",
+            console_path=manifest_dir / "console.log",
+            events_path=manifest_dir / "events.jsonl",
+            raw_trace_path=manifest_dir / "raw-trace.json",
+            external_state_path=manifest_dir / "external-state.json",
+            runner_result_path=manifest_dir / "runner-result.json",
+            batch_manifest_path=manifest_path,
+        )
+        command = resolve_command(profile, command_context, key="batch_command")
+        runner = build_runner(profile)
+        execution = runner.run_case(
+            command=command,
+            cwd=str(repo_root()),
+            env=env_with_temp(cfg=cfg),
+            timeout_sec=max(timeout_sec, len(prepared_cases) * timeout_sec),
+        )
+        if execution.timed_out or execution.os_error is not None:
+            detail = execution.os_error or "shared batch execution timed out"
+            status = "timeout" if execution.timed_out else "infra_error"
+            for case in prepared_cases:
+                dump_json(
+                    Path(str(case["runner_result_path"])),
+                    {
+                        "status": status,
+                        "exit_code": None,
+                        "detail": detail,
+                        "kernel_build": str(profile.get("snapshot_id", "unknown")),
+                    },
+                )
+                Path(str(case["stdout_path"])).write_text(
+                    execution.stdout if isinstance(execution.stdout, str) else "",
+                    encoding="utf-8",
+                )
+                Path(str(case["stderr_path"])).write_text(
+                    execution.stderr if isinstance(execution.stderr, str) else "",
+                    encoding="utf-8",
+                )
+        elapsed_ms = 0
+        results = {
+            str(case["program_id"]): finalize_batch_case_result(case=case, elapsed_ms=elapsed_ms)
+            for case in prepared_cases
+        }
+        return results, None, {str(case["program_id"]): None for case in prepared_cases}
+
     package_dir, slot_by_program = prepare_candidate_initramfs_package(prepared_cases, cfg)
     prewarm_packaged_candidate_bundle(prepared_cases, package_dir, cfg)
     if max_workers is None:

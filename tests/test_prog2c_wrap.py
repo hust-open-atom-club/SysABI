@@ -193,6 +193,115 @@ class Prog2CWrapCacheTests(unittest.TestCase):
         self.assertEqual(result["testcase_bin"], str(testcase_bin))
         self.assertEqual(result["candidate_testcase_bin"], str(candidate_bin))
 
+    def test_build_one_uses_arch_specific_candidate_compiler(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            fake_cc = root / "riscv64-linux-musl-gcc"
+            syzkaller_bin = root / "bin" / "syz-prog2c"
+            syzkaller_bin.parent.mkdir(parents=True, exist_ok=True)
+            syzkaller_bin.write_text("binary", encoding="utf-8")
+            fake_cc.write_text(
+                "\n".join(
+                    [
+                        "#!/bin/sh",
+                        "out=''",
+                        "while [ \"$#\" -gt 0 ]; do",
+                        "  if [ \"$1\" = \"-o\" ]; then shift; out=\"$1\"; fi",
+                        "  shift",
+                        "done",
+                        "[ -n \"$out\" ] && : > \"$out\"",
+                        "exit 0",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            fake_cc.chmod(0o755)
+            entry = {"program_id": "program", "normalized_path": str(root / "program.syz")}
+            Path(entry["normalized_path"]).write_text("openat()\n", encoding="utf-8")
+            cfg = {
+                "target": "tgoskits_starryos",
+                "arch": "riscv64",
+                "paths": {"build_dir": str(root / "build"), "syzkaller_dir": str(root)},
+                "build": {
+                    "cflags": ["-static"],
+                    "candidate": {
+                        "compiler_by_arch": {"riscv64": str(fake_cc)},
+                        "runner_source": "agent/linux/runner.c",
+                        "supported_arches": ["riscv64"],
+                    },
+                },
+            }
+            profiles = {"candidate": {"kind": "command", "binary_name": "testcase.candidate.bin"}}
+            prog2c_result = type(
+                "Prog2CResult",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": "#include <sys/syscall.h>\nint main(void) {\n\tsyscall(__NR_close, 3);\n\treturn 0;\n}\n",
+                    "stderr": "",
+                },
+            )()
+
+            previous_path = os.environ.get("PATH", "")
+            os.environ["PATH"] = f"{root}:{previous_path}"
+            with patch("tools.prog2c_wrap.config", return_value=cfg), patch(
+                "tools.prog2c_wrap.runner_profiles",
+                return_value=profiles,
+            ), patch(
+                "tools.prog2c_wrap.build_prog2c",
+                return_value=prog2c_result,
+            ), patch(
+                "tools.prog2c_wrap.env_with_temp",
+                return_value={**os.environ, "PATH": f"{root}:{os.environ.get('PATH', '')}"},
+            ):
+                result = build_one(entry)
+            os.environ["PATH"] = previous_path
+            self.assertEqual(result["status"], "ok")
+            self.assertTrue(Path(result["candidate_testcase_bin"]).exists())
+
+    def test_build_one_rejects_candidate_arch_without_compiler_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            syzkaller_bin = root / "bin" / "syz-prog2c"
+            syzkaller_bin.parent.mkdir(parents=True, exist_ok=True)
+            syzkaller_bin.write_text("binary", encoding="utf-8")
+            entry = {"program_id": "program", "normalized_path": str(root / "program.syz")}
+            Path(entry["normalized_path"]).write_text("openat()\n", encoding="utf-8")
+            cfg = {
+                "target": "tgoskits_starryos",
+                "arch": "riscv64",
+                "paths": {"build_dir": str(root / "build"), "syzkaller_dir": str(root)},
+                "build": {
+                    "candidate": {
+                        "compiler_by_arch": {"aarch64": "aarch64-linux-musl-gcc"},
+                        "supported_arches": ["riscv64"],
+                    },
+                },
+            }
+            profiles = {"candidate": {"kind": "command", "binary_name": "testcase.candidate.bin"}}
+            prog2c_result = type(
+                "Prog2CResult",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": "#include <sys/syscall.h>\nint main(void) {\n\tsyscall(__NR_close, 3);\n\treturn 0;\n}\n",
+                    "stderr": "",
+                },
+            )()
+
+            with patch("tools.prog2c_wrap.config", return_value=cfg), patch(
+                "tools.prog2c_wrap.runner_profiles",
+                return_value=profiles,
+            ), patch(
+                "tools.prog2c_wrap.build_prog2c",
+                return_value=prog2c_result,
+            ):
+                result = build_one(entry)
+
+        self.assertEqual(result["status"], "build_failure")
+        self.assertEqual(result["stage"], "compile")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,12 +42,7 @@ build-workflow:
 	$(PYTHON) tools/prog2c_wrap.py --workflow $(WORKFLOW) $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) $(if $(JOBS),--jobs $(JOBS),)
 
 run-workflow:
-	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
-	if [ "$$TARGET_NAME" = "asterinas" ]; then \
-		$(MAKE) prepare-target WORKFLOW=$(WORKFLOW); \
-	elif [ "$$TARGET_NAME" != "linux" ] && [ -f "targets/$$TARGET_NAME/entrypoint.py" ]; then \
-		$(MAKE) prepare-target WORKFLOW=$(WORKFLOW); \
-	fi
+	$(MAKE) prepare-target WORKFLOW=$(WORKFLOW)
 	$(PYTHON) orchestrator/scheduler.py --workflow $(WORKFLOW) --campaign $(CAMPAIGN) $(if $(LIMIT),--limit $(LIMIT),) $(if $(JOBS),--jobs $(JOBS),)
 
 analyze-workflow:
@@ -97,13 +92,11 @@ preflight-workflow:
 	fi
 
 prepare-target:
-	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
-	if [ "$$TARGET_NAME" = "asterinas" ]; then \
-		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/asterinas/entrypoint.py --mode docker-qemu --healthcheck; \
-	elif [ "$$TARGET_NAME" != "linux" ] && [ -f "targets/$$TARGET_NAME/entrypoint.py" ]; then \
-		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/$$TARGET_NAME/entrypoint.py --healthcheck; \
+	@TARGET_MODE="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target_config.default_mode 2>/dev/null || true )"; \
+	if [ -n "$$TARGET_MODE" ]; then \
+		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/entrypoint.py --mode "$$TARGET_MODE" --healthcheck; \
 	else \
-		echo "prepare-target unsupported for target=$$TARGET_NAME workflow=$(WORKFLOW)" >&2; exit 1; \
+		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/entrypoint.py --healthcheck; \
 	fi
 
 derive-asterinas-scml:
