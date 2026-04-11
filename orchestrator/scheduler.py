@@ -686,6 +686,26 @@ def selected_entries(args: argparse.Namespace) -> list[dict[str, object]]:
     return rows
 
 
+def ensure_entries_built(entries: list[dict[str, object]]) -> None:
+    missing_program_ids: list[str] = []
+    for entry in entries:
+        program_id = str(entry["program_id"])
+        if not (build_root(program_id) / "build-result.json").exists():
+            missing_program_ids.append(program_id)
+    if not missing_program_ids:
+        return
+    preview = ", ".join(missing_program_ids[:5])
+    if len(missing_program_ids) > 5:
+        preview += ", ..."
+    raise SystemExit(
+        "missing testcase builds for "
+        f"{len(missing_program_ids)} program(s); run "
+        f"`python3 tools/prog2c_wrap.py --workflow {config()['workflow']} --limit {len(entries)}` "
+        f"or `make build-workflow WORKFLOW={config()['workflow']}` first. "
+        f"sample program_ids: {preview}"
+    )
+
+
 def effective_jobs(args: argparse.Namespace, cfg: dict[str, object]) -> int:
     if args.jobs is not None:
         return max(1, args.jobs)
@@ -879,6 +899,7 @@ def main() -> None:
     if not args.eligible_file:
         args.eligible_file = cfg["paths"]["eligible_file"]
     entries = selected_entries(args)
+    ensure_entries_built(entries)
     results = schedule_entries(entries, args, effective_jobs(args, cfg))
     dump_jsonl(report_path("campaign-results.jsonl", cfg=cfg), results)
     write_post_run_reports(results, args.campaign)

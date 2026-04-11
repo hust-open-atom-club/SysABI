@@ -149,7 +149,13 @@ SyzABI 是一个面向 `syzkaller` 程序的离线差分回放框架。它的目
 - 推荐可用 `/dev/kvm`
 - 能构建或运行 Asterinas 所需的宿主环境
 
-默认 runner 模式是 `docker-qemu`。也可以通过环境变量 `SYZABI_ASTERINAS_MODE` 选择 `unconfigured`、`local-proxy`、`host-direct`、`docker-qemu`，但仓库当前主路径显然是 `docker-qemu`。
+默认且推荐的 runner 模式是 `docker-qemu`。当前 Asterinas workflow 的标准启动链只假定 Docker 路径：
+
+1. `prepare-target WORKFLOW=asterinas` 先在 Docker 中执行一次内核准备；
+2. `tools/prog2c_wrap.py --workflow asterinas ...` 预编译 testcase；
+3. `orchestrator/scheduler.py --workflow asterinas ...` 并发启动 case。
+
+共享内核 bundle 应被预热一次，后续 case 直接复用；不再推荐依赖 host-direct fallback 作为默认启动路径。
 
 ### SCML 额外要求
 
@@ -165,6 +171,37 @@ SyzABI 是一个面向 `syzkaller` 程序的离线差分回放框架。它的目
 3. `PATH` 中的 `sctrace`
 
 ## 快速开始
+
+### 一键运行 Asterinas
+
+如果仓库里已经有 `corpus/meta/*.json` 与 `corpus/normalized/*.syz`，最简单的入口现在是：
+
+```bash
+make run
+```
+
+这条命令会顺序执行：
+
+1. 初始化 baseline / asterinas 目录；
+2. 重新生成 baseline eligible；
+3. 从 baseline 派生 Asterinas eligible；
+4. 在 Docker 中准备 Asterinas 内核与共享 bundle；
+5. 预编译 Asterinas testcase；
+6. 启动 `asterinas` smoke run。
+
+默认参数：
+
+- workflow: `asterinas`
+- campaign: `smoke`
+- limit: `100`
+- jobs: `$(ASTERINAS_JOBS)`，默认 `4`
+
+常见用法：
+
+```bash
+ASTERINAS_JOBS=80 make run
+RUN_LIMIT=200 ASTERINAS_JOBS=80 make run
+```
 
 ### 1. baseline 最小可运行路径
 
@@ -234,7 +271,7 @@ git -C third_party/asterinas checkout main
 make derive-asterinas
 ```
 
-对 candidate 环境做健康检查：
+先对 candidate 环境做一次准备和健康检查。这一步会在 Docker 中执行一次内核准备：
 
 ```bash
 make prepare-asterinas-candidate
@@ -249,6 +286,7 @@ make build-asterinas
 执行 smoke / full：
 
 ```bash
+make run
 make run-asterinas-smoke
 make run-asterinas-full
 ```
@@ -260,9 +298,10 @@ make analyze-asterinas
 make report-asterinas
 ```
 
-默认并发数由 `ASTERINAS_JOBS` 控制，默认值为 `4`：
+默认并发数由 `ASTERINAS_JOBS` 控制，默认值为 `4`。`make run` 默认跑 `100` 个 case：
 
 ```bash
+ASTERINAS_JOBS=80 make run
 ASTERINAS_JOBS=8 make run-asterinas-smoke
 ```
 

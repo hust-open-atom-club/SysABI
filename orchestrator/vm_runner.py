@@ -248,6 +248,27 @@ def prepare_candidate_initramfs_package(cases: list[dict[str, object]], cfg: dic
     return package_dir, {str(case["program_id"]): slot for slot, case in enumerate(cases)}
 
 
+def prewarm_packaged_candidate_bundle(
+    prepared_cases: list[dict[str, object]],
+    package_dir: Path,
+    cfg: dict[str, object],
+) -> None:
+    if not prepared_cases or str(cfg.get("target", "")) != "asterinas":
+        return
+    profile = runner_profiles()["candidate"]
+    if profile.get("kind") != "command":
+        return
+
+    from targets.asterinas import api as asterinas_api
+
+    first_case = prepared_cases[0]
+    binary_path = Path(str(first_case["binary_path"])).resolve()
+    sandbox_root = Path(str(first_case["sandbox_root"])).resolve()
+    custom_initramfs = asterinas_api.selected_initramfs(cfg, binary_path, sandbox_root)
+    guest_kcmd_args = " ".join(part for part in ("console=hvc0", asterinas_api.selected_guest_cmdline_append()) if part)
+    asterinas_api.ensure_packaged_docker_bundle(cfg, package_dir, custom_initramfs, kcmd_args=guest_kcmd_args)
+
+
 def execute_prepared_candidate_case(
     *,
     case: dict[str, object],
@@ -552,6 +573,7 @@ def execute_candidate_batch_with_context(
         for case in batch_cases
     ]
     package_dir, slot_by_program = prepare_candidate_initramfs_package(prepared_cases, cfg)
+    prewarm_packaged_candidate_bundle(prepared_cases, package_dir, cfg)
     if max_workers is None:
         selected_workers = int(cfg.get("parallel", {}).get("jobs", 1))
     else:

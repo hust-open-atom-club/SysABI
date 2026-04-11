@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
+from pathlib import Path
 
 from analyzer.classify import classify_result
 from analyzer.compare import compare_canonical
@@ -50,6 +52,30 @@ int main(void) {
         reasons = classify_rejection(meta, config())
         self.assertIn("non_allowlisted_variant", reasons)
         self.assertNotIn("non_allowlisted_syscall", reasons)
+
+    def test_filter_rejects_likely_blocking_pipe_read(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            normalized = Path(tmpdir) / "blocking-pipe-read.syz"
+            normalized.write_text(
+                "\n".join(
+                    [
+                        "pipe(&(0x7f0000000040)={<r1=>0xffffffffffffffff})",
+                        "read(r1, &(0x7f0000000080)=\"\"/60, 0x3c)",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            meta = {
+                "uses_pseudo_syscalls": False,
+                "uses_threading_sensitive_features": False,
+                "syscall_list": ["pipe", "read"],
+                "full_syscall_list": ["pipe", "read"],
+                "normalized_path": str(normalized),
+            }
+            reasons = classify_rejection(meta, config())
+
+        self.assertIn("likely_blocking_pipe_read", reasons)
 
     def test_canonical_hash_ignores_duration_noise(self) -> None:
         trace_a = {

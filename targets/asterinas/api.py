@@ -267,6 +267,10 @@ def prime_docker_cargo_cache(cfg: dict[str, object]) -> None:
     return cache_support.prime_docker_cargo_cache(cfg, hooks=sys.modules[__name__])
 
 
+def ensure_docker_cargo_osdk(cfg: dict[str, object]) -> None:
+    return cache_support.ensure_docker_cargo_osdk(cfg, hooks=sys.modules[__name__])
+
+
 def gitconfig_lines(cfg: dict[str, object], *, path_transform, ensure_mirrors: bool) -> list[str]:
     return cache_support.gitconfig_lines(
         cfg,

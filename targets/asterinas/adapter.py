@@ -49,15 +49,7 @@ class AsterinasTargetAdapter:
             api.write_runner_result({"status": "ok", "exit_code": 0, "kernel_build": "local-proxy"})
             return
         cfg = api.read_workflow_config()
-        if args.mode == "docker-qemu":
-            try:
-                revision = self.prepare_target(cfg=cfg, mode="docker-qemu")
-            except RunnerError as exc:
-                if not api.should_fallback_to_host_direct(exc):
-                    raise
-                revision = self.prepare_target(cfg=cfg, mode="host-direct")
-        else:
-            revision = self.prepare_target(cfg=cfg, mode="host-direct")
+        revision = self.prepare_target(cfg=cfg, mode=args.mode)
         api.write_runner_result({"status": "ok", "exit_code": 0, "kernel_build": f"asterinas@{revision[:12]}"})
 
     def run_batch(self, args) -> None:
@@ -76,11 +68,6 @@ class AsterinasTargetAdapter:
             runtime_mod.local_proxy(args, hooks=api)
             return
         if args.mode == "docker-qemu":
-            try:
-                runtime_mod.docker_qemu_run(args, hooks=api)
-            except RunnerError as exc:
-                if not api.should_fallback_to_host_direct(exc):
-                    raise
-                runtime_mod.host_direct_run(args, hooks=api)
+            runtime_mod.docker_qemu_run(args, hooks=api)
             return
         runtime_mod.host_direct_run(args, hooks=api)

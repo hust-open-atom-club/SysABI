@@ -247,6 +247,7 @@ def ensure_docker_build(cfg: dict[str, object], *, hooks) -> str:
                 return revision
 
         hooks.prime_docker_cargo_cache(cfg)
+        hooks.ensure_docker_cargo_osdk(cfg)
         build = subprocess.run(
             hooks.docker_make_kernel_command(cfg),
             timeout=int(cfg["asterinas"]["build_timeout_sec"]),

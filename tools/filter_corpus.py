@@ -1,18 +1,44 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import re
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from orchestrator.common import config, dump_json, dump_jsonl, ensure_dir, load_json
+from orchestrator.common import config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, report_path
 from orchestrator.models import EligibleProgram
 
 
 def base_syscall_name(full_name: str) -> str:
     return full_name.split("$", 1)[0]
+
+
+PIPE_READ_CAPTURE_RE = re.compile(r"^\s*pipe2?\(&.*?<(?P<fd>r\d+)=>")
+PIPE_READ_USE_RE = re.compile(r"^\s*(?:read|pread64)\((?P<fd>r\d+),")
+
+
+def has_likely_blocking_pipe_read(meta: dict[str, object]) -> bool:
+    normalized_path = meta.get("normalized_path")
+    if not normalized_path:
+        return False
+    try:
+        lines = Path(str(normalized_path)).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+    pipe_read_fds: set[str] = set()
+    for line in lines:
+        capture_match = PIPE_READ_CAPTURE_RE.match(line)
+        if capture_match is not None:
+            pipe_read_fds.add(capture_match.group("fd"))
+            continue
+        use_match = PIPE_READ_USE_RE.match(line)
+        if use_match is not None and use_match.group("fd") in pipe_read_fds:
+            return True
+    return False
 
 
 def classify_rejection(meta: dict[str, object], cfg: dict[str, object]) -> list[str]:
@@ -46,6 +72,8 @@ def classify_rejection(meta: dict[str, object], cfg: dict[str, object]) -> list[
 
     if meta["uses_threading_sensitive_features"]:
         reasons.append("threading_sensitive")
+    if has_likely_blocking_pipe_read(meta):
+        reasons.append("likely_blocking_pipe_read")
 
     deduped = []
     seen = set()
@@ -57,6 +85,7 @@ def classify_rejection(meta: dict[str, object], cfg: dict[str, object]) -> list[
 
 
 def main() -> None:
+    configure_runtime(workflow="baseline")
     cfg = config()
     meta_root = ensure_dir(cfg["paths"]["corpus_meta"])
     eligible_rows: list[dict[str, object]] = []
@@ -83,7 +112,7 @@ def main() -> None:
     eligible_rows.sort(key=lambda row: row["program_id"])
     dump_jsonl(cfg["paths"]["eligible_file"], eligible_rows)
     dump_json(
-        "reports/baseline/filter-summary.json",
+        report_path("filter-summary.json", cfg=cfg),
         {
             "total_meta": total,
             "eligible": len(eligible_rows),

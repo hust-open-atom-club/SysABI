@@ -81,6 +81,32 @@ class AsterinasPipelineTests(unittest.TestCase):
         self.assertEqual(runner_profiles()["candidate"]["controlled_divergence"]["match_syscall"], "openat")
         self.assertEqual(runner_profiles()["candidate"]["command_batching_mode"], "packaged_per_case")
 
+    def test_scheduler_rejects_missing_builds_before_running(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            eligible_file = root / "eligible.jsonl"
+            eligible_file.write_text(
+                json.dumps({"program_id": "missing-build", "normalized_path": str(root / "missing-build.syz")}) + "\n",
+                encoding="utf-8",
+            )
+            args = SimpleNamespace(
+                workflow="asterinas",
+                campaign="smoke",
+                eligible_file=str(eligible_file),
+                limit=None,
+                jobs=1,
+                candidate_batch_size=None,
+                program_id=None,
+                controlled_divergence=False,
+            )
+
+            with patch("orchestrator.scheduler.parse_args", return_value=args):
+                with self.assertRaises(SystemExit) as ctx:
+                    scheduler.main()
+
+        self.assertIn("missing testcase builds", str(ctx.exception))
+        self.assertIn("missing-build", str(ctx.exception))
+
     def test_asterinas_scml_profile_uses_distinct_sandbox_roots(self) -> None:
         previous_workflow = os.environ.get("SYZABI_WORKFLOW")
         previous_config = os.environ.get("SYZABI_CONFIG_PATH")
@@ -490,6 +516,41 @@ class AsterinasPipelineTests(unittest.TestCase):
             tokens = qemu_args_tokens(cfg, env)
         self.assertIn("Icelake-Server,+x2apic", tokens)
 
+    def test_qemu_args_tokens_rewrite_vnc_display_to_headless_none(self) -> None:
+        cfg = {"asterinas": {"repo_dir": "third_party/asterinas"}}
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout='-display vnc=0.0.0.0:42 -serial file:qemu-serial.log',
+            stderr="",
+        )
+        env = {
+            "QEMU_DISPLAY": "none",
+            "QEMU_SERIAL_LOG_FILE": "/tmp/work/qemu-serial.log",
+        }
+        with patch("tools.run_asterinas.subprocess.run", return_value=completed), patch(
+            "tools.run_asterinas.resolve_repo_path",
+            return_value=Path("/tmp/asterinas"),
+        ), patch("tools.run_asterinas.kvm_accessible", return_value=True):
+            tokens = qemu_args_tokens(cfg, env)
+        self.assertEqual(tokens[:2], ["-display", "none"])
+        self.assertIn("file:/tmp/work/qemu-serial.log", tokens)
+
+    def test_qemu_args_tokens_strip_host_forward_rules(self) -> None:
+        cfg = {"asterinas": {"repo_dir": "third_party/asterinas"}}
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout='-netdev user,id=net01,hostfwd=tcp::33327-:22,hostfwd=tcp::35945-:31234 -device virtio-net-pci,netdev=net01',
+            stderr="",
+        )
+        with patch("tools.run_asterinas.subprocess.run", return_value=completed), patch(
+            "tools.run_asterinas.resolve_repo_path",
+            return_value=Path("/tmp/asterinas"),
+        ), patch("tools.run_asterinas.kvm_accessible", return_value=True):
+            tokens = qemu_args_tokens(cfg, {})
+        self.assertIn("user,id=net01", tokens)
+        self.assertNotIn("hostfwd=tcp::33327-:22", ",".join(tokens))
+        self.assertNotIn("hostfwd=tcp::35945-:31234", ",".join(tokens))
+
     def test_containerized_qemu_direct_command_forwards_guest_kcmd_args(self) -> None:
         cfg = {"asterinas": {"repo_dir": "third_party/asterinas", "docker_workspace_dir": "/workspace"}}
         observed_env = {}
@@ -724,7 +785,7 @@ class AsterinasPipelineTests(unittest.TestCase):
                 )
             )
 
-    def test_main_falls_back_to_host_direct_when_docker_daemon_is_unavailable(self) -> None:
+    def test_main_surfaces_docker_qemu_errors_without_host_direct_fallback(self) -> None:
         from tools import run_asterinas
 
         args = SimpleNamespace(
@@ -741,9 +802,11 @@ class AsterinasPipelineTests(unittest.TestCase):
             ),
         ), patch("targets.asterinas.runtime.host_direct_run") as host_direct_run, patch(
             "tools.run_asterinas.write_runner_result"
-        ):
-            run_asterinas.main()
-        host_direct_run.assert_called_once()
+        ) as write_runner_result:
+            with self.assertRaises(SystemExit):
+                run_asterinas.main()
+        host_direct_run.assert_not_called()
+        self.assertEqual(write_runner_result.call_args.args[0]["status"], "infra_error")
 
     def test_main_recovers_timeout_with_guest_stack_trace_as_crash(self) -> None:
         from tools import run_asterinas
@@ -1588,6 +1651,8 @@ class AsterinasPipelineTests(unittest.TestCase):
             "orchestrator.vm_runner.prepare_candidate_initramfs_package",
             return_value=(Path("/tmp/package"), {"alpha": 0, "beta": 1}),
         ), patch(
+            "orchestrator.vm_runner.prewarm_packaged_candidate_bundle",
+        ) as prewarm_bundle, patch(
             "orchestrator.vm_runner.execute_prepared_candidate_case",
             side_effect=fake_execute_prepared_candidate_case,
         ):
@@ -1599,6 +1664,7 @@ class AsterinasPipelineTests(unittest.TestCase):
         self.assertEqual(set(results.keys()), {"alpha", "beta"})
         self.assertEqual(results["alpha"].slot, 0)
         self.assertEqual(results["beta"].slot, 1)
+        prewarm_bundle.assert_called_once()
 
     def test_prepare_candidate_initramfs_package_cache_key_includes_template_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1659,6 +1725,8 @@ class AsterinasPipelineTests(unittest.TestCase):
             ), patch(
                 "tools.run_asterinas.prime_docker_cargo_cache",
             ), patch(
+                "tools.run_asterinas.ensure_docker_cargo_osdk",
+            ), patch(
                 "tools.run_asterinas.ensure_shared_package_cargo_home",
                 return_value=shared_cargo_home,
             ), patch(
@@ -1687,10 +1755,7 @@ class AsterinasPipelineTests(unittest.TestCase):
                 )
                 metadata = json.loads(packaged_bundle_metadata_path(package_dir).read_text(encoding="utf-8"))
                 subprocess_run.assert_called_once()
-                self.assertEqual(
-                    docker_run_command.call_args.kwargs["extra_env"]["CARGO_NET_OFFLINE"],
-                    "true",
-                )
+                self.assertNotIn("CARGO_NET_OFFLINE", docker_run_command.call_args.kwargs["extra_env"])
 
         self.assertEqual(metadata["revision"], "new-revision")
         self.assertEqual(metadata["docker_image"], "new-image")
@@ -1712,6 +1777,8 @@ class AsterinasPipelineTests(unittest.TestCase):
                 return_value="new-revision",
             ), patch(
                 "tools.run_asterinas.prime_docker_cargo_cache",
+            ), patch(
+                "tools.run_asterinas.ensure_docker_cargo_osdk",
             ), patch(
                 "tools.run_asterinas.ensure_shared_package_cargo_home",
                 return_value=shared_cargo_home,

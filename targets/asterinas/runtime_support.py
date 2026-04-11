@@ -337,7 +337,14 @@ def qemu_args_tokens(cfg: dict[str, object], env: dict[str, str], *, hooks) -> l
     exfat_image = env.get("EXFAT_IMAGE")
     tcg_cpu_model = env.get("SYZABI_ASTERINAS_TCG_CPU_MODEL", "max")
     rewritten: list[str] = []
-    for token in tokens:
+    force_headless = env.get("QEMU_DISPLAY") == "none"
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if force_headless and token == "-display" and index + 1 < len(tokens) and tokens[index + 1].startswith("vnc="):
+            rewritten.extend(["-display", "none"])
+            index += 2
+            continue
         if qemu_log_file:
             token = token.replace("logfile=qemu.log", f"logfile={qemu_log_file}")
         if qemu_serial_log_file:
@@ -346,9 +353,12 @@ def qemu_args_tokens(cfg: dict[str, object], env: dict[str, str], *, hooks) -> l
             token = token.replace("file=./test/initramfs/build/ext2.img", f"file={ext2_image}")
         if exfat_image:
             token = token.replace("file=./test/initramfs/build/exfat.img", f"file={exfat_image}")
+        if "hostfwd=" in token:
+            token = ",".join(part for part in token.split(",") if not part.startswith("hostfwd="))
         if not hooks.kvm_accessible() and token == "Icelake-Server,+x2apic":
             token = tcg_cpu_model
         rewritten.append(token)
+        index += 1
     return rewritten
 
 

@@ -212,7 +212,12 @@ def ensure_shared_package_cargo_home(package_dir: Path, *, hooks, refresh: bool 
         if run_home.exists() and not refresh:
             return run_home
         if run_home.exists():
-            shutil.rmtree(run_home)
+            try:
+                shutil.rmtree(run_home)
+            except PermissionError:
+                # Docker may have populated this cache as a different uid; reuse it instead of
+                # failing triage on cache cleanup.
+                return run_home
         shared_home = hooks.docker_cargo_home()
         hooks.ensure_docker_cargo_cache_dirs()
         run_home.mkdir(parents=True, exist_ok=True)
@@ -266,6 +271,77 @@ def prime_docker_cargo_cache(cfg: dict[str, object], *, hooks) -> None:
     if fetch.returncode != 0:
         detail = fetch.stderr.strip() or fetch.stdout.strip() or "failed to prefetch Asterinas cargo dependencies"
         raise hooks.RunnerError(detail)
+
+
+def docker_cargo_osdk_version(*, hooks) -> str:
+    cargo_osdk = hooks.shared_cargo_osdk_path()
+    if not cargo_osdk.exists():
+        return ""
+    result = hooks.subprocess.run(
+        ["cargo", "osdk", "--version"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+        env={
+            **hooks.os.environ,
+            "PATH": str(cargo_osdk.parent) + hooks.os.pathsep + hooks.os.environ.get("PATH", ""),
+            "CARGO_HOME": str(hooks.docker_cargo_home()),
+        },
+    )
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def reuse_prebuilt_docker_cargo_osdk(cfg: dict[str, object], *, hooks) -> bool:
+    source = hooks.resolve_repo_path(cfg["asterinas"]["repo_dir"]) / "osdk" / "target" / "release" / "cargo-osdk"
+    destination = hooks.shared_cargo_osdk_path()
+    if not source.exists():
+        return False
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    hooks.shutil.copy2(source, destination)
+    destination.chmod(0o755)
+    return True
+
+
+def ensure_docker_cargo_osdk(cfg: dict[str, object], *, hooks) -> None:
+    expected = "cargo-osdk 0.17.1"
+    hooks.ensure_docker_cargo_cache_dirs(cfg)
+    if docker_cargo_osdk_version(hooks=hooks).startswith(expected):
+        return
+    if reuse_prebuilt_docker_cargo_osdk(cfg, hooks=hooks) and docker_cargo_osdk_version(hooks=hooks).startswith(expected):
+        return
+
+    build_info = hooks.build_info_path(cfg)
+    log_dir = build_info.parent / "build"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = log_dir / "install-cargo-osdk.stdout.txt"
+    stderr_path = log_dir / "install-cargo-osdk.stderr.txt"
+    install = hooks.subprocess.run(
+        hooks.docker_run_command(
+            cfg,
+            "\n".join(
+                [
+                    "set -euo pipefail",
+                    f"cd {shlex.quote(str(hooks.docker_repo_dir(cfg)))}",
+                    "export OSDK_LOCAL_DEV=1",
+                    "cargo install cargo-osdk --path osdk --force",
+                ]
+            ),
+            workdir=hooks.docker_repo_dir(cfg),
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=int(cfg["asterinas"]["build_timeout_sec"]),
+    )
+    stdout_path.write_text(install.stdout, encoding="utf-8")
+    stderr_path.write_text(install.stderr, encoding="utf-8")
+    if install.returncode != 0:
+        raise hooks.RunnerError(install.stderr.strip() or install.stdout.strip() or "failed to install docker cargo-osdk")
+    if not docker_cargo_osdk_version(hooks=hooks).startswith(expected):
+        raise hooks.RunnerError("docker cargo-osdk installation completed but expected version is unavailable")
 
 
 def gitconfig_lines(
@@ -464,12 +540,12 @@ def ensure_packaged_docker_bundle(
         ready_stamp.unlink(missing_ok=True)
         metadata_path.unlink(missing_ok=True)
         hooks.prime_docker_cargo_cache(cfg)
-        run_cargo_home = hooks.ensure_shared_package_cargo_home(package_dir, refresh=True)
+        hooks.ensure_docker_cargo_osdk(cfg)
+        run_cargo_home = hooks.ensure_shared_package_cargo_home(package_dir, refresh=False)
         build_env = {
             "CARGO_HOME": str(hooks.host_path_to_container_path(run_cargo_home, cfg)),
             "CARGO_TARGET_DIR": str(hooks.host_path_to_container_path(cargo_target_dir, cfg)),
             "OSDK_OUTPUT_DIR": str(hooks.host_path_to_container_path(osdk_output_dir, cfg)),
-            "CARGO_NET_OFFLINE": "true",
         }
         container_name = hooks.container_name_for_run("bundle", hooks.sha256_text(str(package_dir))[:12])
         hooks.force_remove_container(container_name)

@@ -7,8 +7,9 @@ FIXTURE ?= controlled_divergence
 LIMIT ?=
 JOBS ?=
 ELIGIBLE_FILE ?=
+RUN_LIMIT ?= 100
 
-.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target test clean
+.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target test clean
 
 bootstrap:
 	./tools/bootstrap_syzkaller.sh
@@ -29,10 +30,23 @@ build-eligible:
 	@echo "warning: build-eligible is deprecated; use build-workflow WORKFLOW=baseline" >&2
 	$(MAKE) build-workflow WORKFLOW=baseline
 
+run:
+	$(PYTHON) tools/init_layout.py --workflow baseline
+	$(PYTHON) tools/init_layout.py --workflow asterinas
+	$(MAKE) filter-corpus
+	$(MAKE) derive-workflow WORKFLOW=asterinas
+	$(MAKE) prepare-target WORKFLOW=asterinas
+	$(MAKE) build-workflow WORKFLOW=asterinas
+	$(MAKE) run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=$(RUN_LIMIT) JOBS=$(ASTERINAS_JOBS)
+
 build-workflow:
 	$(PYTHON) tools/prog2c_wrap.py --workflow $(WORKFLOW) $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),)
 
 run-workflow:
+	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
+	if [ "$$TARGET_NAME" = "asterinas" ]; then \
+		$(MAKE) prepare-target WORKFLOW=$(WORKFLOW); \
+	fi
 	$(PYTHON) orchestrator/scheduler.py --workflow $(WORKFLOW) --campaign $(CAMPAIGN) $(if $(LIMIT),--limit $(LIMIT),) $(if $(JOBS),--jobs $(JOBS),)
 
 analyze-workflow:
@@ -102,31 +116,25 @@ test:
 	$(PYTHON) -m unittest discover -s tests -v
 
 derive-asterinas:
-	@echo "warning: derive-asterinas is deprecated; use derive-workflow WORKFLOW=asterinas" >&2
 	$(MAKE) derive-workflow WORKFLOW=asterinas
 
 prepare-asterinas-candidate:
-	@echo "warning: prepare-asterinas-candidate is deprecated; use prepare-target WORKFLOW=asterinas" >&2
 	$(MAKE) prepare-target WORKFLOW=asterinas
 
 build-asterinas:
-	@echo "warning: build-asterinas is deprecated; use build-workflow WORKFLOW=asterinas" >&2
+	$(MAKE) prepare-target WORKFLOW=asterinas
 	$(MAKE) build-workflow WORKFLOW=asterinas
 
 run-asterinas-smoke:
-	@echo "warning: run-asterinas-smoke is deprecated; use run-workflow WORKFLOW=asterinas CAMPAIGN=smoke" >&2
 	$(MAKE) run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=$(ASTERINAS_JOBS)
 
 run-asterinas-full:
-	@echo "warning: run-asterinas-full is deprecated; use run-workflow WORKFLOW=asterinas CAMPAIGN=full" >&2
 	$(MAKE) run-workflow WORKFLOW=asterinas CAMPAIGN=full LIMIT=200 JOBS=$(ASTERINAS_JOBS)
 
 analyze-asterinas:
-	@echo "warning: analyze-asterinas is deprecated; use analyze-workflow WORKFLOW=asterinas" >&2
 	$(MAKE) analyze-workflow WORKFLOW=asterinas
 
 report-asterinas:
-	@echo "warning: report-asterinas is deprecated; use report-workflow WORKFLOW=asterinas" >&2
 	$(MAKE) report-workflow WORKFLOW=asterinas FIXTURE=controlled_divergence
 
 clean:

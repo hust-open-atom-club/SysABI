@@ -319,6 +319,22 @@ class ContractSurfaceTests(unittest.TestCase):
 
     def test_legacy_make_targets_route_through_generic_workflow_entrypoints(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
+        run = subprocess.run(
+            ["make", "-n", "run"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(run.returncode, 0)
+        self.assertIn("tools/init_layout.py --workflow baseline", run.stdout)
+        self.assertIn("tools/init_layout.py --workflow asterinas", run.stdout)
+        self.assertIn("make filter-corpus", run.stdout)
+        self.assertIn("make derive-workflow WORKFLOW=asterinas", run.stdout)
+        self.assertIn("make prepare-target WORKFLOW=asterinas", run.stdout)
+        self.assertIn("make build-workflow WORKFLOW=asterinas", run.stdout)
+        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100 JOBS=4", run.stdout)
+
         build = subprocess.run(
             ["make", "-n", "build-eligible"],
             cwd=repo_root,
@@ -391,7 +407,6 @@ class ContractSurfaceTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(prepare.returncode, 0)
-        self.assertIn("prepare-asterinas-candidate is deprecated", prepare.stdout)
         self.assertIn("make prepare-target WORKFLOW=asterinas", prepare.stdout)
 
         prepare_scml = subprocess.run(
