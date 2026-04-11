@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pty
 import shlex
 import signal
 import socket
@@ -232,6 +233,7 @@ class ShellSession:
         self.process: subprocess.Popen[str] | None = None
         self.sock: socket.socket | None = None
         self.socket_path: Path | None = None
+        self.pty_master_fd: int | None = None
 
     def _append_console(self, chunk: str) -> None:
         with self._lock:
@@ -247,6 +249,16 @@ class ShellSession:
                 break
             self._append_console(line)
 
+    def _pty_reader(self, fd: int) -> None:
+        while True:
+            try:
+                data = os.read(fd, 4096)
+            except OSError:
+                break
+            if not data:
+                break
+            self._append_console(data.decode("utf-8", errors="ignore"))
+
     def start(self) -> None:
         serial_transport = str(target_config(self.cfg).get("serial_transport", "tcp"))
         serial_port = 0
@@ -256,48 +268,81 @@ class ShellSession:
         elif serial_transport == "unix":
             self.socket_path = reserve_unix_socket_path()
             serial_socket_path = str(self.socket_path)
+        elif serial_transport == "stdio":
+            pass
         else:
             raise RunnerError(f"unsupported serial transport: {serial_transport}")
         launch_command = resolve_command(
             target_config(self.cfg)["shell_launch_command"],
             command_values(self.cfg, serial_port=serial_port, serial_socket_path=serial_socket_path),
         )
-        self.process = subprocess.Popen(
-            launch_command,
-            cwd=str(workspace_dir(self.cfg)),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
-            bufsize=1,
-        )
-        for stream in (self.process.stdout, self.process.stderr):
-            if stream is None:
-                continue
-            thread = threading.Thread(target=self._stream_reader, args=(stream,), daemon=True)
+        if serial_transport == "stdio":
+            master_fd, slave_fd = pty.openpty()
+            self.pty_master_fd = master_fd
+            self.process = subprocess.Popen(
+                launch_command,
+                cwd=str(workspace_dir(self.cfg)),
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                text=False,
+                start_new_session=True,
+                close_fds=True,
+            )
+            os.close(slave_fd)
+            thread = threading.Thread(target=self._pty_reader, args=(master_fd,), daemon=True)
             thread.start()
-        deadline = time.time() + int(target_config(self.cfg).get("boot_timeout_sec", 60))
-        while time.time() < deadline:
-            if self.process.poll() is not None:
-                raise RunnerError("StarryOS launch process exited before shell became available")
-            try:
-                if serial_transport == "tcp":
-                    self.sock = socket.create_connection(("127.0.0.1", serial_port), timeout=1)
-                else:
-                    if self.socket_path is None or not self.socket_path.exists():
-                        time.sleep(0.2)
-                        continue
-                    self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                    self.sock.connect(str(self.socket_path))
-                self.sock.settimeout(1)
-                break
-            except OSError:
-                time.sleep(0.2)
-        if self.sock is None:
-            raise RunnerError("failed to connect to StarryOS serial console")
+        else:
+            self.process = subprocess.Popen(
+                launch_command,
+                cwd=str(workspace_dir(self.cfg)),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+                bufsize=1,
+            )
+            for stream in (self.process.stdout, self.process.stderr):
+                if stream is None:
+                    continue
+                thread = threading.Thread(target=self._stream_reader, args=(stream,), daemon=True)
+                thread.start()
+        if serial_transport in {"tcp", "unix"}:
+            deadline = time.time() + int(target_config(self.cfg).get("boot_timeout_sec", 60))
+            while time.time() < deadline:
+                if self.process.poll() is not None:
+                    raise RunnerError("StarryOS launch process exited before shell became available")
+                try:
+                    if serial_transport == "tcp":
+                        self.sock = socket.create_connection(("127.0.0.1", serial_port), timeout=1)
+                    else:
+                        if self.socket_path is None or not self.socket_path.exists():
+                            time.sleep(0.2)
+                            continue
+                        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                        self.sock.connect(str(self.socket_path))
+                    self.sock.settimeout(1)
+                    break
+                except OSError:
+                    time.sleep(0.2)
+            if self.sock is None:
+                raise RunnerError("failed to connect to StarryOS serial console")
         self.read_until(target_config(self.cfg)["shell_prompt"], timeout_sec=int(target_config(self.cfg).get("boot_timeout_sec", 60)))
 
-    def read_until(self, marker: str, *, timeout_sec: int) -> str:
+    def read_until(self, marker: str, *, timeout_sec: int, start_offset: int = 0) -> str:
+        serial_transport = str(target_config(self.cfg).get("serial_transport", "tcp"))
+        if serial_transport == "stdio":
+            deadline = time.time() + timeout_sec
+            while time.time() < deadline:
+                if self.process is not None and self.process.poll() is not None and marker not in self.console_text()[start_offset:]:
+                    break
+                text = self.console_text()[start_offset:]
+                if marker in text:
+                    return text
+                time.sleep(0.1)
+            raise RunnerError(f"did not observe marker {marker!r} before timeout")
+
         if self.sock is None:
             raise RunnerError("serial socket is not connected")
         deadline = time.time() + timeout_sec
@@ -318,13 +363,20 @@ class ShellSession:
         raise RunnerError(f"did not observe marker {marker!r} before timeout")
 
     def run_command(self, label: str, command: str, *, timeout_sec: int) -> tuple[str, int]:
-        if self.sock is None:
+        serial_transport = str(target_config(self.cfg).get("serial_transport", "tcp"))
+        if serial_transport != "stdio" and self.sock is None:
             raise RunnerError("serial socket is not connected")
         begin_marker = f"{CASE_BEGIN_PREFIX}{label}"
         exit_marker = f"{CASE_EXIT_PREFIX}{label}:"
         full_command = f"echo {begin_marker}; {command}; echo {exit_marker}$?"
-        self.sock.sendall((full_command + "\r\n").encode("utf-8"))
-        output = self.read_until(target_config(self.cfg)["shell_prompt"], timeout_sec=timeout_sec)
+        start_offset = len(self.console_text())
+        if serial_transport == "stdio":
+            if self.pty_master_fd is None:
+                raise RunnerError("stdio shell PTY is not connected")
+            os.write(self.pty_master_fd, (full_command + "\r").encode("utf-8"))
+        else:
+            self.sock.sendall((full_command + "\r\n").encode("utf-8"))
+        output = self.read_until(target_config(self.cfg)["shell_prompt"], timeout_sec=timeout_sec, start_offset=start_offset)
         begin_index = output.find(begin_marker)
         exit_index = output.find(exit_marker)
         if begin_index == -1 or exit_index == -1:
@@ -347,6 +399,12 @@ class ShellSession:
         if self.socket_path is not None:
             self.socket_path.unlink(missing_ok=True)
             self.socket_path = None
+        if self.pty_master_fd is not None:
+            try:
+                os.close(self.pty_master_fd)
+            except OSError:
+                pass
+            self.pty_master_fd = None
         if self.process is not None and self.process.poll() is None:
             try:
                 os.killpg(self.process.pid, signal.SIGTERM)

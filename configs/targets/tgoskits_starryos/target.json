@@ -14,32 +14,32 @@
     "qemu-system-riscv64",
     "riscv64-linux-musl-gcc"
   ],
-  "workspace_subdir": "os/StarryOS",
-  "disk_image_path": "os/StarryOS/make/disk.img",
+  "workspace_subdir": ".",
+  "disk_image_path": "target/riscv64gc-unknown-none-elf/rootfs-riscv64.img",
   "guest_binary_path": "/bin/testcase.candidate.bin",
   "shell_prompt": "starry:~#",
+  "serial_transport": "stdio",
   "trace_marker_prefix": "__SYZABI_TRACE_EVENT__ ",
   "prepare_timeout_sec": 1800,
   "boot_timeout_sec": 60,
   "command_timeout_sec": 30,
   "prepare_commands": [
     [
-      "make",
-      "ARCH={arch}",
-      "rootfs"
-    ],
-    [
-      "make",
-      "ARCH={arch}",
-      "build"
+      "cargo",
+      "xtask",
+      "starry",
+      "rootfs",
+      "--arch",
+      "{arch}"
     ]
   ],
   "shell_launch_command": [
-    "make",
-    "ARCH={arch}",
-    "ACCEL=n",
-    "justrun",
-    "QEMU_ARGS=-monitor none -serial tcp::{serial_port},server=on"
+    "cargo",
+    "xtask",
+    "starry",
+    "qemu",
+    "--arch",
+    "{arch}"
   ],
   "healthcheck_shell_command": "pwd && echo __SYZABI_HEALTHCHECK_OK__"
 }
