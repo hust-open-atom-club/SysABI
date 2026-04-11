@@ -87,8 +87,6 @@ class TGOSKitsTargetTests(unittest.TestCase):
             textwrap.dedent(
                 f"""\
                 #!/usr/bin/env python3
-                import re
-                import socket
                 import sys
                 from pathlib import Path
 
@@ -98,55 +96,6 @@ class TGOSKitsTargetTests(unittest.TestCase):
                 if "rootfs" in args or "build" in args:
                     disk.parent.mkdir(parents=True, exist_ok=True)
                     disk.write_text("disk", encoding="utf-8")
-                    raise SystemExit(0)
-                if "justrun" in args:
-                    joined = " ".join(args)
-                    tcp = re.search(r"tcp::(\\d+),server=on", joined)
-                    unix = re.search(r"unix:([^,]+),server=on", joined)
-                    if tcp:
-                        server = socket.create_server(("127.0.0.1", int(tcp.group(1))), reuse_port=False)
-                    elif unix:
-                        path = unix.group(1)
-                        Path(path).unlink(missing_ok=True)
-                        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                        server.bind(path)
-                        server.listen(1)
-                    else:
-                        raise SystemExit("missing serial endpoint")
-                    print("QEMU waiting for connection", file=sys.stderr, flush=True)
-                    conn, _ = server.accept()
-                    with conn:
-                        conn.sendall(b"starry:~#")
-                        buffer = ""
-                        while True:
-                            data = conn.recv(4096)
-                            if not data:
-                                break
-                            buffer += data.decode("utf-8", errors="ignore")
-                            while "\\n" in buffer or "\\r" in buffer:
-                                line = buffer.replace("\\r", "\\n").split("\\n", 1)[0]
-                                buffer = buffer.replace("\\r", "\\n").split("\\n", 1)[1] if "\\n" in buffer.replace("\\r", "\\n") else ""
-                                if not line.strip():
-                                    continue
-                                begin = ""
-                                exit_marker = ""
-                                parts = [part.strip() for part in line.split(";") if part.strip()]
-                                if parts and parts[0].startswith("echo "):
-                                    begin = parts[0][5:]
-                                if parts and parts[-1].startswith("echo ") and parts[-1].endswith("$?"):
-                                    exit_marker = parts[-1][5:-2]
-                                payload = []
-                                if begin:
-                                    payload.append(begin)
-                                if "__SYZABI_HEALTHCHECK_OK__" in line:
-                                    payload.append("/fake/workspace")
-                                    payload.append("__SYZABI_HEALTHCHECK_OK__")
-                                if ("testcase.candidate" in line or "case-missing" in line) and "missing-trace" not in line and "case-missing" not in line:
-                                    payload.append('{starry_api.TRACE_EVENT_STDOUT_PREFIX}' + '{{"args":[3,0,0,0,0,0],"end_ns":2,"errno":0,"event_index":0,"outputs":[],"return_value":0,"side":"candidate","start_ns":1,"syscall_name":"close","syscall_number":3}}')
-                                if exit_marker:
-                                    payload.append(exit_marker + "0")
-                                payload.append("starry:~#")
-                                conn.sendall(("\\n".join(payload)).encode("utf-8"))
                     raise SystemExit(0)
                 raise SystemExit(0)
                 """
@@ -227,96 +176,127 @@ class TGOSKitsTargetTests(unittest.TestCase):
             os.environ["SYZABI_CONFIG_PATH"] = str(config_path)
             os.environ["SYZABI_WORKFLOW"] = "fake_starry"
 
+            class FakeSession:
+                def __init__(self, cfg):
+                    self.cfg = cfg
+                    self._console = "starry:~#"
+
+                def start(self) -> None:
+                    return None
+
+                def run_command(self, label: str, command: str, *, timeout_sec: int):
+                    if label == "healthcheck":
+                        self._console += "\n__SYZABI_HEALTHCHECK_OK__\nstarry:~#"
+                        return "/fake/workspace\n__SYZABI_HEALTHCHECK_OK__\n", 0
+                    if "missing-trace" in command or "missing-trace" in label or "case-missing" in label:
+                        self._console += f"\n{label}: no trace\nstarry:~#"
+                        return "plain output\n", 0
+                    section = (
+                        starry_api.TRACE_EVENT_STDOUT_PREFIX
+                        + '{"args":[3,0,0,0,0,0],"end_ns":2,"errno":0,"event_index":0,"outputs":[],"return_value":0,"side":"candidate","start_ns":1,"syscall_name":"close","syscall_number":3}\n'
+                    )
+                    self._console += "\n" + section + "starry:~#"
+                    return section, 0
+
+                def console_text(self) -> str:
+                    return self._console
+
+                def close(self) -> None:
+                    return None
+
             os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
             os.environ["SYZABI_CONSOLE_LOG_PATH"] = str(console_log)
-            starry_api.healthcheck(SimpleNamespace(healthcheck=True, binary=None, batch_manifest=None, work_dir=str(root), mode="shell-qemu"))
-            self.assertEqual(json.loads(runner_result.read_text(encoding="utf-8"))["status"], "ok")
-            self.assertIn("starry:~#", console_log.read_text(encoding="utf-8"))
+            from unittest.mock import patch
 
-            os.environ["SYZABI_PROGRAM_ID"] = "case-one"
-            os.environ["SYZABI_RUN_ID"] = "run-one"
-            os.environ["SYZABI_RAW_TRACE_PATH"] = str(raw_trace)
-            os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(external_state)
-            starry_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), batch_manifest=None, work_dir=str(root), mode="shell-qemu"))
-            raw_payload = json.loads(raw_trace.read_text(encoding="utf-8"))
-            self.assertEqual(raw_payload["events"][0]["syscall_name"], "close")
-            self.assertEqual(raw_payload["process_exit"]["exit_code"], 0)
+            with patch("targets.tgoskits_starryos.api.ShellSession", FakeSession):
+                starry_api.healthcheck(SimpleNamespace(healthcheck=True, binary=None, batch_manifest=None, work_dir=str(root), mode="shell-qemu"))
+                self.assertEqual(json.loads(runner_result.read_text(encoding="utf-8"))["status"], "ok")
+                self.assertIn("starry:~#", console_log.read_text(encoding="utf-8"))
 
-            missing_trace_binary = root / "missing-trace.candidate.bin"
-            missing_trace_binary.write_text("bin", encoding="utf-8")
-            os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(root / "missing-trace.result.json")
-            os.environ["SYZABI_RAW_TRACE_PATH"] = str(root / "missing-trace.raw.json")
-            os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(root / "missing-trace.state.json")
-            starry_api.run_case(
-                SimpleNamespace(healthcheck=False, binary=str(missing_trace_binary), batch_manifest=None, work_dir=str(root), mode="shell-qemu")
-            )
-            missing_result = json.loads((root / "missing-trace.result.json").read_text(encoding="utf-8"))
-            self.assertEqual(missing_result["status"], "infra_error")
-            self.assertFalse((root / "missing-trace.raw.json").exists())
+                os.environ["SYZABI_PROGRAM_ID"] = "case-one"
+                os.environ["SYZABI_RUN_ID"] = "run-one"
+                os.environ["SYZABI_RAW_TRACE_PATH"] = str(raw_trace)
+                os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(external_state)
+                starry_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), batch_manifest=None, work_dir=str(root), mode="shell-qemu"))
+                raw_payload = json.loads(raw_trace.read_text(encoding="utf-8"))
+                self.assertEqual(raw_payload["events"][0]["syscall_name"], "close")
+                self.assertEqual(raw_payload["process_exit"]["exit_code"], 0)
 
-            batch_manifest = root / "batch-manifest.json"
-            case_a_raw = root / "case-a.raw.json"
-            case_b_raw = root / "case-b.raw.json"
-            batch_manifest.write_text(
-                json.dumps(
-                    {
-                        "cases": [
-                            {
-                                "program_id": "case-a",
-                                "run_id": "case-a-run",
-                                "binary_path": str(binary),
-                                "console_path": str(root / "case-a.console.log"),
-                                "raw_trace_path": str(case_a_raw),
-                                "external_state_path": str(root / "case-a.state.json"),
-                                "runner_result_path": str(root / "case-a.result.json"),
-                            },
-                            {
-                                "program_id": "case-b",
-                                "run_id": "case-b-run",
-                                "binary_path": str(binary),
-                                "console_path": str(root / "case-b.console.log"),
-                                "raw_trace_path": str(case_b_raw),
-                                "external_state_path": str(root / "case-b.state.json"),
-                                "runner_result_path": str(root / "case-b.result.json"),
-                            },
-                        ]
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                    sort_keys=True,
-                ),
-                encoding="utf-8",
-            )
-            starry_api.run_batch(SimpleNamespace(batch_manifest=str(batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
-            self.assertEqual(json.loads(case_a_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
-            self.assertEqual(json.loads(case_b_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
+                missing_trace_binary = root / "missing-trace.candidate.bin"
+                missing_trace_binary.write_text("bin", encoding="utf-8")
+                os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(root / "missing-trace.result.json")
+                os.environ["SYZABI_RAW_TRACE_PATH"] = str(root / "missing-trace.raw.json")
+                os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(root / "missing-trace.state.json")
+                starry_api.run_case(
+                    SimpleNamespace(healthcheck=False, binary=str(missing_trace_binary), batch_manifest=None, work_dir=str(root), mode="shell-qemu")
+                )
+                missing_result = json.loads((root / "missing-trace.result.json").read_text(encoding="utf-8"))
+                self.assertEqual(missing_result["status"], "infra_error")
+                self.assertFalse((root / "missing-trace.raw.json").exists())
 
-            missing_batch_manifest = root / "missing-batch-manifest.json"
-            missing_batch_manifest.write_text(
-                json.dumps(
-                    {
-                        "cases": [
-                            {
-                                "program_id": "case-missing",
-                                "run_id": "case-missing-run",
-                                "binary_path": str(missing_trace_binary),
-                                "console_path": str(root / "case-missing.console.log"),
-                                "raw_trace_path": str(root / "case-missing.raw.json"),
-                                "external_state_path": str(root / "case-missing.state.json"),
-                                "runner_result_path": str(root / "case-missing.result.json"),
-                            }
-                        ]
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                    sort_keys=True,
-                ),
-                encoding="utf-8",
-            )
-            starry_api.run_batch(SimpleNamespace(batch_manifest=str(missing_batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
-            missing_batch_result = json.loads((root / "case-missing.result.json").read_text(encoding="utf-8"))
-            self.assertEqual(missing_batch_result["status"], "infra_error")
-            self.assertFalse((root / "case-missing.raw.json").exists())
+                batch_manifest = root / "batch-manifest.json"
+                case_a_raw = root / "case-a.raw.json"
+                case_b_raw = root / "case-b.raw.json"
+                batch_manifest.write_text(
+                    json.dumps(
+                        {
+                            "cases": [
+                                {
+                                    "program_id": "case-a",
+                                    "run_id": "case-a-run",
+                                    "binary_path": str(binary),
+                                    "console_path": str(root / "case-a.console.log"),
+                                    "raw_trace_path": str(case_a_raw),
+                                    "external_state_path": str(root / "case-a.state.json"),
+                                    "runner_result_path": str(root / "case-a.result.json"),
+                                },
+                                {
+                                    "program_id": "case-b",
+                                    "run_id": "case-b-run",
+                                    "binary_path": str(binary),
+                                    "console_path": str(root / "case-b.console.log"),
+                                    "raw_trace_path": str(case_b_raw),
+                                    "external_state_path": str(root / "case-b.state.json"),
+                                    "runner_result_path": str(root / "case-b.result.json"),
+                                },
+                            ]
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                starry_api.run_batch(SimpleNamespace(batch_manifest=str(batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
+                self.assertEqual(json.loads(case_a_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
+                self.assertEqual(json.loads(case_b_raw.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
+
+                missing_batch_manifest = root / "missing-batch-manifest.json"
+                missing_batch_manifest.write_text(
+                    json.dumps(
+                        {
+                            "cases": [
+                                {
+                                    "program_id": "case-missing",
+                                    "run_id": "case-missing-run",
+                                    "binary_path": str(missing_trace_binary),
+                                    "console_path": str(root / "case-missing.console.log"),
+                                    "raw_trace_path": str(root / "case-missing.raw.json"),
+                                    "external_state_path": str(root / "case-missing.state.json"),
+                                    "runner_result_path": str(root / "case-missing.result.json"),
+                                }
+                            ]
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                starry_api.run_batch(SimpleNamespace(batch_manifest=str(missing_batch_manifest), healthcheck=False, binary=None, work_dir=str(root), mode="shell-qemu"))
+                missing_batch_result = json.loads((root / "case-missing.result.json").read_text(encoding="utf-8"))
+                self.assertEqual(missing_batch_result["status"], "infra_error")
+                self.assertFalse((root / "case-missing.raw.json").exists())
 
     def test_arceos_smoke_healthcheck_and_gating(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
