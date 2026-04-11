@@ -19,7 +19,17 @@ jobs:
       - name: Install QEMU
         run: sudo apt-get update && sudo apt-get install -y qemu-system-misc
       - name: Clone TGOSKits
-        run: git clone --depth 1 https://github.com/rcore-os/tgoskits.git "$RUNNER_TEMP/tgoskits"
+        run: |
+          git clone --depth 1 https://github.com/rcore-os/tgoskits.git "$RUNNER_TEMP/tgoskits"
+          REVISION=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("configs/targets/tgoskits_arceos/target.json").read_text(encoding="utf-8"))
+          print(data["revision"])
+          PY
+          )
+          git -C "$RUNNER_TEMP/tgoskits" fetch --depth 1 origin "$REVISION"
+          git -C "$RUNNER_TEMP/tgoskits" checkout "$REVISION"
       - name: Run ArceOS Smoke Healthcheck
         env:
           SYZABI_ENABLE_TGOSKITS: "1"

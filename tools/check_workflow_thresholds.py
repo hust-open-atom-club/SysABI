@@ -65,8 +65,8 @@ def main() -> None:
     for key, expected in thresholds.items():
         if key not in THRESHOLD_RULES:
             continue
-        rule, summary_path = THRESHOLD_RULES[key]
-        actual = summary_metric(summary, summary_path)
+        rule, metric_path = THRESHOLD_RULES[key]
+        actual = summary_metric(summary, metric_path)
         if actual is None:
             failures.append(f"summary missing metric for threshold {key}")
             continue
