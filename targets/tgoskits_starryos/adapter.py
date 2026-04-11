@@ -34,7 +34,7 @@ class TGOSKitsStarryOSTargetAdapter:
         api.run_case(args)
 
     def run_batch(self, args) -> None:
-        raise api.RunnerError("tgoskits_starryos does not implement batch execution yet")
+        api.run_batch(args)
 
 
 def build_target_adapter() -> TGOSKitsStarryOSTargetAdapter:
