@@ -9,6 +9,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -148,11 +149,13 @@ def command_values(
     cfg: dict[str, Any],
     *,
     serial_port: int = 0,
+    serial_socket_path: str = "",
 ) -> dict[str, str]:
     return {
         "arch": str(cfg.get("arch", "riscv64")),
         "repo_dir": str(repo_dir(cfg)),
         "serial_port": str(serial_port),
+        "serial_socket_path": serial_socket_path,
     }
 
 
@@ -215,6 +218,12 @@ def reserve_tcp_port() -> int:
     return port
 
 
+def reserve_unix_socket_path() -> Path:
+    root = Path(os.environ.get("TMPDIR", tempfile.gettempdir()))
+    root.mkdir(parents=True, exist_ok=True)
+    return root / f"syzabi-starry-{os.getpid()}-{time.time_ns()}.sock"
+
+
 class ShellSession:
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
@@ -222,6 +231,7 @@ class ShellSession:
         self._lock = threading.Lock()
         self.process: subprocess.Popen[str] | None = None
         self.sock: socket.socket | None = None
+        self.socket_path: Path | None = None
 
     def _append_console(self, chunk: str) -> None:
         with self._lock:
@@ -238,8 +248,20 @@ class ShellSession:
             self._append_console(line)
 
     def start(self) -> None:
-        serial_port = reserve_tcp_port()
-        launch_command = resolve_command(target_config(self.cfg)["shell_launch_command"], command_values(self.cfg, serial_port=serial_port))
+        serial_transport = str(target_config(self.cfg).get("serial_transport", "tcp"))
+        serial_port = 0
+        serial_socket_path = ""
+        if serial_transport == "tcp":
+            serial_port = reserve_tcp_port()
+        elif serial_transport == "unix":
+            self.socket_path = reserve_unix_socket_path()
+            serial_socket_path = str(self.socket_path)
+        else:
+            raise RunnerError(f"unsupported serial transport: {serial_transport}")
+        launch_command = resolve_command(
+            target_config(self.cfg)["shell_launch_command"],
+            command_values(self.cfg, serial_port=serial_port, serial_socket_path=serial_socket_path),
+        )
         self.process = subprocess.Popen(
             launch_command,
             cwd=str(workspace_dir(self.cfg)),
@@ -259,7 +281,14 @@ class ShellSession:
             if self.process.poll() is not None:
                 raise RunnerError("StarryOS launch process exited before shell became available")
             try:
-                self.sock = socket.create_connection(("127.0.0.1", serial_port), timeout=1)
+                if serial_transport == "tcp":
+                    self.sock = socket.create_connection(("127.0.0.1", serial_port), timeout=1)
+                else:
+                    if self.socket_path is None or not self.socket_path.exists():
+                        time.sleep(0.2)
+                        continue
+                    self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self.sock.connect(str(self.socket_path))
                 self.sock.settimeout(1)
                 break
             except OSError:
@@ -315,6 +344,9 @@ class ShellSession:
             except OSError:
                 pass
             self.sock = None
+        if self.socket_path is not None:
+            self.socket_path.unlink(missing_ok=True)
+            self.socket_path = None
         if self.process is not None and self.process.poll() is None:
             try:
                 os.killpg(self.process.pid, signal.SIGTERM)
@@ -412,6 +444,20 @@ def write_case_outputs(
     console_path: Path | None,
 ) -> None:
     events = extract_framed_events(command_output)
+    dump_json(external_state_path, {"files": []})
+    if not events:
+        dump_json(
+            runner_result_path_value,
+            {
+                "status": "infra_error",
+                "exit_code": exit_code,
+                "detail": "missing trace markers in StarryOS command output",
+                "kernel_build": kernel_build,
+            },
+        )
+        if console_path is not None:
+            console_path.write_text(console_text, encoding="utf-8")
+        return
     raw_trace = {
         "program_id": program_id,
         "side": "candidate",
@@ -425,7 +471,6 @@ def write_case_outputs(
         },
     }
     dump_json(raw_trace_path, raw_trace)
-    dump_json(external_state_path, {"files": []})
     dump_json(
         runner_result_path_value,
         {
