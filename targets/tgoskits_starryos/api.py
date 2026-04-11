@@ -219,9 +219,9 @@ def reserve_tcp_port() -> int:
 
 
 def reserve_unix_socket_path() -> Path:
-    root = Path(os.environ.get("TMPDIR", tempfile.gettempdir()))
+    root = Path(tempfile.gettempdir())
     root.mkdir(parents=True, exist_ok=True)
-    return root / f"syzabi-starry-{os.getpid()}-{time.time_ns()}.sock"
+    return root / f"sa-{os.getpid()}-{time.time_ns() % 1000000}.sock"
 
 
 class ShellSession:
