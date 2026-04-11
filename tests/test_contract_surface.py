@@ -57,18 +57,18 @@ class ContractSurfaceTests(unittest.TestCase):
         asterinas = runner_profiles(workflow="asterinas")
         self.assertEqual(asterinas["candidate"]["kind"], "command")
         self.assertEqual(asterinas["candidate"]["binary_name"], "testcase.candidate.bin")
-        self.assertIn("/targets/asterinas/entrypoint.py", " ".join(asterinas["candidate"]["command"]))
+        self.assertIn("/targets/entrypoint.py", " ".join(asterinas["candidate"]["command"]))
         self.assertNotIn("/tools/run_asterinas.py", " ".join(asterinas["candidate"]["command"]))
 
         asterinas_scml = runner_profiles(workflow="asterinas_scml")
         self.assertEqual(asterinas_scml["candidate"]["kind"], "command")
         self.assertEqual(asterinas_scml["reference"]["work_root"], "artifacts/sandboxes/asterinas_scml/reference")
-        self.assertIn("/targets/asterinas/entrypoint.py", " ".join(asterinas_scml["candidate"]["command"]))
+        self.assertIn("/targets/entrypoint.py", " ".join(asterinas_scml["candidate"]["command"]))
         self.assertNotIn("/tools/run_asterinas.py", " ".join(asterinas_scml["candidate"]["command"]))
 
         starry = runner_profiles(workflow="tgoskits_starryos")
         self.assertEqual(starry["candidate"]["kind"], "command")
-        self.assertIn("/targets/tgoskits_starryos/entrypoint.py", " ".join(starry["candidate"]["command"]))
+        self.assertIn("/targets/entrypoint.py", " ".join(starry["candidate"]["command"]))
 
     def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
         baseline = config(workflow="baseline")
@@ -593,7 +593,7 @@ class ContractSurfaceTests(unittest.TestCase):
         )
         self.assertEqual(prepare_scml.returncode, 0)
         self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key target", prepare_scml.stdout)
-        self.assertIn("targets/asterinas/entrypoint.py --mode docker-qemu --healthcheck", prepare_scml.stdout)
+        self.assertIn("targets/entrypoint.py --mode \"$TARGET_MODE\" --healthcheck", prepare_scml.stdout)
         self.assertNotIn("tools/run_asterinas.py", prepare_scml.stdout)
 
         clean = subprocess.run(

@@ -9,11 +9,20 @@
   },
   "candidate": {
     "binary_name": "testcase.candidate.bin",
+    "batch_command": [
+      "python3",
+      "{repo_root}/targets/entrypoint.py",
+      "--mode",
+      "shell-qemu",
+      "--batch-manifest",
+      "{batch_manifest_path}"
+    ],
+    "command_batching_mode": "shared_guest_shell",
     "command": [
       "python3",
-      "{repo_root}/targets/tgoskits_starryos/entrypoint.py",
+      "{repo_root}/targets/entrypoint.py",
       "--mode",
-      "host-direct",
+      "shell-qemu",
       "--binary",
       "{binary_path}",
       "--work-dir",

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -95,15 +96,78 @@ def instrument_source(source: str) -> tuple[str, int]:
     return instrumented, wrapped
 
 
+def build_side_config(cfg: dict[str, object], *, side: str) -> dict[str, object]:
+    build_cfg = cfg.get("build", {})
+    if not isinstance(build_cfg, dict):
+        return {}
+    side_cfg = build_cfg.get(side, {})
+    if not isinstance(side_cfg, dict):
+        return {}
+    return side_cfg
+
+
+def runner_source_for_side(cfg: dict[str, object], *, side: str) -> str:
+    side_cfg = build_side_config(cfg, side=side)
+    runner_source = side_cfg.get("runner_source")
+    if isinstance(runner_source, str) and runner_source:
+        return runner_source
+    if side == "candidate" and str(cfg.get("target", "")) == "asterinas":
+        return "agent/asterinas/runner.c"
+    return "agent/linux/runner.c"
+
+
+def compiler_for_side(cfg: dict[str, object], *, side: str) -> str:
+    build_cfg = cfg.get("build", {})
+    side_cfg = build_side_config(cfg, side=side)
+    arch = str(cfg.get("arch", "amd64"))
+
+    supported_arches = side_cfg.get("supported_arches")
+    if isinstance(supported_arches, list) and supported_arches and arch not in {str(item) for item in supported_arches}:
+        raise ValueError(f"{side} build does not support arch={arch}")
+
+    compiler_by_arch = side_cfg.get("compiler_by_arch")
+    if isinstance(compiler_by_arch, dict) and compiler_by_arch:
+        compiler = compiler_by_arch.get(arch)
+        if not isinstance(compiler, str) or not compiler:
+            raise ValueError(f"{side} build is missing compiler_by_arch entry for arch={arch}")
+        return compiler
+
+    if isinstance(side_cfg.get("compiler"), str) and side_cfg["compiler"]:
+        return str(side_cfg["compiler"])
+    if isinstance(build_cfg, dict) and isinstance(build_cfg.get("compiler"), str) and build_cfg["compiler"]:
+        return str(build_cfg["compiler"])
+    return "gcc"
+
+
+def cflags_for_side(cfg: dict[str, object], *, side: str) -> list[str]:
+    build_cfg = cfg.get("build", {})
+    base = list(build_cfg.get("cflags", [])) if isinstance(build_cfg, dict) else []
+    side_cfg = build_side_config(cfg, side=side)
+    side_flags = side_cfg.get("cflags", [])
+    if isinstance(side_flags, list):
+        base.extend(str(flag) for flag in side_flags)
+    return [str(flag) for flag in base]
+
+
 def compile_testcase(
     instrumented_path: Path,
     binary_path: Path,
     *,
-    runner_source: str,
+    cfg: dict[str, object],
+    side: str,
 ) -> subprocess.CompletedProcess[str]:
-    extra_cflags = config().get("build", {}).get("cflags", [])
+    compiler = compiler_for_side(cfg, side=side)
+    if shutil.which(compiler) is None:
+        return subprocess.CompletedProcess(
+            [compiler],
+            127,
+            "",
+            f"missing compiler for {side} build: {compiler}",
+        )
+    runner_source = runner_source_for_side(cfg, side=side)
+    extra_cflags = cflags_for_side(cfg, side=side)
     cmd = [
-        "gcc",
+        compiler,
         "-O2",
         "-std=gnu11",
         "-Wall",
@@ -133,7 +197,7 @@ def build_input_paths(
     cfg: dict[str, object],
     should_build_candidate: bool,
 ) -> list[Path]:
-    paths = [
+    paths: list[Path] = [
         normalized_path,
         Path(__file__).resolve(),
         resolve_repo_path("orchestrator/syzkaller.py"),
@@ -141,10 +205,25 @@ def build_input_paths(
         resolve_repo_path(cfg.get("runner_profiles_path", "configs/runner_profiles.json")),
         resolve_repo_path(cfg["paths"]["syzkaller_dir"]) / "bin" / "syz-prog2c",
         resolve_repo_path("agent/linux/trace.c"),
-        resolve_repo_path("agent/linux/runner.c"),
     ]
+    seen = {str(path.resolve()) for path in paths}
+    for source in (
+        runner_source_for_side(cfg, side="reference"),
+        runner_source_for_side(cfg, side="candidate") if should_build_candidate else None,
+    ):
+        if source is None:
+            continue
+        resolved = resolve_repo_path(source)
+        key = str(resolved.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(resolved)
     if should_build_candidate:
-        paths.append(resolve_repo_path("agent/asterinas/runner.c"))
+        side_cfg = build_side_config(cfg, side="candidate")
+        compiler = side_cfg.get("compiler")
+        if isinstance(compiler, str) and compiler and (compiler.startswith("/") or Path(compiler).exists()):
+            paths.append(Path(compiler))
     return paths
 
 
@@ -288,20 +367,43 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     testcase_c.write_text(prog2c_result.stdout, encoding="utf-8")
     instrumented_source, wrapped_count = instrument_source(prog2c_result.stdout)
     testcase_instrumented.write_text(instrumented_source, encoding="utf-8")
-    compile_result = compile_testcase(
-        testcase_instrumented,
-        testcase_bin,
-        runner_source="agent/linux/runner.c",
-    )
-    compile_stderr.write_text(compile_result.stderr, encoding="utf-8")
-    candidate_compile_result: subprocess.CompletedProcess[str] | None = None
-    if should_build_candidate:
-        candidate_compile_result = compile_testcase(
+    try:
+        compile_result = compile_testcase(
             testcase_instrumented,
-            candidate_bin,
-            runner_source="agent/asterinas/runner.c",
+            testcase_bin,
+            cfg=cfg,
+            side="reference",
         )
-        candidate_compile_stderr.write_text(candidate_compile_result.stderr, encoding="utf-8")
+        compile_stderr.write_text(compile_result.stderr, encoding="utf-8")
+        candidate_compile_result: subprocess.CompletedProcess[str] | None = None
+        if should_build_candidate:
+            candidate_compile_result = compile_testcase(
+                testcase_instrumented,
+                candidate_bin,
+                cfg=cfg,
+                side="candidate",
+            )
+            candidate_compile_stderr.write_text(candidate_compile_result.stderr, encoding="utf-8")
+    except ValueError as exc:
+        compile_stderr.write_text(str(exc), encoding="utf-8")
+        result = {
+            "program_id": program_id,
+            "normalized_path": str(normalized_path),
+            "status": "build_failure",
+            "stage": "compile",
+            "returncode": 1,
+            "wrapped_syscalls": wrapped_count,
+            "testcase_c": str(testcase_c),
+            "testcase_instrumented_c": str(testcase_instrumented),
+            "testcase_bin": str(testcase_bin),
+            "candidate_testcase_bin": str(candidate_bin) if should_build_candidate else None,
+            "prog2c_stderr": str(prog2c_stderr),
+            "compile_stderr": str(compile_stderr),
+            "candidate_compile_stderr": str(candidate_compile_stderr) if should_build_candidate else None,
+            "input_fingerprints": build_fingerprints,
+        }
+        dump_json(build_root / "build-result.json", result)
+        return result
 
     status = "ok" if compile_result.returncode == 0 else "build_failure"
     if candidate_compile_result is not None and candidate_compile_result.returncode != 0:

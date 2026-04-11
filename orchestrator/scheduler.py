@@ -730,7 +730,7 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     if not capabilities.supports_batch_execution:
         return False
     profile = runner_profiles()["candidate"]
-    if profile.get("kind") == "command" and profile.get("command_batching_mode") not in {"packaged_per_case", None}:
+    if profile.get("kind") == "command" and profile.get("command_batching_mode") not in {"packaged_per_case", "shared_guest_shell", None}:
         return False
     return effective_candidate_batch_size(args, cfg) > 1
 
@@ -808,7 +808,7 @@ def schedule_entries_with_candidate_batch(entries: list[dict[str, object]], args
                 candidate_result,
                 candidate_canonical,
                 candidate_package_dir=package_dir,
-                candidate_package_slot=slot_by_program[prepared["program_id"]],
+                candidate_package_slot=slot_by_program.get(prepared["program_id"]),
             )
 
         if jobs <= 1 or len(chunk) <= 1:

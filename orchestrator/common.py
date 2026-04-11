@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
-from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload
+from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload, validate_target_config_payload
 from orchestrator.legacy_compat import default_presentation, emit_deprecation_warning_once, infer_legacy_target
 from runners.factory import available_runner_kinds
 
@@ -154,6 +154,11 @@ def validate_runner_profiles_payload(
                 f"runner profile {role} references unsupported kind {kind!r}; "
                 f"supported={available_runner_kinds()!r}"
             )
+    candidate = payload.get("candidate", {})
+    if isinstance(candidate, dict):
+        batching_mode = candidate.get("command_batching_mode")
+        if batching_mode == "shared_guest_shell" and not candidate.get("batch_command"):
+            raise WorkflowContractError("candidate runner profile with shared_guest_shell batching must define batch_command")
 
 
 def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
@@ -170,6 +175,7 @@ def config(*, workflow: str | None = None, config_path: str | Path | None = None
     target_config_path = payload.get("target_config_path")
     if target_config_path:
         target_config = load_json(target_config_path)
+        validate_target_config_payload(target_config, workflow_payload=payload)
         payload["target_config"] = target_config
         if target_name not in payload:
             payload[target_name] = target_config

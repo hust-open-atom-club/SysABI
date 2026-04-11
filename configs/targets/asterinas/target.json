@@ -9,6 +9,7 @@
   "cargo_registry_git_index": "https://rsproxy.cn/crates.io-index",
   "cargo_registry_protocol": "sparse",
   "cargo_registry_sparse_index": "sparse+https://rsproxy.cn/index/",
+  "default_mode": "docker-qemu",
   "repo_dir": "third_party/asterinas",
   "revision": "main",
   "rustup_dist_server": "https://rsproxy.cn",
