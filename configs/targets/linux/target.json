@@ -1,0 +1,4 @@
+{
+  "build_info_path": "artifacts/targets/linux/build-info.json",
+  "run_timeout_sec": 10
+}

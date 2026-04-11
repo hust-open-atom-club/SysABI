@@ -45,6 +45,8 @@ run-workflow:
 	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
 	if [ "$$TARGET_NAME" = "asterinas" ]; then \
 		$(MAKE) prepare-target WORKFLOW=$(WORKFLOW); \
+	elif [ "$$TARGET_NAME" != "linux" ] && [ -f "targets/$$TARGET_NAME/entrypoint.py" ]; then \
+		$(MAKE) prepare-target WORKFLOW=$(WORKFLOW); \
 	fi
 	$(PYTHON) orchestrator/scheduler.py --workflow $(WORKFLOW) --campaign $(CAMPAIGN) $(if $(LIMIT),--limit $(LIMIT),) $(if $(JOBS),--jobs $(JOBS),)
 
@@ -98,6 +100,8 @@ prepare-target:
 	@TARGET_NAME="$$( $(PYTHON) tools/workflow_path.py --workflow $(WORKFLOW) --key target )"; \
 	if [ "$$TARGET_NAME" = "asterinas" ]; then \
 		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/asterinas/entrypoint.py --mode docker-qemu --healthcheck; \
+	elif [ "$$TARGET_NAME" != "linux" ] && [ -f "targets/$$TARGET_NAME/entrypoint.py" ]; then \
+		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/$$TARGET_NAME/entrypoint.py --healthcheck; \
 	else \
 		echo "prepare-target unsupported for target=$$TARGET_NAME workflow=$(WORKFLOW)" >&2; exit 1; \
 	fi

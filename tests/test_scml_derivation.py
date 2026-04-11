@@ -15,13 +15,14 @@ from tools.derive_scml_allowed_sequences import derive_rejection, load_manifest_
 class SCMLDerivationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        source_root = Path("third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage")
+        if not source_root.exists():
+            raise unittest.SkipTest("requires third_party/asterinas SCML coverage checkout")
         cls.cfg = load_json("configs/asterinas_scml_rules.json")
         cls.manifest = build_manifest(
             target="asterinas",
             repo_dir=Path("third_party/asterinas"),
-            source_root=Path(
-                "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage"
-            ),
+            source_root=source_root,
         )
         cls.profile = load_json(cls.cfg["generation_profile_path"])
         cls.manifest_index = load_manifest_index(cls.manifest, cls.profile)

@@ -125,7 +125,7 @@
     "candidate_label": "Linux(candidate)",
     "reference_label": "Linux(reference)"
   },
-  "runner_profiles_path": "configs/runner_profiles.json",
+  "runner_profiles_path": "configs/targets/linux/runner_profiles.baseline.json",
   "schema_version": 1,
   "stability": {
     "baseline_invalid_threshold": 0.1,
@@ -139,6 +139,7 @@
     "repo": "https://github.com/google/syzkaller.git"
   },
   "target": "linux",
+  "target_config_path": "configs/targets/linux/target.json",
   "target_os": "linux",
   "thresholds": {
     "signoff": {

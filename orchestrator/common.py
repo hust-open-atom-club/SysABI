@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
+from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload
 from orchestrator.legacy_compat import default_presentation, emit_deprecation_warning_once, infer_legacy_target
+from runners.factory import available_runner_kinds
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -130,9 +132,34 @@ def write_text(path: str | Path, content: str) -> None:
         handle.write(content)
 
 
+def validate_runner_profiles_payload(
+    payload: dict[str, Any],
+    *,
+    resolved_path: Path,
+) -> None:
+    try:
+        resolved_path.relative_to(resolve_repo_path("configs"))
+    except ValueError:
+        return
+
+    for role in ("reference", "candidate"):
+        profile = payload.get(role)
+        if not isinstance(profile, dict):
+            raise WorkflowContractError(f"runner profiles missing required section: {role}")
+        kind = profile.get("kind", "local")
+        if not isinstance(kind, str) or not kind:
+            raise WorkflowContractError(f"runner profile {role} is missing a non-empty kind")
+        if kind not in available_runner_kinds():
+            raise WorkflowContractError(
+                f"runner profile {role} references unsupported kind {kind!r}; "
+                f"supported={available_runner_kinds()!r}"
+            )
+
+
 def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:
     resolved_path = resolved_config_path(workflow=workflow, config_path=config_path)
     payload = load_json(resolved_path)
+    validate_repo_workflow_payload(payload, resolved_path=resolved_path, repo_root=repo_root())
     target_name = payload.get("target")
     if not isinstance(target_name, str) or not target_name:
         if resolved_path.name.endswith("_rules.json"):
@@ -210,7 +237,9 @@ def runner_profiles(*, workflow: str | None = None, config_path: str | Path | No
             f"legacy-runner-profiles:{path}",
             f"{path.relative_to(repo_root())} -> use configs/targets/<target>/runner_profiles.<workflow>.json",
         )
-    return load_json(path)
+    payload = load_json(path)
+    validate_runner_profiles_payload(payload, resolved_path=path)
+    return payload
 
 
 def path_resolver(cfg: dict[str, Any] | None = None) -> PathResolver:

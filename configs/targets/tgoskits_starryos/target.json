@@ -1,0 +1,19 @@
+{
+  "build_info_path": "artifacts/targets/tgoskits_starryos/build-info.json",
+  "repo_dir": "",
+  "repo_dir_env": "SYZABI_TGOSKITS_DIR",
+  "runner_label": "tgoskits-starryos",
+  "prepare_timeout_sec": 1800,
+  "run_timeout_sec": 300,
+  "prepare_commands": [],
+  "healthcheck_command": [
+    "sh",
+    "-lc",
+    "test -d \"{repo_dir}\""
+  ],
+  "run_command": [
+    "sh",
+    "-lc",
+    "\"{binary_path}\""
+  ]
+}

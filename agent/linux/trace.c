@@ -35,6 +35,8 @@ struct output_probe {
 };
 
 static int trace_fd = -1;
+static int trace_stdout_transport = 0;
+static const char trace_stdout_prefix[] = "__SYZABI_TRACE_EVENT__ ";
 
 static uint32 rotr(uint32 value, uint32 bits)
 {
@@ -183,8 +185,11 @@ static int open_trace_file(void)
 	if (trace_fd >= 0)
 		return trace_fd;
 	const char* path = syzabi_events_path();
-	if (!path || !*path)
-		return -1;
+	if (!path || !*path || strcmp(path, "stdout") == 0) {
+		trace_stdout_transport = 1;
+		trace_fd = STDOUT_FILENO;
+		return trace_fd;
+	}
 	trace_fd = (int)syscall(__NR_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_APPEND, 0644);
 	if (trace_fd < 0)
 		return -1;
@@ -392,11 +397,23 @@ static void emit_trace_line(const char* line, size_t len)
 {
 	int fd = open_trace_file();
 	size_t written = 0;
+	char framed[33024];
+	const char* payload = line;
+	size_t payload_len = len;
 
 	if (fd < 0)
 		return;
-	while (written < len) {
-		long ret = syscall(__NR_write, fd, line + written, len - written);
+	if (trace_stdout_transport) {
+		size_t prefix_len = strlen(trace_stdout_prefix);
+		if (prefix_len + len >= sizeof(framed))
+			return;
+		memcpy(framed, trace_stdout_prefix, prefix_len);
+		memcpy(framed + prefix_len, line, len);
+		payload = framed;
+		payload_len = prefix_len + len;
+	}
+	while (written < payload_len) {
+		long ret = syscall(__NR_write, fd, payload + written, payload_len - written);
 		if (ret <= 0)
 			return;
 		written += (size_t)ret;

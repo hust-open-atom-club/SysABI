@@ -79,6 +79,7 @@ ASTERINAS_JOBS=80 RUN_LIMIT=100 make run
 | `baseline` | validate the replay framework on Linux vs Linux | Linux `reference` vs Linux `candidate` |
 | `asterinas` | run Linux vs Asterinas differential replay | Linux `reference` vs Asterinas `candidate` |
 | `asterinas_scml` | add SCML-aware filtering and preflight | Linux `reference` vs Asterinas `candidate` |
+| `tgoskits_starryos` | external-workspace StarryOS integration path | Linux `reference` vs TGOSKits StarryOS `candidate` |
 
 ## Most Useful Commands
 
@@ -183,6 +184,20 @@ Baseline outputs:
 - `build/targets/linux/baseline/testcases/`
 - `artifacts/runs/targets/linux/baseline/`
 - `reports/targets/linux/baseline/summary.json`
+
+## Compatibility Contract
+
+The following surfaces are intentionally preserved while the platform layer evolves:
+
+- workflow names and generic entrypoints such as `make run`, `make build-workflow`, `make run-workflow`
+- canonical artifact roots under `build/targets/<target>/<workflow>/`, `artifacts/runs/targets/<target>/<workflow>/`, and `reports/targets/<target>/<workflow>/`
+- legacy `_rules.json` compatibility for older configs
+- per-run materialization of `stdout.txt`, `stderr.txt`, `console.log`, `raw-trace.json`, `external-state.json`, and `run-result.json`
+
+For the TGOSKits StarryOS workflow:
+
+- the repo does not vendor TGOSKits; point the workflow at an external checkout with `SYZABI_TGOSKITS_DIR`
+- `trace.events_transport=stdout` is used so guest-side trace events can be recovered from framed stdout lines when a writable guest file path is not available
 
 ## Repository Layout
 

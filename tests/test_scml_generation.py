@@ -18,12 +18,13 @@ from tools.build_scml_manifest import build_manifest
 class SCMLGenerationManifestTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        source_root = Path("third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage")
+        if not source_root.exists():
+            raise unittest.SkipTest("requires third_party/asterinas SCML coverage checkout")
         cls.manifest = build_manifest(
             target="asterinas",
             repo_dir=Path("third_party/asterinas"),
-            source_root=Path(
-                "third_party/asterinas/book/src/kernel/linux-compatibility/syscall-flag-coverage"
-            ),
+            source_root=source_root,
         )
         cls.profile = load_json("compat_specs/asterinas/generation-profile.json")
         cls.manifest_index = load_manifest_index(cls.manifest, cls.profile)
