@@ -326,14 +326,17 @@ def ensure_disk_image(cfg: dict[str, Any], *, work_dir: Path, timeout_sec: int) 
     image = run_disk_image_path(cfg, work_dir=work_dir)
     image.parent.mkdir(parents=True, exist_ok=True)
     image.unlink(missing_ok=True)
-    completed = subprocess.run(
-        ["make", f"DISK_IMG={image}", "disk_img"],
-        cwd=str(workspace_dir(cfg)),
-        check=False,
-        text=True,
-        capture_output=True,
-        timeout=timeout_sec,
-    )
+    try:
+        completed = subprocess.run(
+            ["make", f"DISK_IMG={image}", "disk_img"],
+            cwd=str(workspace_dir(cfg)),
+            check=False,
+            text=True,
+            capture_output=True,
+            timeout=timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RunnerError(f"ArceOS disk image creation timed out after {timeout_sec}s") from exc
     if completed.returncode != 0 or not image.exists():
         raise RunnerError(completed.stderr.strip() or completed.stdout.strip() or f"failed to create ArceOS disk image at {image}")
     return image
@@ -570,6 +573,28 @@ def write_case_outputs(
         console_path.write_text(console_text, encoding="utf-8")
 
 
+def write_infra_error(
+    *,
+    runner_result_path_value: Path,
+    console_path: Path | None,
+    console_text: str,
+    detail: str,
+    kernel_build: str,
+) -> None:
+    dump_json(
+        runner_result_path_value,
+        {
+            "status": "infra_error",
+            "exit_code": None,
+            "detail": detail,
+            "kernel_build": kernel_build,
+        },
+    )
+    if console_path is not None:
+        console_path.parent.mkdir(parents=True, exist_ok=True)
+        console_path.write_text(console_text, encoding="utf-8")
+
+
 def run_case(args: argparse.Namespace) -> None:
     cfg = read_workflow_config()
     label = prepare_target(cfg)
@@ -587,32 +612,67 @@ def run_case(args: argparse.Namespace) -> None:
     work_dir = resolve_work_dir(args)
     app_dir = materialize_app_tree(cfg, binary_path=binary_path, work_dir=work_dir)
     timeout_sec = int(target_config(cfg).get("command_timeout_sec", 300))
-    disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
+    console_text = ""
+    try:
+        disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
+    except RunnerError as exc:
+        write_infra_error(
+            runner_result_path_value=runner_result,
+            console_path=console_path,
+            console_text=console_text,
+            detail=str(exc),
+            kernel_build=label,
+        )
+        raise
     config_path, previous_config = write_managed_cargo_config(cfg)
     make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
     try:
-        completed_defconfig = subprocess.run(
-            ["make", *make_args, "defconfig"],
-            cwd=str(workspace_dir(cfg)),
-            check=False,
-            text=True,
-            capture_output=True,
-            timeout=timeout_sec,
-        )
+        try:
+            completed_defconfig = subprocess.run(
+                ["make", *make_args, "defconfig"],
+                cwd=str(workspace_dir(cfg)),
+                check=False,
+                text=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+        except subprocess.TimeoutExpired as exc:
+            console_text = (exc.stdout or "") + (exc.stderr or "")
+            detail = f"ArceOS defconfig timed out after {timeout_sec}s"
+            write_infra_error(
+                runner_result_path_value=runner_result,
+                console_path=console_path,
+                console_text=console_text,
+                detail=detail,
+                kernel_build=label,
+            )
+            raise RunnerError(detail) from exc
         console_text = completed_defconfig.stdout + completed_defconfig.stderr
         if completed_defconfig.returncode != 0:
             if console_path is not None:
                 console_path.parent.mkdir(parents=True, exist_ok=True)
                 console_path.write_text(console_text, encoding="utf-8")
             raise RunnerError(completed_defconfig.stderr.strip() or completed_defconfig.stdout.strip() or "ArceOS defconfig failed")
-        completed_run = subprocess.run(
-            ["make", *make_args, "run"],
-            cwd=str(workspace_dir(cfg)),
-            check=False,
-            text=True,
-            capture_output=True,
-            timeout=timeout_sec,
-        )
+        try:
+            completed_run = subprocess.run(
+                ["make", *make_args, "run"],
+                cwd=str(workspace_dir(cfg)),
+                check=False,
+                text=True,
+                capture_output=True,
+                timeout=timeout_sec,
+            )
+        except subprocess.TimeoutExpired as exc:
+            console_text += (exc.stdout or "") + (exc.stderr or "")
+            detail = f"ArceOS run timed out after {timeout_sec}s"
+            write_infra_error(
+                runner_result_path_value=runner_result,
+                console_path=console_path,
+                console_text=console_text,
+                detail=detail,
+                kernel_build=label,
+            )
+            raise RunnerError(detail) from exc
         console_text += completed_run.stdout + completed_run.stderr
         if completed_run.returncode != 0:
             if console_path is not None:

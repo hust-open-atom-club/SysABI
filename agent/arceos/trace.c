@@ -68,7 +68,7 @@ static void emit_event(const char* syscall_name, long syscall_number, long call_
     (void)write(fd, line, (size_t)line_len);
 }
 
-static long dispatch_call(const char* syscall_name, long a0, long a1, long a2)
+static long dispatch_call(const char* syscall_name, long a0, long a1, long a2, long a3)
 {
     if (strcmp(syscall_name, "close") == 0)
         return close((int)a0);
@@ -87,7 +87,7 @@ static long dispatch_call(const char* syscall_name, long a0, long a1, long a2)
             return -1;
         }
         if ((int)a2 & O_CREAT)
-            return open((const char*)a1, (int)a2, 0);
+            return open((const char*)a1, (int)a2, (int)a3);
         return open((const char*)a1, (int)a2);
     }
 
@@ -114,7 +114,7 @@ long traced_syscall(const char* syscall_name, long syscall_number, long call_ind
     }
 
     errno = 0;
-    ret = dispatch_call(syscall_name, a0, a1, a2);
+    ret = dispatch_call(syscall_name, a0, a1, a2, a3);
     err = ret < 0 ? errno : 0;
     end_ns = monotonic_ns();
     emit_event(syscall_name, syscall_number, call_index, a0, a1, a2, a3, a4, a5, ret, err, start_ns, end_ns);
