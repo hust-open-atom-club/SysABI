@@ -13,6 +13,8 @@
 #define O_TMPFILE 020200000
 #endif
 
+#define TRACE_FD_MIN 256
+
 typedef unsigned char uint8;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
@@ -181,21 +183,30 @@ static unsigned long long monotonic_ns(void)
 
 static int ensure_trace_fd(void)
 {
+    int reserved[TRACE_FD_MIN];
+    size_t count = 0;
+    int candidate = -1;
     if (trace_fd >= 0)
         return trace_fd;
-#ifdef F_DUPFD_CLOEXEC
-    trace_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 1000);
-    if (trace_fd >= 0)
+    while (count < TRACE_FD_MIN) {
+        int fd = dup(STDOUT_FILENO);
+        if (fd < 0)
+            break;
+        reserved[count++] = fd;
+        candidate = fd;
+        if (fd >= TRACE_FD_MIN)
+            break;
+    }
+    while (count > 0) {
+        int fd = reserved[--count];
+        if (fd == candidate)
+            continue;
+        close(fd);
+    }
+    if (candidate >= 0) {
+        trace_fd = candidate;
         return trace_fd;
-#endif
-#ifdef F_DUPFD
-    trace_fd = fcntl(STDOUT_FILENO, F_DUPFD, 1000);
-    if (trace_fd >= 0)
-        return trace_fd;
-#endif
-    trace_fd = dup(STDOUT_FILENO);
-    if (trace_fd >= 0)
-        return trace_fd;
+    }
     trace_fd = STDOUT_FILENO;
     return trace_fd;
 }
@@ -362,6 +373,14 @@ long traced_syscall(const char* syscall_name, long syscall_number, long call_ind
     int exit_code;
 
     (void)ensure_trace_fd();
+
+    if ((strcmp(syscall_name, "close") == 0 || strcmp(syscall_name, "read") == 0 || strcmp(syscall_name, "write") == 0) &&
+        (int)a0 == trace_fd) {
+        errno = EBADF;
+        end_ns = monotonic_ns();
+        emit_event(syscall_name, syscall_number, call_index, a0, a1, a2, a3, a4, a5, -1, EBADF, start_ns, end_ns);
+        return -1;
+    }
 
     if (strcmp(syscall_name, "exit") == 0 || strcmp(syscall_name, "exit_group") == 0) {
         end_ns = monotonic_ns();
