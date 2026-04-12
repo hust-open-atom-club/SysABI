@@ -643,30 +643,29 @@ class TGOSKitsTargetTests(unittest.TestCase):
             self.assertEqual(events[1]["return_value"], -1)
             self.assertEqual(events[1]["errno"], 9)
 
-    def test_arceos_trace_forwards_openat_mode(self) -> None:
+    def test_arceos_trace_records_read_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             source = root / "driver.c"
             binary = root / "driver"
-            target_file = root / "created.txt"
             source.write_text(
                 textwrap.dedent(
-                    f"""\
-                    #include <fcntl.h>
-                    #include <sys/stat.h>
+                    """\
+                    #include <string.h>
                     #include <unistd.h>
                     #include "trace.h"
 
                     int main(void) {{
-                        long fd = traced_syscall("openat", 1025, 0, AT_FDCWD, (long)"{target_file}", O_CREAT | O_WRONLY, 0644, 0, 0);
-                        struct stat st;
-                        if (fd < 0)
+                        int pipefd[2];
+                        char buf[8] = {0};
+                        if (pipe(pipefd) != 0)
                             return 11;
-                        close((int)fd);
-                        if (stat("{target_file}", &st) != 0)
+                        if (write(pipefd[1], "DATA", 4) != 4)
                             return 12;
-                        if ((st.st_mode & 0777) != 0644)
+                        if (traced_syscall("read", 1026, 0, pipefd[0], (long)buf, 4, 0, 0, 0) != 4)
                             return 13;
+                        if (memcmp(buf, "DATA", 4) != 0)
+                            return 14;
                         return 0;
                     }}
                     """
@@ -693,6 +692,11 @@ class TGOSKitsTargetTests(unittest.TestCase):
             )
             completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
             self.assertEqual(completed.returncode, 0, completed.stderr)
+            event = json.loads(completed.stdout.splitlines()[0][len("__SYZABI_TRACE_EVENT__ ") :])
+            self.assertEqual(event["syscall_name"], "read")
+            self.assertEqual(event["outputs"][0]["label"], "buf")
+            self.assertEqual(event["outputs"][0]["length"], 4)
+            self.assertEqual(event["outputs"][0]["preview_hex"], "44415441")
 
     def test_arceos_run_case_writes_timeout_runner_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
