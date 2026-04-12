@@ -109,7 +109,7 @@ preflight-tgoskits-arceos:
 	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
 
 run-tgoskits-arceos-smoke:
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) --jobs $(or $(JOBS),1)
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) --limit $(or $(LIMIT),1) --jobs $(or $(JOBS),1)
 
 derive-asterinas-scml:
 	@echo "warning: derive-asterinas-scml is deprecated; use derive-workflow/preflight-workflow WORKFLOW=asterinas_scml" >&2

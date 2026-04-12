@@ -17,6 +17,9 @@ from targets.tgoskits_arceos import api as arceos_api
 from targets.tgoskits_starryos import api as starry_api
 
 
+RUNNER_ERRORS = (starry_api.RunnerError, arceos_api.RunnerError)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workflow", default="tgoskits_starryos")
@@ -48,6 +51,13 @@ def preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
     raise SystemExit(f"unsupported TGOSKits target for launch tool: {target}")
 
 
+def checked_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
+    try:
+        return preflight_payload(cfg)
+    except RUNNER_ERRORS as exc:
+        raise SystemExit(str(exc))
+
+
 def run_command(command: list[str], *, env: dict[str, str]) -> None:
     completed = subprocess.run(command, cwd=ROOT, env=env, check=False, text=True)
     if completed.returncode != 0:
@@ -64,28 +74,42 @@ def ensure_prog2c_exists(cfg: dict[str, object]) -> None:
     )
 
 
+def enforce_campaign_scope(cfg: dict[str, object], args: argparse.Namespace) -> None:
+    target = str(cfg.get("target", ""))
+    if target != "tgoskits_arceos":
+        return
+    if args.limit != 1 or args.jobs != 1:
+        raise SystemExit(
+            "ArceOS experimental campaign is single-case only; use `--limit 1 --jobs 1`."
+        )
+
+
+def healthcheck_command(workflow: str) -> list[str]:
+    return ["python3", "targets/entrypoint.py", "--workflow", workflow, "--healthcheck"]
+
+
 def main() -> None:
     args = parse_args()
     cfg = load_cfg(args.workflow)
 
     if args.command == "preflight":
-        print(json.dumps(preflight_payload(cfg), ensure_ascii=False, indent=2, sort_keys=True))
+        print(json.dumps(checked_preflight_payload(cfg), ensure_ascii=False, indent=2, sort_keys=True))
         return
 
     env = os.environ.copy()
     env["SYZABI_WORKFLOW"] = args.workflow
 
     if args.command == "healthcheck":
-        preflight_payload(cfg)
-        run_command(
-            ["python3", "targets/entrypoint.py", "--workflow", args.workflow, "--healthcheck"],
-            env=env,
-        )
+        checked_preflight_payload(cfg)
+        run_command(healthcheck_command(args.workflow), env=env)
         return
 
     if args.command == "campaign":
-        preflight_payload(cfg)
+        checked_preflight_payload(cfg)
+        enforce_campaign_scope(cfg, args)
         eligible_file = args.eligible_file or str(cfg["paths"]["eligible_file"])
+        if str(cfg.get("target", "")) == "tgoskits_starryos":
+            run_command(healthcheck_command(args.workflow), env=env)
         if not args.skip_build:
             ensure_prog2c_exists(cfg)
             build_cmd = [

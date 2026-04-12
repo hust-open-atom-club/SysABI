@@ -130,8 +130,10 @@ python3 tools/render_summary.py --workflow asterinas_scml
 
 ```bash
 python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos healthcheck
 python3 tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
 python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke healthcheck
 python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
 ```
 
