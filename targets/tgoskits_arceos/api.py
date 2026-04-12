@@ -273,8 +273,14 @@ def managed_cargo_marker() -> str:
 
 
 def render_managed_cargo_config(cfg: dict[str, Any]) -> str:
-    template = managed_cargo_template_path(cfg).read_text(encoding="utf-8")
-    manifest = tomllib.loads(root_cargo_manifest_path(cfg).read_text(encoding="utf-8"))
+    try:
+        template = managed_cargo_template_path(cfg).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RunnerError(f"failed to read managed ArceOS cargo-config template: {managed_cargo_template_path(cfg)}") from exc
+    try:
+        manifest = tomllib.loads(root_cargo_manifest_path(cfg).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RunnerError(f"failed to read TGOSKits root Cargo.toml for managed ArceOS cargo-config generation: {root_cargo_manifest_path(cfg)}") from exc
     patches = manifest.get("patch", {}).get("crates-io", {})
     arceos_dir = workspace_dir(cfg)
     rendered = template if template.endswith("\n") else template + "\n"
@@ -816,6 +822,9 @@ def run_batch(args: argparse.Namespace) -> None:
 
 def main() -> None:
     args = parse_args()
+    current_runner_result = runner_result_path()
+    if current_runner_result is not None:
+        current_runner_result.unlink(missing_ok=True)
     try:
         if args.healthcheck:
             healthcheck(args)
