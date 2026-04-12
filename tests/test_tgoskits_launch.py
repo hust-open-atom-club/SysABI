@@ -263,6 +263,24 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             launch.main()
         self.assertEqual(commands, [["python3", "targets/entrypoint.py", "--workflow", "tgoskits_arceos_smoke", "--healthcheck"]])
 
+    def test_arceos_preflight_uses_replay_prerequisites(self) -> None:
+        cfg = {
+            "workflow": "tgoskits_arceos_smoke",
+            "target": "tgoskits_arceos",
+            "paths": {"eligible_file": "eligible.jsonl", "syzkaller_dir": "third_party/syzkaller"},
+        }
+        captured = io.StringIO()
+        with patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
+            "tools.tgoskits_launch.campaign_preflight_payload",
+            return_value={"target": "tgoskits_arceos", "mode": "experimental-c-app"},
+        ) as campaign_preflight, patch(
+            "tools.tgoskits_launch.checked_preflight_payload",
+            side_effect=AssertionError("checked_preflight_payload should not be used for ArceOS preflight"),
+        ), patch("sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_arceos_smoke", "preflight"]), redirect_stdout(captured):
+            launch.main()
+        self.assertTrue(campaign_preflight.called)
+        self.assertEqual(json.loads(captured.getvalue())["target"], "tgoskits_arceos")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -958,6 +958,103 @@ class TGOSKitsTargetTests(unittest.TestCase):
                 arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(root / "workdir")))
             self.assertFalse((workspace / ".cargo" / "config.toml").exists())
 
+    def test_arceos_run_case_reports_missing_replay_toolchain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            repo = root / "tgoskits"
+            workspace = repo / "os" / "arceos"
+            workspace.mkdir(parents=True, exist_ok=True)
+            platform_config = repo / "components" / "axplat_crates" / "platforms" / "axplat-riscv64-qemu-virt" / "axconfig.toml"
+            platform_config.parent.mkdir(parents=True, exist_ok=True)
+            platform_config.write_text("package = \"ax-plat-riscv64-qemu-virt\"\n", encoding="utf-8")
+            template = repo / "scripts" / "arceos-c-test-cargo-config.template.toml"
+            template.parent.mkdir(parents=True, exist_ok=True)
+            template.write_text(
+                "# Generated for tests.\n# axbuild-managed: arceos-c-test-cargo-config\n# axbuild-managed-patches: appended below\n",
+                encoding="utf-8",
+            )
+            (repo / "components" / "axallocator").mkdir(parents=True, exist_ok=True)
+            (repo / "Cargo.toml").write_text(
+                "[patch.crates-io]\nax-allocator = { path = \"components/axallocator\" }\n",
+                encoding="utf-8",
+            )
+            revision = init_git_repo(repo)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir(parents=True, exist_ok=True)
+            os.environ["PATH"] = f"{fake_bin}:{os.environ.get('PATH', '')}"
+            for tool in ("cargo", "qemu-system-riscv64"):
+                write_executable(fake_bin / tool, "#!/bin/sh\nexit 0\n")
+            config_path = root / "arceos.json"
+            target_config = root / "arceos-target.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "workflow": "fake_arceos_missing_toolchain",
+                        "target": "tgoskits_arceos",
+                        "arch": "riscv64",
+                        "runner_profiles_path": "configs/targets/tgoskits_arceos/runner_profiles.tgoskits_arceos_smoke.json",
+                        "target_config_path": str(target_config),
+                        "paths": {
+                            "build_dir": str(root / "build"),
+                            "artifacts_dir": str(root / "artifacts"),
+                            "reports_dir": str(root / "reports"),
+                            "eligible_file": str(root / "eligible.jsonl"),
+                            "temp_dir": str(root / "tmp"),
+                        },
+                        "normalization": {"preview_bytes": 32},
+                        "classification": {"no_diff": "NO_DIFF"},
+                        "thresholds": {"smoke": {}, "signoff": {}},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            target_config.write_text(
+                json.dumps(
+                    {
+                        "build_info_path": str(root / "arceos-build-info.json"),
+                        "default_mode": "smoke-qemu",
+                        "revision": revision,
+                        "repo_dir_env": "SYZABI_TGOSKITS_DIR",
+                        "workspace_subdir": "os/arceos",
+                        "feature_flag_env": "SYZABI_ENABLE_TGOSKITS",
+                        "default_target": "riscv64gc-unknown-none-elf",
+                        "platform_config_path": "components/axplat_crates/platforms/axplat-riscv64-qemu-virt/axconfig.toml",
+                        "disk_image_path": "os/arceos/disk.img",
+                        "supported_targets": ["riscv64gc-unknown-none-elf"],
+                        "toolchain_probes": ["cargo", "qemu-system-riscv64"],
+                        "replay_toolchain_probes": ["gcc", "make", "mkfs.fat", "riscv64-linux-musl-gcc"],
+                        "app_features": ["alloc", "fd", "fs"],
+                        "prepare_commands": [],
+                        "healthcheck_command": ["cargo", "xtask", "arceos", "qemu", "--package", "ax-helloworld", "--target", "riscv64gc-unknown-none-elf"],
+                        "command_timeout_sec": 10,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            os.environ["SYZABI_TGOSKITS_DIR"] = str(repo)
+            os.environ["SYZABI_ENABLE_TGOSKITS"] = "1"
+            os.environ["SYZABI_CONFIG_PATH"] = str(config_path)
+            os.environ["SYZABI_WORKFLOW"] = "fake_arceos_missing_toolchain"
+            runner_result = root / "runner.json"
+            os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
+            os.environ["SYZABI_CONSOLE_LOG_PATH"] = str(root / "console.log")
+            os.environ["SYZABI_RAW_TRACE_PATH"] = str(root / "raw.json")
+            os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(root / "state.json")
+            binary = root / "testcase.candidate.bin"
+            binary.write_text("bin", encoding="utf-8")
+            binary.with_name("testcase.instrumented.c").write_text("int main(void) { return 0; }\n", encoding="utf-8")
+            with self.assertRaises(arceos_api.RunnerError):
+                arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(root / "workdir")))
+            payload = json.loads(runner_result.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "infra_error")
+            self.assertIn("missing required ArceOS tools", payload["detail"])
+
     def test_arceos_run_case_rejects_openat_programs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

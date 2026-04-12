@@ -713,6 +713,17 @@ def run_case(args: argparse.Namespace) -> None:
     timeout_sec = int(target_config(cfg).get("command_timeout_sec", 300))
     console_text = ""
     try:
+        ensure_toolchain_probes(cfg, key="replay_toolchain_probes")
+    except RunnerError as exc:
+        write_infra_error(
+            runner_result_path_value=runner_result,
+            console_path=console_path,
+            console_text=console_text,
+            detail=str(exc),
+            kernel_build=label,
+        )
+        raise
+    try:
         disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
     except RunnerError as exc:
         write_infra_error(

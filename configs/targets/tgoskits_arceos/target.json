@@ -17,6 +17,7 @@
     "qemu-system-riscv64"
   ],
   "replay_toolchain_probes": [
+    "gcc",
     "make",
     "mkfs.fat",
     "riscv64-linux-musl-gcc",
