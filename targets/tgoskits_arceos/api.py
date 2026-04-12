@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import shlex
@@ -317,10 +318,14 @@ def disk_image_path(cfg: dict[str, Any]) -> Path:
     return repo_dir(cfg) / configured
 
 
-def ensure_disk_image(cfg: dict[str, Any], *, timeout_sec: int) -> Path:
-    image = disk_image_path(cfg)
-    if image.exists():
-        return image
+def run_disk_image_path(cfg: dict[str, Any], *, work_dir: Path) -> Path:
+    return work_dir / disk_image_path(cfg).name
+
+
+def ensure_disk_image(cfg: dict[str, Any], *, work_dir: Path, timeout_sec: int) -> Path:
+    image = run_disk_image_path(cfg, work_dir=work_dir)
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.unlink(missing_ok=True)
     completed = subprocess.run(
         ["make", f"DISK_IMG={image}", "disk_img"],
         cwd=str(workspace_dir(cfg)),
@@ -334,17 +339,169 @@ def ensure_disk_image(cfg: dict[str, Any], *, timeout_sec: int) -> Path:
     return image
 
 
-def run_case_make_args(cfg: dict[str, Any], *, app_dir: Path) -> list[str]:
+def _fat_u16(payload: bytes, offset: int) -> int:
+    return int.from_bytes(payload[offset : offset + 2], "little")
+
+
+def _fat_u32(payload: bytes, offset: int) -> int:
+    return int.from_bytes(payload[offset : offset + 4], "little")
+
+
+def _fat_chain(image: bytes, *, fat_offset: int, start_cluster: int) -> list[int]:
+    if start_cluster < 2:
+        return []
+    cluster = start_cluster
+    seen: set[int] = set()
+    chain: list[int] = []
+    while cluster >= 2 and cluster < 0x0FFFFFF8 and cluster not in seen:
+        seen.add(cluster)
+        chain.append(cluster)
+        cluster = _fat_u32(image, fat_offset + cluster * 4) & 0x0FFFFFFF
+    return chain
+
+
+def _fat_cluster_bytes(
+    image: bytes,
+    *,
+    cluster: int,
+    bytes_per_sector: int,
+    sectors_per_cluster: int,
+    first_data_sector: int,
+) -> bytes:
+    cluster_offset = (first_data_sector + (cluster - 2) * sectors_per_cluster) * bytes_per_sector
+    cluster_size = bytes_per_sector * sectors_per_cluster
+    return image[cluster_offset : cluster_offset + cluster_size]
+
+
+def _fat_read_chain(
+    image: bytes,
+    *,
+    start_cluster: int,
+    fat_offset: int,
+    bytes_per_sector: int,
+    sectors_per_cluster: int,
+    first_data_sector: int,
+) -> bytes:
+    if start_cluster < 2:
+        return b""
+    return b"".join(
+        _fat_cluster_bytes(
+            image,
+            cluster=cluster,
+            bytes_per_sector=bytes_per_sector,
+            sectors_per_cluster=sectors_per_cluster,
+            first_data_sector=first_data_sector,
+        )
+        for cluster in _fat_chain(image, fat_offset=fat_offset, start_cluster=start_cluster)
+    )
+
+
+def _fat_decode_lfn_fragment(entry: bytes) -> str:
+    raw = entry[1:11] + entry[14:26] + entry[28:32]
+    chars: list[str] = []
+    for index in range(0, len(raw), 2):
+        codepoint = int.from_bytes(raw[index : index + 2], "little")
+        if codepoint in {0x0000, 0xFFFF}:
+            continue
+        chars.append(chr(codepoint))
+    return "".join(chars)
+
+
+def _fat_short_name(entry: bytes) -> str:
+    stem = entry[0:8].decode("ascii", errors="ignore").rstrip(" ")
+    suffix = entry[8:11].decode("ascii", errors="ignore").rstrip(" ")
+    return f"{stem}.{suffix}" if suffix else stem
+
+
+def sample_fat_external_state(image_path: Path) -> dict[str, object]:
+    try:
+        image = image_path.read_bytes()
+        if len(image) < 90:
+            raise ValueError("disk image is too small to contain a FAT32 boot sector")
+        fs_type = image[82:90].decode("ascii", errors="ignore").strip()
+        if fs_type != "FAT32":
+            raise ValueError(f"unsupported filesystem type: {fs_type or 'unknown'}")
+        bytes_per_sector = _fat_u16(image, 11)
+        sectors_per_cluster = image[13]
+        reserved_sectors = _fat_u16(image, 14)
+        fat_count = image[16]
+        sectors_per_fat = _fat_u32(image, 36)
+        root_cluster = _fat_u32(image, 44)
+        fat_offset = reserved_sectors * bytes_per_sector
+        first_data_sector = reserved_sectors + fat_count * sectors_per_fat
+        files: list[dict[str, object]] = []
+
+        def walk(prefix: str, cluster: int) -> None:
+            lfn_parts: list[str] = []
+            directory = _fat_read_chain(
+                image,
+                start_cluster=cluster,
+                fat_offset=fat_offset,
+                bytes_per_sector=bytes_per_sector,
+                sectors_per_cluster=sectors_per_cluster,
+                first_data_sector=first_data_sector,
+            )
+            for offset in range(0, len(directory), 32):
+                entry = directory[offset : offset + 32]
+                if len(entry) < 32:
+                    break
+                first = entry[0]
+                if first == 0x00:
+                    break
+                if first == 0xE5:
+                    lfn_parts = []
+                    continue
+                attributes = entry[11]
+                if attributes == 0x0F:
+                    lfn_parts.insert(0, _fat_decode_lfn_fragment(entry))
+                    continue
+                if attributes & 0x08:
+                    lfn_parts = []
+                    continue
+                name = "".join(lfn_parts) if lfn_parts else _fat_short_name(entry)
+                lfn_parts = []
+                if name in {"", ".", ".."}:
+                    continue
+                entry_cluster = (_fat_u16(entry, 20) << 16) | _fat_u16(entry, 26)
+                relative_path = f"{prefix}/{name}" if prefix else name
+                if attributes & 0x10:
+                    if entry_cluster >= 2:
+                        walk(relative_path, entry_cluster)
+                    continue
+                size = _fat_u32(entry, 28)
+                content = _fat_read_chain(
+                    image,
+                    start_cluster=entry_cluster,
+                    fat_offset=fat_offset,
+                    bytes_per_sector=bytes_per_sector,
+                    sectors_per_cluster=sectors_per_cluster,
+                    first_data_sector=first_data_sector,
+                )[:size]
+                files.append(
+                    {
+                        "path": relative_path,
+                        "size": size,
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                    }
+                )
+
+        walk("", root_cluster)
+        files.sort(key=lambda item: str(item["path"]))
+        return {"files": files}
+    except Exception as exc:
+        return {"files": [], "read_error": str(exc)}
+
+
+def run_case_make_args(cfg: dict[str, Any], *, app_dir: Path, disk_image: Path) -> list[str]:
     arch = str(cfg.get("arch", "riscv64"))
     feature_string = ",".join(line.strip() for line in (app_dir / "features.txt").read_text(encoding="utf-8").splitlines() if line.strip())
-    image = disk_image_path(cfg)
     return [
         f"A={app_dir}",
         f"ARCH={arch}",
         f"PLAT_CONFIG={platform_config_path(cfg)}",
         f"FEATURES={feature_string}",
         "BLK=y",
-        f"DISK_IMG={image}",
+        f"DISK_IMG={disk_image}",
         "ACCEL=n",
         "LOG=warn",
     ]
@@ -361,6 +518,7 @@ def write_case_outputs(
     external_state_path: Path,
     runner_result_path_value: Path,
     console_path: Path | None,
+    disk_image: Path,
 ) -> None:
     normalized_console = ANSI_ESCAPE_RE.sub("", console_text).replace("\x00", "")
     events = extract_framed_events(normalized_console)
@@ -371,7 +529,7 @@ def write_case_outputs(
             args = last_event.get("args", [])
             if isinstance(args, list) and args:
                 guest_exit_code = int(args[0])
-    dump_json(external_state_path, {"files": []})
+    dump_json(external_state_path, sample_fat_external_state(disk_image))
     if not events:
         dump_json(
             runner_result_path_value,
@@ -429,9 +587,9 @@ def run_case(args: argparse.Namespace) -> None:
     work_dir = resolve_work_dir(args)
     app_dir = materialize_app_tree(cfg, binary_path=binary_path, work_dir=work_dir)
     timeout_sec = int(target_config(cfg).get("command_timeout_sec", 300))
-    ensure_disk_image(cfg, timeout_sec=timeout_sec)
+    disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
     config_path, previous_config = write_managed_cargo_config(cfg)
-    make_args = run_case_make_args(cfg, app_dir=app_dir)
+    make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
     try:
         completed_defconfig = subprocess.run(
             ["make", *make_args, "defconfig"],
@@ -473,6 +631,7 @@ def run_case(args: argparse.Namespace) -> None:
         external_state_path=external_state_path,
         runner_result_path_value=runner_result,
         console_path=console_path,
+        disk_image=disk_image,
     )
 
 

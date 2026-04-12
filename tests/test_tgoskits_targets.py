@@ -448,9 +448,13 @@ class TGOSKitsTargetTests(unittest.TestCase):
             os.environ["SYZABI_RUN_ID"] = "case-close-run"
             os.environ["SYZABI_RAW_TRACE_PATH"] = str(raw_trace)
             os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(external_state)
-            arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(root / "workdir")))
+            workdir = root / "workdir"
+            arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(workdir)))
             self.assertEqual(json.loads(runner_result.read_text(encoding="utf-8"))["status"], "ok")
             self.assertEqual(json.loads(raw_trace.read_text(encoding="utf-8"))["events"][0]["syscall_name"], "close")
+            self.assertTrue((workdir / "disk.img").exists())
+            self.assertFalse((workspace / "disk.img").exists())
+            self.assertIn("read_error", json.loads(external_state.read_text(encoding="utf-8")))
             self.assertFalse((workspace / ".cargo" / "config.toml").exists())
             with self.assertRaises(arceos_api.RunnerError):
                 arceos_api.run_batch(SimpleNamespace(batch_manifest="ignored"))
@@ -578,9 +582,11 @@ class TGOSKitsTargetTests(unittest.TestCase):
             binary.write_text("bin", encoding="utf-8")
             binary.with_name("testcase.instrumented.c").write_text("int main(void) { return 0; }\n", encoding="utf-8")
 
-            arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(root / "workdir")))
+            workdir = root / "workdir"
+            arceos_api.run_case(SimpleNamespace(healthcheck=False, binary=str(binary), mode="smoke-qemu", work_dir=str(workdir)))
             self.assertEqual(json.loads(runner_result.read_text(encoding="utf-8"))["exit_code"], 7)
             self.assertEqual(json.loads(raw_trace.read_text(encoding="utf-8"))["process_exit"]["exit_code"], 7)
+            self.assertTrue((workdir / "disk.img").exists())
 
     def test_arceos_trace_preserves_close_stdout_semantics(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
