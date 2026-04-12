@@ -636,7 +636,11 @@ class TGOSKitsTargetTests(unittest.TestCase):
             )
             completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
             self.assertEqual(completed.returncode, 0, completed.stderr)
-            events = [json.loads(line[len("__SYZABI_TRACE_EVENT__ ") :]) for line in completed.stdout.splitlines()]
+            events = [
+                json.loads(line[len("__SYZABI_TRACE_EVENT__ ") :])
+                for line in completed.stdout.splitlines()
+                if line.startswith("__SYZABI_TRACE_EVENT__ ")
+            ]
             self.assertEqual(events[0]["syscall_name"], "close")
             self.assertEqual(events[0]["return_value"], 0)
             self.assertEqual(events[1]["syscall_name"], "write")
@@ -692,11 +696,147 @@ class TGOSKitsTargetTests(unittest.TestCase):
             )
             completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
             self.assertEqual(completed.returncode, 0, completed.stderr)
-            event = json.loads(completed.stdout.splitlines()[0][len("__SYZABI_TRACE_EVENT__ ") :])
+            event_line = next(line for line in completed.stdout.splitlines() if line.startswith("__SYZABI_TRACE_EVENT__ "))
+            event = json.loads(event_line[len("__SYZABI_TRACE_EVENT__ ") :])
             self.assertEqual(event["syscall_name"], "read")
             self.assertEqual(event["outputs"][0]["label"], "buf")
             self.assertEqual(event["outputs"][0]["length"], 4)
             self.assertEqual(event["outputs"][0]["preview_hex"], "44415441")
+
+    def test_arceos_trace_does_not_consume_fd3(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "driver.c"
+            binary = root / "driver"
+            source.write_text(
+                textwrap.dedent(
+                    """\
+                    #include <errno.h>
+                    #include <stdio.h>
+                    #include "trace.h"
+
+                    int main(void) {
+                        errno = 0;
+                        if (traced_syscall("close", 1028, 0, 3, 0, 0, 0, 0, 0) != -1)
+                            return 11;
+                        if (errno != EBADF)
+                            return 12;
+                        return 0;
+                    }
+                    """
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [
+                    "gcc",
+                    "-O2",
+                    "-std=gnu11",
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos"),
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos" / "include"),
+                    str(source),
+                    str(Path.cwd() / "agent" / "arceos" / "trace.c"),
+                    "-o",
+                    str(binary),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_arceos_trace_starts_marker_on_new_line_after_stdout_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "driver.c"
+            binary = root / "driver"
+            source.write_text(
+                textwrap.dedent(
+                    """\
+                    #include <unistd.h>
+                    #include "trace.h"
+
+                    int main(void) {
+                        write(1, "DATA", 4);
+                        traced_syscall("close", 1028, 0, 0, 0, 0, 0, 0, 0);
+                        return 0;
+                    }
+                    """
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [
+                    "gcc",
+                    "-O2",
+                    "-std=gnu11",
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos"),
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos" / "include"),
+                    str(source),
+                    str(Path.cwd() / "agent" / "arceos" / "trace.c"),
+                    "-o",
+                    str(binary),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("DATA\n__SYZABI_TRACE_EVENT__", completed.stdout)
+
+    def test_arceos_trace_handles_open_tmpfile_mode_without_abort(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "driver.c"
+            binary = root / "driver"
+            source.write_text(
+                textwrap.dedent(
+                    """\
+                    #include <fcntl.h>
+                    #include <unistd.h>
+                    #include "trace.h"
+
+#ifndef O_TMPFILE
+#define O_TMPFILE 020200000
+#endif
+
+                    int main(void) {
+                        long fd = traced_syscall("open", 1024, 0, (long)".", O_TMPFILE | O_RDWR, 0600, 0, 0, 0);
+                        if (fd >= 0)
+                            close((int)fd);
+                        return 0;
+                    }
+                    """
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [
+                    "gcc",
+                    "-O2",
+                    "-std=gnu11",
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos"),
+                    "-I",
+                    str(Path.cwd() / "agent" / "arceos" / "include"),
+                    str(source),
+                    str(Path.cwd() / "agent" / "arceos" / "trace.c"),
+                    "-o",
+                    str(binary),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            completed = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("__SYZABI_TRACE_EVENT__", completed.stdout)
 
     def test_arceos_run_case_writes_timeout_runner_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
