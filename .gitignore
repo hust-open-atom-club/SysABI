@@ -4,6 +4,7 @@ __pycache__/
 .mypy_cache/
 .venv/
 .codex-backups/
+.codex
 bin/
 build/
 artifacts/
