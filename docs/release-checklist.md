@@ -13,7 +13,7 @@ Use this checklist before signoff or release for any workflow that produces a `s
 python3 tools/check_workflow_thresholds.py --workflow <workflow> --campaign <campaign> --summary <summary.json>
 ```
 
-`ci-fast` now runs the threshold checker against the committed baseline smoke summary fixture so schema drift in threshold evaluation is caught automatically.
+`ci-fast` now exercises the threshold checker path with a synthetic workflow/summary pair so schema drift in threshold evaluation is caught automatically.
 
 The authoritative blocking thresholds are the checked-in workflow thresholds. See [threshold-decision.md](threshold-decision.md).
 

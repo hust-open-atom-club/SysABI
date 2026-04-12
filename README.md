@@ -11,7 +11,7 @@ Today the main target is:
 - Linux `reference`
 - Asterinas `candidate`
 
-The repository intentionally keeps the operational guide in this `README`. There is no separate `docs/` tree anymore.
+The repository keeps the shortest operational guide in this `README`, with deeper target/release notes under `docs/`.
 
 ## One Command
 
