@@ -364,6 +364,13 @@ def write_case_outputs(
 ) -> None:
     normalized_console = ANSI_ESCAPE_RE.sub("", console_text).replace("\x00", "")
     events = extract_framed_events(normalized_console)
+    guest_exit_code = exit_code
+    if events:
+        last_event = events[-1]
+        if str(last_event.get("syscall_name", "")) in {"exit", "exit_group"}:
+            args = last_event.get("args", [])
+            if isinstance(args, list) and args:
+                guest_exit_code = int(args[0])
     dump_json(external_state_path, {"files": []})
     if not events:
         dump_json(
@@ -387,7 +394,7 @@ def write_case_outputs(
         "events": events,
         "process_exit": {
             "status": "ok",
-            "exit_code": exit_code,
+            "exit_code": guest_exit_code,
             "timed_out": False,
         },
     }
@@ -396,7 +403,7 @@ def write_case_outputs(
         runner_result_path_value,
         {
             "status": "ok",
-            "exit_code": exit_code,
+            "exit_code": guest_exit_code,
             "kernel_build": kernel_build,
         },
     )
