@@ -221,6 +221,12 @@ def instrumented_source_path(binary_path: Path) -> Path:
     raise RunnerError(f"missing instrumented testcase source beside {binary_path}")
 
 
+def reject_unsupported_source(binary_path: Path) -> None:
+    source = instrumented_source_path(binary_path).read_text(encoding="utf-8", errors="ignore")
+    if '"openat"' in source:
+        raise RunnerError("ArceOS experimental replay does not support openat testcases")
+
+
 def materialize_app_tree(cfg: dict[str, Any], *, binary_path: Path, work_dir: Path) -> Path:
     app_dir = work_dir / "arceos-app"
     if app_dir.exists():
@@ -350,16 +356,52 @@ def _fat_u32(payload: bytes, offset: int) -> int:
     return int.from_bytes(payload[offset : offset + 4], "little")
 
 
-def _fat_chain(image: bytes, *, fat_offset: int, start_cluster: int) -> list[int]:
+def _fat_u12(payload: bytes, offset: int, cluster: int) -> int:
+    value = int.from_bytes(payload[offset : offset + 2], "little")
+    return (value >> 4) if (cluster & 1) else (value & 0x0FFF)
+
+
+def _fat_type(image: bytes, *, bytes_per_sector: int, sectors_per_cluster: int, reserved_sectors: int, fat_count: int) -> tuple[str, int, int, int]:
+    root_entry_count = _fat_u16(image, 17)
+    total_sectors_16 = _fat_u16(image, 19)
+    total_sectors_32 = _fat_u32(image, 32)
+    sectors_per_fat_16 = _fat_u16(image, 22)
+    sectors_per_fat_32 = _fat_u32(image, 36)
+    total_sectors = total_sectors_16 if total_sectors_16 else total_sectors_32
+    sectors_per_fat = sectors_per_fat_16 if sectors_per_fat_16 else sectors_per_fat_32
+    root_dir_sectors = ((root_entry_count * 32) + (bytes_per_sector - 1)) // bytes_per_sector
+    data_sectors = total_sectors - (reserved_sectors + fat_count * sectors_per_fat + root_dir_sectors)
+    cluster_count = data_sectors // sectors_per_cluster if sectors_per_cluster else 0
+    if cluster_count < 4085:
+        return "FAT12", sectors_per_fat, root_entry_count, root_dir_sectors
+    if cluster_count < 65525:
+        return "FAT16", sectors_per_fat, root_entry_count, root_dir_sectors
+    return "FAT32", sectors_per_fat, root_entry_count, root_dir_sectors
+
+
+def _fat_entry(image: bytes, *, fat_offset: int, cluster: int, fat_type: str) -> int:
+    if fat_type == "FAT12":
+        return _fat_u12(image, fat_offset + (cluster * 3) // 2, cluster)
+    if fat_type == "FAT16":
+        return _fat_u16(image, fat_offset + cluster * 2)
+    return _fat_u32(image, fat_offset + cluster * 4) & 0x0FFFFFFF
+
+
+def _fat_chain(image: bytes, *, fat_offset: int, start_cluster: int, fat_type: str) -> list[int]:
     if start_cluster < 2:
         return []
     cluster = start_cluster
     seen: set[int] = set()
     chain: list[int] = []
-    while cluster >= 2 and cluster < 0x0FFFFFF8 and cluster not in seen:
+    eof = {
+        "FAT12": 0x0FF8,
+        "FAT16": 0xFFF8,
+        "FAT32": 0x0FFFFFF8,
+    }[fat_type]
+    while cluster >= 2 and cluster < eof and cluster not in seen:
         seen.add(cluster)
         chain.append(cluster)
-        cluster = _fat_u32(image, fat_offset + cluster * 4) & 0x0FFFFFFF
+        cluster = _fat_entry(image, fat_offset=fat_offset, cluster=cluster, fat_type=fat_type)
     return chain
 
 
@@ -381,6 +423,7 @@ def _fat_read_chain(
     *,
     start_cluster: int,
     fat_offset: int,
+    fat_type: str,
     bytes_per_sector: int,
     sectors_per_cluster: int,
     first_data_sector: int,
@@ -395,7 +438,7 @@ def _fat_read_chain(
             sectors_per_cluster=sectors_per_cluster,
             first_data_sector=first_data_sector,
         )
-        for cluster in _fat_chain(image, fat_offset=fat_offset, start_cluster=start_cluster)
+        for cluster in _fat_chain(image, fat_offset=fat_offset, start_cluster=start_cluster, fat_type=fat_type)
     )
 
 
@@ -419,31 +462,49 @@ def _fat_short_name(entry: bytes) -> str:
 def sample_fat_external_state(image_path: Path) -> dict[str, object]:
     try:
         image = image_path.read_bytes()
-        if len(image) < 90:
-            raise ValueError("disk image is too small to contain a FAT32 boot sector")
-        fs_type = image[82:90].decode("ascii", errors="ignore").strip()
-        if fs_type != "FAT32":
-            raise ValueError(f"unsupported filesystem type: {fs_type or 'unknown'}")
+        if len(image) < 64:
+            raise ValueError("disk image is too small to contain a FAT boot sector")
         bytes_per_sector = _fat_u16(image, 11)
         sectors_per_cluster = image[13]
         reserved_sectors = _fat_u16(image, 14)
         fat_count = image[16]
-        sectors_per_fat = _fat_u32(image, 36)
-        root_cluster = _fat_u32(image, 44)
+        fat_type, sectors_per_fat, root_entry_count, root_dir_sectors = _fat_type(
+            image,
+            bytes_per_sector=bytes_per_sector,
+            sectors_per_cluster=sectors_per_cluster,
+            reserved_sectors=reserved_sectors,
+            fat_count=fat_count,
+        )
+        if fat_type not in {"FAT12", "FAT16", "FAT32"}:
+            raise ValueError(f"unsupported filesystem type: {fat_type}")
+        root_cluster = _fat_u32(image, 44) if fat_type == "FAT32" else 0
         fat_offset = reserved_sectors * bytes_per_sector
-        first_data_sector = reserved_sectors + fat_count * sectors_per_fat
+        first_root_dir_sector = reserved_sectors + fat_count * sectors_per_fat
+        first_data_sector = first_root_dir_sector + root_dir_sectors
         files: list[dict[str, object]] = []
 
-        def walk(prefix: str, cluster: int) -> None:
+        root_directory = (
+            image[first_root_dir_sector * bytes_per_sector : (first_root_dir_sector + root_dir_sectors) * bytes_per_sector]
+            if fat_type != "FAT32"
+            else None
+        )
+
+        def walk(prefix: str, cluster: int | None, directory_bytes: bytes | None = None) -> None:
             lfn_parts: list[str] = []
-            directory = _fat_read_chain(
-                image,
-                start_cluster=cluster,
-                fat_offset=fat_offset,
-                bytes_per_sector=bytes_per_sector,
-                sectors_per_cluster=sectors_per_cluster,
-                first_data_sector=first_data_sector,
-            )
+            if directory_bytes is None:
+                if cluster is None:
+                    return
+                directory = _fat_read_chain(
+                    image,
+                    start_cluster=cluster,
+                    fat_offset=fat_offset,
+                    fat_type=fat_type,
+                    bytes_per_sector=bytes_per_sector,
+                    sectors_per_cluster=sectors_per_cluster,
+                    first_data_sector=first_data_sector,
+                )
+            else:
+                directory = directory_bytes
             for offset in range(0, len(directory), 32):
                 entry = directory[offset : offset + 32]
                 if len(entry) < 32:
@@ -465,7 +526,10 @@ def sample_fat_external_state(image_path: Path) -> dict[str, object]:
                 lfn_parts = []
                 if name in {"", ".", ".."}:
                     continue
-                entry_cluster = (_fat_u16(entry, 20) << 16) | _fat_u16(entry, 26)
+                if fat_type == "FAT32":
+                    entry_cluster = (_fat_u16(entry, 20) << 16) | _fat_u16(entry, 26)
+                else:
+                    entry_cluster = _fat_u16(entry, 26)
                 relative_path = f"{prefix}/{name}" if prefix else name
                 if attributes & 0x10:
                     if entry_cluster >= 2:
@@ -476,6 +540,7 @@ def sample_fat_external_state(image_path: Path) -> dict[str, object]:
                     image,
                     start_cluster=entry_cluster,
                     fat_offset=fat_offset,
+                    fat_type=fat_type,
                     bytes_per_sector=bytes_per_sector,
                     sectors_per_cluster=sectors_per_cluster,
                     first_data_sector=first_data_sector,
@@ -488,7 +553,10 @@ def sample_fat_external_state(image_path: Path) -> dict[str, object]:
                     }
                 )
 
-        walk("", root_cluster)
+        if fat_type == "FAT32":
+            walk("", root_cluster)
+        else:
+            walk("", None, root_directory)
         files.sort(key=lambda item: str(item["path"]))
         return {"files": files}
     except Exception as exc:
@@ -627,6 +695,7 @@ def run_case(args: argparse.Namespace) -> None:
     binary_path = Path(args.binary)
     if not binary_path.exists():
         raise RunnerError(f"candidate binary path does not exist: {binary_path}")
+    reject_unsupported_source(binary_path)
     raw_trace_path = env_path("SYZABI_RAW_TRACE_PATH")
     external_state_path = env_path("SYZABI_EXTERNAL_STATE_PATH")
     runner_result = runner_result_path()
@@ -649,9 +718,11 @@ def run_case(args: argparse.Namespace) -> None:
         )
         raise
     initial_external_state = sample_fat_external_state(disk_image)
-    config_path, previous_config = write_managed_cargo_config(cfg)
-    make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
+    config_path: Path | None = None
+    previous_config: str | None = None
     try:
+        config_path, previous_config = write_managed_cargo_config(cfg)
+        make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
         try:
             completed_defconfig = subprocess.run(
                 ["make", *make_args, "defconfig"],
@@ -705,7 +776,8 @@ def run_case(args: argparse.Namespace) -> None:
                 console_path.write_text(console_text, encoding="utf-8")
             raise RunnerError(completed_run.stderr.strip() or completed_run.stdout.strip() or "ArceOS experimental replay failed")
     finally:
-        restore_managed_cargo_config(config_path, previous_config)
+        if config_path is not None:
+            restore_managed_cargo_config(config_path, previous_config)
     write_case_outputs(
         program_id=os.environ.get("SYZABI_PROGRAM_ID", binary_path.parent.name),
         run_id=os.environ.get("SYZABI_RUN_ID", "arceos-run"),
