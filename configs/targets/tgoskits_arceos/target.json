@@ -4,13 +4,27 @@
   "revision": "eab9e0a80ffc2ff7e3b5e3207a8659965a27c36a",
   "repo_dir": "",
   "repo_dir_env": "SYZABI_TGOSKITS_DIR",
+  "workspace_subdir": "os/arceos",
   "feature_flag_env": "SYZABI_ENABLE_TGOSKITS",
+  "default_target": "riscv64gc-unknown-none-elf",
+  "platform_config_path": "components/axplat_crates/platforms/axplat-riscv64-qemu-virt/axconfig.toml",
+  "disk_image_path": "os/arceos/disk.img",
   "supported_targets": [
     "riscv64gc-unknown-none-elf"
   ],
   "toolchain_probes": [
     "cargo",
-    "qemu-system-riscv64"
+    "make",
+    "mkfs.fat",
+    "qemu-system-riscv64",
+    "riscv64-linux-musl-gcc",
+    "riscv64-linux-musl-ar",
+    "riscv64-linux-musl-ranlib"
+  ],
+  "app_features": [
+    "alloc",
+    "fd",
+    "fs"
   ],
   "prepare_commands": [],
   "healthcheck_command": [

@@ -137,6 +137,24 @@ def ensure_toolchain_probes(cfg: dict[str, Any]) -> None:
         raise RunnerError(f"missing required StarryOS tools: {', '.join(missing)}")
 
 
+def preflight_payload(cfg: dict[str, Any]) -> dict[str, object]:
+    require_feature_flag(cfg)
+    ensure_supported_arch(cfg)
+    revision = ensure_pinned_revision(cfg)
+    ensure_toolchain_probes(cfg)
+    workspace = workspace_dir(cfg)
+    return {
+        "target": "tgoskits_starryos",
+        "workflow": str(cfg.get("workflow", "")),
+        "arch": str(cfg.get("arch", "")),
+        "repo_dir": str(repo_dir(cfg)),
+        "workspace_dir": str(workspace),
+        "revision": revision,
+        "mode": str(target_config(cfg).get("default_mode", "shell-qemu")),
+        "disk_image_path": str(disk_image_path(cfg)),
+    }
+
+
 def shutil_which(tool: str) -> str | None:
     return subprocess.run(
         ["sh", "-lc", f"command -v {shlex.quote(tool)}"],

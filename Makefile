@@ -9,7 +9,7 @@ JOBS ?=
 ELIGIBLE_FILE ?=
 RUN_LIMIT ?= 100
 
-.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target test clean
+.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target preflight-tgoskits-starryos run-tgoskits-starryos-smoke preflight-tgoskits-arceos run-tgoskits-arceos-smoke test clean
 
 bootstrap:
 	./tools/bootstrap_syzkaller.sh
@@ -98,6 +98,18 @@ prepare-target:
 	else \
 		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/entrypoint.py --healthcheck; \
 	fi
+
+preflight-tgoskits-starryos:
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
+
+run-tgoskits-starryos-smoke:
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) --jobs $(or $(JOBS),1)
+
+preflight-tgoskits-arceos:
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
+
+run-tgoskits-arceos-smoke:
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) --jobs $(or $(JOBS),1)
 
 derive-asterinas-scml:
 	@echo "warning: derive-asterinas-scml is deprecated; use derive-workflow/preflight-workflow WORKFLOW=asterinas_scml" >&2

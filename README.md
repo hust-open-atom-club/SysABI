@@ -126,6 +126,15 @@ python3 orchestrator/scheduler.py --workflow asterinas_scml --campaign smoke --l
 python3 tools/render_summary.py --workflow asterinas_scml
 ```
 
+### TGOSKits
+
+```bash
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
+```
+
 ## Requirements
 
 Host tools:
@@ -195,13 +204,14 @@ The following surfaces are intentionally preserved while the platform layer evol
 - legacy `_rules.json` compatibility for older configs
 - per-run materialization of `stdout.txt`, `stderr.txt`, `console.log`, `raw-trace.json`, `external-state.json`, and `run-result.json`
 
-For the TGOSKits StarryOS workflow:
+For the TGOSKits StarryOS and ArceOS workflows:
 
 - the repo does not vendor TGOSKits; point the workflow at an external checkout with `SYZABI_TGOSKITS_DIR`
 - external TGOSKits targets are explicitly gated by `SYZABI_ENABLE_TGOSKITS=1`
 - `trace.events_transport=stdout` is used so guest-side trace events can be recovered from framed stdout lines when a writable guest file path is not available
-- `tgoskits_arceos_smoke` is intentionally smoke-only and does not claim syscall differential replay support
-- see `docs/targets/tgoskits-starryos.md` for exact host prerequisites, `PATH` setup, and real StarryOS healthcheck/smoke commands
+- `tools/tgoskits_launch.py` is the repo-owned entrypoint for TGOSKits `preflight`, `healthcheck`, and bounded `campaign` execution
+- `tgoskits_arceos_smoke` now provides an experimental single-case C-app replay path and still does not claim StarryOS-level Linux syscall compatibility
+- see `docs/targets/tgoskits-starryos.md` and `docs/targets/tgoskits-arceos.md` for exact host prerequisites, `PATH` setup, and real launch commands
 
 ## Repository Layout
 
