@@ -9,6 +9,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef O_TMPFILE
+#define O_TMPFILE 020200000
+#endif
+
 typedef unsigned char uint8;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
@@ -179,6 +183,16 @@ static int ensure_trace_fd(void)
 {
     if (trace_fd >= 0)
         return trace_fd;
+#ifdef F_DUPFD_CLOEXEC
+    trace_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 1000);
+    if (trace_fd >= 0)
+        return trace_fd;
+#endif
+#ifdef F_DUPFD
+    trace_fd = fcntl(STDOUT_FILENO, F_DUPFD, 1000);
+    if (trace_fd >= 0)
+        return trace_fd;
+#endif
     trace_fd = dup(STDOUT_FILENO);
     if (trace_fd >= 0)
         return trace_fd;
@@ -290,7 +304,7 @@ static void emit_event(const char* syscall_name, long syscall_number, long call_
     line_len = snprintf(
         line,
         sizeof(line),
-        "%s{\"args\":[%ld,%ld,%ld,%ld,%ld,%ld],\"end_ns\":%llu,\"errno\":%d,\"event_index\":%ld,"
+        "\n%s{\"args\":[%ld,%ld,%ld,%ld,%ld,%ld],\"end_ns\":%llu,\"errno\":%d,\"event_index\":%ld,"
         "\"outputs\":%s,\"return_value\":%ld,\"side\":\"candidate\",\"start_ns\":%llu,"
         "\"syscall_name\":\"%s\",\"syscall_number\":%ld}\n",
         trace_stdout_prefix,
@@ -325,7 +339,7 @@ static long dispatch_call(const char* syscall_name, long a0, long a1, long a2, l
     if (strcmp(syscall_name, "write") == 0)
         return write((int)a0, (const void*)a1, (size_t)a2);
     if (strcmp(syscall_name, "open") == 0) {
-        if ((int)a1 & O_CREAT)
+        if (((int)a1 & O_CREAT) || (((int)a1 & O_TMPFILE) == O_TMPFILE))
             return open((const char*)a0, (int)a1, (int)a2);
         return open((const char*)a0, (int)a1);
     }
