@@ -27,10 +27,11 @@ The authoritative blocking thresholds are the checked-in workflow thresholds. Se
    - external TGOSKits targets remain gated by `SYZABI_ENABLE_TGOSKITS=1`
    - baseline / asterinas workflows still run without TGOSKits
    - StarryOS operator bring-up steps match [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md)
+   - ArceOS experimental launch steps match [targets/tgoskits-arceos.md](targets/tgoskits-arceos.md)
 
 ## External Target Smoke
 
-For external TGOSKits targets, run the smoke helper after setting:
+For external TGOSKits targets, run repo-owned preflight or campaign commands after setting:
 
 - `SYZABI_ENABLE_TGOSKITS=1`
 - `SYZABI_TGOSKITS_DIR=/path/to/tgoskits`
@@ -38,9 +39,10 @@ For external TGOSKits targets, run the smoke helper after setting:
 Example:
 
 ```bash
-python3 tools/run_external_target_smoke.py --workflow tgoskits_arceos_smoke
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke healthcheck
 ```
 
 Artifacts are written under `artifacts/smoke/<workflow>/`.
 
-For the real StarryOS path, use the documented host prerequisites and commands in [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md).
+For the real TGOSKits paths, use the documented host prerequisites and commands in [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md) and [targets/tgoskits-arceos.md](targets/tgoskits-arceos.md).

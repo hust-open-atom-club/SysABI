@@ -88,6 +88,7 @@ Expected success signal:
 From the SysABI repo root:
 
 ```bash
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos healthcheck
 python3 targets/entrypoint.py --workflow tgoskits_starryos --healthcheck
 ```
 
@@ -115,6 +116,18 @@ python3 tools/prog2c_wrap.py --workflow tgoskits_starryos --eligible-file <eligi
 ```
 
 ### Run the smoke workflow
+
+```bash
+python3 tools/tgoskits_launch.py \
+  --workflow tgoskits_starryos \
+  campaign \
+  --campaign smoke \
+  --eligible-file <eligible.jsonl> \
+  --limit 1 \
+  --jobs 1
+```
+
+Equivalent direct scheduler path:
 
 ```bash
 python3 orchestrator/scheduler.py \
