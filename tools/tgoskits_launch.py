@@ -51,6 +51,16 @@ def preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
     raise SystemExit(f"unsupported TGOSKits target for launch tool: {target}")
 
 
+def campaign_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
+    target = str(cfg.get("target", ""))
+    if target == "tgoskits_arceos":
+        try:
+            return arceos_api.replay_preflight_payload(cfg)
+        except RUNNER_ERRORS as exc:
+            raise SystemExit(str(exc))
+    return checked_preflight_payload(cfg)
+
+
 def checked_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
     try:
         return preflight_payload(cfg)
@@ -105,8 +115,8 @@ def main() -> None:
         return
 
     if args.command == "campaign":
-        checked_preflight_payload(cfg)
         enforce_campaign_scope(cfg, args)
+        campaign_preflight_payload(cfg)
         eligible_file = args.eligible_file or str(cfg["paths"]["eligible_file"])
         if str(cfg.get("target", "")) == "tgoskits_starryos":
             run_command(healthcheck_command(args.workflow), env=env)

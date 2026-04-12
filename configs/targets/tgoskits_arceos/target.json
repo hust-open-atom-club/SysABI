@@ -14,9 +14,11 @@
   ],
   "toolchain_probes": [
     "cargo",
+    "qemu-system-riscv64"
+  ],
+  "replay_toolchain_probes": [
     "make",
     "mkfs.fat",
-    "qemu-system-riscv64",
     "riscv64-linux-musl-gcc",
     "riscv64-linux-musl-ar",
     "riscv64-linux-musl-ranlib"
