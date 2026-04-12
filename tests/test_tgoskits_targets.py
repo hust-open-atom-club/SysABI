@@ -971,6 +971,33 @@ class TGOSKitsTargetTests(unittest.TestCase):
                 arceos_api.reject_unsupported_source(binary)
             self.assertIn("openat", str(ctx.exception))
 
+    def test_arceos_main_preserves_existing_infra_error_runner_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            runner_result = root / "runner.json"
+            runner_result.write_text(
+                json.dumps(
+                    {
+                        "status": "infra_error",
+                        "exit_code": None,
+                        "detail": "ArceOS run timed out after 10s",
+                        "kernel_build": "tgoskits-arceos@test",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
+            with patch("targets.tgoskits_arceos.api.parse_args", return_value=SimpleNamespace(healthcheck=False, batch_manifest=None, binary="ignored", mode="smoke-qemu", work_dir=str(root))), patch(
+                "targets.tgoskits_arceos.api.run_case", side_effect=arceos_api.RunnerError("ArceOS run timed out after 10s")
+            ):
+                with self.assertRaises(SystemExit):
+                    arceos_api.main()
+            payload = json.loads(runner_result.read_text(encoding="utf-8"))
+            self.assertEqual(payload["kernel_build"], "tgoskits-arceos@test")
+
     def test_arceos_run_case_writes_timeout_runner_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

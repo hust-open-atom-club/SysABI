@@ -247,6 +247,22 @@ class TGOSKitsLaunchTests(unittest.TestCase):
                     launch.main()
             self.assertIn("revision mismatch", str(ctx.exception))
 
+    def test_arceos_healthcheck_does_not_require_replay_only_tools(self) -> None:
+        cfg = {
+            "workflow": "tgoskits_arceos_smoke",
+            "target": "tgoskits_arceos",
+            "paths": {"eligible_file": "eligible.jsonl", "syzkaller_dir": "third_party/syzkaller"},
+        }
+        commands: list[list[str]] = []
+        with patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
+            "tools.tgoskits_launch.checked_preflight_payload",
+            return_value={"target": "tgoskits_arceos"},
+        ), patch("tools.tgoskits_launch.run_command", side_effect=lambda command, env: commands.append(command)), patch(
+            "sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_arceos_smoke", "healthcheck"]
+        ):
+            launch.main()
+        self.assertEqual(commands, [["python3", "targets/entrypoint.py", "--workflow", "tgoskits_arceos_smoke", "--healthcheck"]])
+
 
 if __name__ == "__main__":
     unittest.main()

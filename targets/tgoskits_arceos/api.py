@@ -105,8 +105,8 @@ def shutil_which(tool: str) -> str | None:
     ).stdout.strip() or None
 
 
-def ensure_toolchain_probes(cfg: dict[str, Any]) -> None:
-    missing = [tool for tool in target_config(cfg).get("toolchain_probes", []) if shutil_which(str(tool)) is None]
+def ensure_toolchain_probes(cfg: dict[str, Any], *, key: str = "toolchain_probes") -> None:
+    missing = [tool for tool in target_config(cfg).get(key, []) if shutil_which(str(tool)) is None]
     if missing:
         raise RunnerError(f"missing required ArceOS tools: {', '.join(missing)}")
 
@@ -154,6 +154,12 @@ def preflight_payload(cfg: dict[str, Any]) -> dict[str, object]:
         "target_triple": target_triple(cfg),
         "mode": "experimental-c-app",
     }
+
+
+def replay_preflight_payload(cfg: dict[str, Any]) -> dict[str, object]:
+    payload = preflight_payload(cfg)
+    ensure_toolchain_probes(cfg, key="replay_toolchain_probes")
+    return payload
 
 
 def prepare_target(cfg: dict[str, Any]) -> str:
@@ -805,7 +811,9 @@ def main() -> None:
             return
         run_case(args)
     except RunnerError as exc:
-        write_runner_result({"status": "infra_error", "exit_code": None, "detail": str(exc), "kernel_build": "unknown"})
+        existing = runner_result_path()
+        if existing is None or not existing.exists():
+            write_runner_result({"status": "infra_error", "exit_code": None, "detail": str(exc), "kernel_build": "unknown"})
         raise SystemExit(str(exc))
 
 
