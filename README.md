@@ -201,6 +201,7 @@ For the TGOSKits StarryOS workflow:
 - external TGOSKits targets are explicitly gated by `SYZABI_ENABLE_TGOSKITS=1`
 - `trace.events_transport=stdout` is used so guest-side trace events can be recovered from framed stdout lines when a writable guest file path is not available
 - `tgoskits_arceos_smoke` is intentionally smoke-only and does not claim syscall differential replay support
+- see `docs/targets/tgoskits-starryos.md` for exact host prerequisites, `PATH` setup, and real StarryOS healthcheck/smoke commands
 
 ## Repository Layout
 

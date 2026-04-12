@@ -26,6 +26,7 @@ The authoritative blocking thresholds are the checked-in workflow thresholds. Se
 4. Confirm migration / rollback notes:
    - external TGOSKits targets remain gated by `SYZABI_ENABLE_TGOSKITS=1`
    - baseline / asterinas workflows still run without TGOSKits
+   - StarryOS operator bring-up steps match [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md)
 
 ## External Target Smoke
 
@@ -41,3 +42,5 @@ python3 tools/run_external_target_smoke.py --workflow tgoskits_arceos_smoke
 ```
 
 Artifacts are written under `artifacts/smoke/<workflow>/`.
+
+For the real StarryOS path, use the documented host prerequisites and commands in [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md).
