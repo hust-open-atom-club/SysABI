@@ -15,6 +15,8 @@ python3 tools/check_workflow_thresholds.py --workflow <workflow> --campaign <cam
 
 `ci-fast` now runs the threshold checker against the committed baseline smoke summary fixture so schema drift in threshold evaluation is caught automatically.
 
+The authoritative blocking thresholds are the checked-in workflow thresholds. See [threshold-decision.md](threshold-decision.md).
+
 3. Review:
    - `summary.json`
    - `summary.md`
