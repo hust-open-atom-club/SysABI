@@ -103,7 +103,8 @@ def main() -> None:
     cfg = load_cfg(args.workflow)
 
     if args.command == "preflight":
-        print(json.dumps(checked_preflight_payload(cfg), ensure_ascii=False, indent=2, sort_keys=True))
+        payload = campaign_preflight_payload(cfg) if str(cfg.get("target", "")) == "tgoskits_arceos" else checked_preflight_payload(cfg)
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
     env = os.environ.copy()
