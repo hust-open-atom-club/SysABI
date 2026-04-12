@@ -186,6 +186,21 @@ static int ensure_trace_fd(void)
     return trace_fd;
 }
 
+static void write_all(int fd, const char* buf, size_t len)
+{
+    while (len > 0) {
+        ssize_t written = write(fd, buf, len);
+        if (written > 0) {
+            buf += written;
+            len -= (size_t)written;
+            continue;
+        }
+        if (written < 0 && errno == EINTR)
+            continue;
+        break;
+    }
+}
+
 static void hex_preview(const unsigned char* ptr, size_t len, char* out, size_t out_size)
 {
     static const char hex[] = "0123456789abcdef";
@@ -298,7 +313,7 @@ static void emit_event(const char* syscall_name, long syscall_number, long call_
         return;
     if ((size_t)line_len >= sizeof(line))
         line_len = (int)(sizeof(line) - 1);
-    (void)write(fd, line, (size_t)line_len);
+    write_all(fd, line, (size_t)line_len);
 }
 
 static long dispatch_call(const char* syscall_name, long a0, long a1, long a2, long a3)

@@ -495,6 +495,29 @@ def sample_fat_external_state(image_path: Path) -> dict[str, object]:
         return {"files": [], "read_error": str(exc)}
 
 
+def diff_external_state(base_state: dict[str, object], current_state: dict[str, object]) -> dict[str, object]:
+    if "read_error" in base_state or "read_error" in current_state:
+        payload = {"files": list(current_state.get("files", []))}
+        if "read_error" in current_state:
+            payload["read_error"] = current_state["read_error"]
+        return payload
+    base_by_path = {
+        str(item["path"]): item
+        for item in base_state.get("files", [])
+        if isinstance(item, dict) and "path" in item
+    }
+    changed: list[dict[str, object]] = []
+    for raw_item in current_state.get("files", []):
+        if not isinstance(raw_item, dict):
+            continue
+        path = str(raw_item.get("path", ""))
+        previous = base_by_path.get(path)
+        if previous is None or previous.get("sha256") != raw_item.get("sha256") or previous.get("size") != raw_item.get("size"):
+            changed.append(raw_item)
+    changed.sort(key=lambda item: str(item.get("path", "")))
+    return {"files": changed}
+
+
 def run_case_make_args(cfg: dict[str, Any], *, app_dir: Path, disk_image: Path) -> list[str]:
     arch = str(cfg.get("arch", "riscv64"))
     feature_string = ",".join(line.strip() for line in (app_dir / "features.txt").read_text(encoding="utf-8").splitlines() if line.strip())
@@ -522,6 +545,7 @@ def write_case_outputs(
     runner_result_path_value: Path,
     console_path: Path | None,
     disk_image: Path,
+    initial_external_state: dict[str, object],
 ) -> None:
     normalized_console = ANSI_ESCAPE_RE.sub("", console_text).replace("\x00", "")
     events = extract_framed_events(normalized_console)
@@ -532,7 +556,7 @@ def write_case_outputs(
             args = last_event.get("args", [])
             if isinstance(args, list) and args:
                 guest_exit_code = int(args[0])
-    dump_json(external_state_path, sample_fat_external_state(disk_image))
+    dump_json(external_state_path, diff_external_state(initial_external_state, sample_fat_external_state(disk_image)))
     if not events:
         dump_json(
             runner_result_path_value,
@@ -624,6 +648,7 @@ def run_case(args: argparse.Namespace) -> None:
             kernel_build=label,
         )
         raise
+    initial_external_state = sample_fat_external_state(disk_image)
     config_path, previous_config = write_managed_cargo_config(cfg)
     make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
     try:
@@ -692,6 +717,7 @@ def run_case(args: argparse.Namespace) -> None:
         runner_result_path_value=runner_result,
         console_path=console_path,
         disk_image=disk_image,
+        initial_external_state=initial_external_state,
     )
 
 

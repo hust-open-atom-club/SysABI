@@ -828,6 +828,30 @@ class TGOSKitsTargetTests(unittest.TestCase):
             self.assertEqual(result_payload["status"], "infra_error")
             self.assertIn("timed out", result_payload["detail"])
 
+    def test_arceos_diff_external_state_reports_only_changed_files(self) -> None:
+        base = {
+            "files": [
+                {"path": "etc/profile", "size": 4, "sha256": "same"},
+                {"path": "tmp/keep", "size": 3, "sha256": "same-two"},
+            ]
+        }
+        current = {
+            "files": [
+                {"path": "etc/profile", "size": 4, "sha256": "same"},
+                {"path": "tmp/keep", "size": 5, "sha256": "changed"},
+                {"path": "tmp/new", "size": 1, "sha256": "new"},
+            ]
+        }
+        self.assertEqual(
+            arceos_api.diff_external_state(base, current),
+            {
+                "files": [
+                    {"path": "tmp/keep", "size": 5, "sha256": "changed"},
+                    {"path": "tmp/new", "size": 1, "sha256": "new"},
+                ]
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
