@@ -1072,13 +1072,43 @@ class TGOSKitsTargetTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             runner_result = root / "runner.json"
+            os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
+
+            def fail_after_writing(*_args, **_kwargs) -> None:
+                runner_result.write_text(
+                    json.dumps(
+                        {
+                            "status": "infra_error",
+                            "exit_code": None,
+                            "detail": "ArceOS run timed out after 10s",
+                            "kernel_build": "tgoskits-arceos@test",
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                raise arceos_api.RunnerError("ArceOS run timed out after 10s")
+
+            with patch("targets.tgoskits_arceos.api.parse_args", return_value=SimpleNamespace(healthcheck=False, batch_manifest=None, binary="ignored", mode="smoke-qemu", work_dir=str(root))), patch(
+                "targets.tgoskits_arceos.api.run_case", side_effect=fail_after_writing
+            ):
+                with self.assertRaises(SystemExit):
+                    arceos_api.main()
+            payload = json.loads(runner_result.read_text(encoding="utf-8"))
+            self.assertEqual(payload["kernel_build"], "tgoskits-arceos@test")
+
+    def test_arceos_main_overwrites_stale_runner_result_on_new_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            runner_result = root / "runner.json"
             runner_result.write_text(
                 json.dumps(
                     {
-                        "status": "infra_error",
-                        "exit_code": None,
-                        "detail": "ArceOS run timed out after 10s",
-                        "kernel_build": "tgoskits-arceos@test",
+                        "status": "ok",
+                        "exit_code": 0,
+                        "kernel_build": "stale-build",
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -1088,12 +1118,122 @@ class TGOSKitsTargetTests(unittest.TestCase):
             )
             os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
             with patch("targets.tgoskits_arceos.api.parse_args", return_value=SimpleNamespace(healthcheck=False, batch_manifest=None, binary="ignored", mode="smoke-qemu", work_dir=str(root))), patch(
-                "targets.tgoskits_arceos.api.run_case", side_effect=arceos_api.RunnerError("ArceOS run timed out after 10s")
+                "targets.tgoskits_arceos.api.run_case", side_effect=arceos_api.RunnerError("fresh failure")
             ):
                 with self.assertRaises(SystemExit):
                     arceos_api.main()
             payload = json.loads(runner_result.read_text(encoding="utf-8"))
-            self.assertEqual(payload["kernel_build"], "tgoskits-arceos@test")
+            self.assertEqual(payload["status"], "infra_error")
+            self.assertEqual(payload["detail"], "fresh failure")
+
+    def test_arceos_main_writes_runner_result_when_managed_cargo_template_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            repo = root / "tgoskits"
+            workspace = repo / "os" / "arceos"
+            workspace.mkdir(parents=True, exist_ok=True)
+            platform_config = repo / "components" / "axplat_crates" / "platforms" / "axplat-riscv64-qemu-virt" / "axconfig.toml"
+            platform_config.parent.mkdir(parents=True, exist_ok=True)
+            platform_config.write_text("package = \"ax-plat-riscv64-qemu-virt\"\n", encoding="utf-8")
+            (repo / "components" / "axallocator").mkdir(parents=True, exist_ok=True)
+            (repo / "Cargo.toml").write_text(
+                "[patch.crates-io]\nax-allocator = { path = \"components/axallocator\" }\n",
+                encoding="utf-8",
+            )
+            revision = init_git_repo(repo)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir(parents=True, exist_ok=True)
+            os.environ["PATH"] = f"{fake_bin}:{os.environ.get('PATH', '')}"
+            for tool in ("cargo", "qemu-system-riscv64", "mkfs.fat", "riscv64-linux-musl-gcc", "riscv64-linux-musl-ar", "riscv64-linux-musl-ranlib", "gcc"):
+                write_executable(fake_bin / tool, "#!/bin/sh\nexit 0\n")
+            write_executable(
+                fake_bin / "make",
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env python3
+                    import sys
+                    from pathlib import Path
+
+                    for arg in sys.argv[1:]:
+                        if arg.startswith("DISK_IMG="):
+                            disk = Path(arg.split("=", 1)[1])
+                            disk.parent.mkdir(parents=True, exist_ok=True)
+                            disk.write_text("disk", encoding="utf-8")
+                    raise SystemExit(0)
+                    """
+                ),
+            )
+            config_path = root / "arceos.json"
+            target_config = root / "arceos-target.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "workflow": "fake_arceos_missing_template",
+                        "target": "tgoskits_arceos",
+                        "arch": "riscv64",
+                        "runner_profiles_path": "configs/targets/tgoskits_arceos/runner_profiles.tgoskits_arceos_smoke.json",
+                        "target_config_path": str(target_config),
+                        "paths": {
+                            "build_dir": str(root / "build"),
+                            "artifacts_dir": str(root / "artifacts"),
+                            "reports_dir": str(root / "reports"),
+                            "eligible_file": str(root / "eligible.jsonl"),
+                            "temp_dir": str(root / "tmp"),
+                        },
+                        "normalization": {"preview_bytes": 32},
+                        "classification": {"no_diff": "NO_DIFF"},
+                        "thresholds": {"smoke": {}, "signoff": {}},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            target_config.write_text(
+                json.dumps(
+                    {
+                        "build_info_path": str(root / "arceos-build-info.json"),
+                        "default_mode": "smoke-qemu",
+                        "revision": revision,
+                        "repo_dir_env": "SYZABI_TGOSKITS_DIR",
+                        "workspace_subdir": "os/arceos",
+                        "feature_flag_env": "SYZABI_ENABLE_TGOSKITS",
+                        "default_target": "riscv64gc-unknown-none-elf",
+                        "platform_config_path": "components/axplat_crates/platforms/axplat-riscv64-qemu-virt/axconfig.toml",
+                        "disk_image_path": "os/arceos/disk.img",
+                        "supported_targets": ["riscv64gc-unknown-none-elf"],
+                        "toolchain_probes": ["cargo", "qemu-system-riscv64"],
+                        "replay_toolchain_probes": ["gcc", "make", "mkfs.fat", "riscv64-linux-musl-gcc"],
+                        "app_features": ["alloc", "fd", "fs"],
+                        "prepare_commands": [],
+                        "healthcheck_command": ["cargo", "xtask", "arceos", "qemu", "--package", "ax-helloworld", "--target", "riscv64gc-unknown-none-elf"],
+                        "command_timeout_sec": 10,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            os.environ["SYZABI_TGOSKITS_DIR"] = str(repo)
+            os.environ["SYZABI_ENABLE_TGOSKITS"] = "1"
+            os.environ["SYZABI_CONFIG_PATH"] = str(config_path)
+            os.environ["SYZABI_WORKFLOW"] = "fake_arceos_missing_template"
+            runner_result = root / "runner.json"
+            os.environ["SYZABI_RUNNER_RESULT_PATH"] = str(runner_result)
+            os.environ["SYZABI_CONSOLE_LOG_PATH"] = str(root / "console.log")
+            os.environ["SYZABI_RAW_TRACE_PATH"] = str(root / "raw.json")
+            os.environ["SYZABI_EXTERNAL_STATE_PATH"] = str(root / "state.json")
+            binary = root / "testcase.candidate.bin"
+            binary.write_text("bin", encoding="utf-8")
+            binary.with_name("testcase.instrumented.c").write_text("int main(void) { return 0; }\n", encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                with patch("targets.tgoskits_arceos.api.parse_args", return_value=SimpleNamespace(healthcheck=False, batch_manifest=None, binary=str(binary), mode="smoke-qemu", work_dir=str(root / "workdir"))):
+                    arceos_api.main()
+            payload = json.loads(runner_result.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "infra_error")
+            self.assertIn("managed ArceOS cargo-config template", payload["detail"])
 
     def test_arceos_run_case_writes_timeout_runner_result(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
