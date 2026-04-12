@@ -43,6 +43,9 @@ python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
 python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke healthcheck
 ```
 
-Artifacts are written under `artifacts/smoke/<workflow>/`.
+Workflow run artifacts are written under:
+
+- `artifacts/runs/targets/<target>/<workflow>/...`
+- `reports/targets/<target>/<workflow>/...`
 
 For the real TGOSKits paths, use the documented host prerequisites and commands in [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md) and [targets/tgoskits-arceos.md](targets/tgoskits-arceos.md).

@@ -10,6 +10,7 @@ The implemented decision is:
 - support a real external-workspace smoke healthcheck through TGOSKits
 - allow a repo-owned experimental candidate path that materializes a generated ArceOS C app, runs it under QEMU, and recovers framed trace output from the console
 - keep batch execution unsupported
+- restrict the repo-owned experimental `campaign` command to `--limit 1 --jobs 1`
 - continue to reject any claim that ArceOS already matches StarryOS as a Linux-compatible syscall target
 
 ## Rationale

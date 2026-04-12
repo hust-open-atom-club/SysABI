@@ -88,6 +88,7 @@ Expected success signal:
 From the SysABI repo root:
 
 ```bash
+python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
 python3 tools/tgoskits_launch.py --workflow tgoskits_starryos healthcheck
 python3 targets/entrypoint.py --workflow tgoskits_starryos --healthcheck
 ```
@@ -117,6 +118,13 @@ python3 tools/prog2c_wrap.py --workflow tgoskits_starryos --eligible-file <eligi
 
 ### Run the smoke workflow
 
+The repo-owned launch command performs:
+
+1. TGOSKits preflight
+2. StarryOS healthcheck
+3. testcase build unless `--skip-build` is set
+4. bounded scheduler execution
+
 ```bash
 python3 tools/tgoskits_launch.py \
   --workflow tgoskits_starryos \
@@ -126,6 +134,8 @@ python3 tools/tgoskits_launch.py \
   --limit 1 \
   --jobs 1
 ```
+
+If the healthcheck fails, the command stops before testcase build or scheduler execution.
 
 Equivalent direct scheduler path:
 
@@ -148,6 +158,8 @@ python3 orchestrator/scheduler.py \
   --limit 2 \
   --jobs 1
 ```
+
+That direct scheduler path does not include the repo-owned preflight and healthcheck steps.
 
 Expected output locations:
 

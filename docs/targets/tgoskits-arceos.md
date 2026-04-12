@@ -10,6 +10,7 @@ The current scope is intentionally narrower than StarryOS:
 - single-case experimental replay path through a generated ArceOS C app
 - no batch execution
 - no claim of Linux-compatible syscall parity with StarryOS
+- the repo-owned campaign command only supports `--limit 1 --jobs 1`
 
 ## Required Host Tools
 
@@ -89,6 +90,8 @@ python3 tools/tgoskits_launch.py \
   --jobs 1
 ```
 
+The launch tool rejects any other `--limit` or `--jobs` combination with a fail-fast scope error.
+
 Equivalent `make` entrypoint:
 
 ```bash
@@ -116,6 +119,7 @@ The experimental ArceOS path currently does the following:
 ## Limitations
 
 - batch execution is not supported
+- the repo-owned `campaign` command requires `--limit 1 --jobs 1`
 - the path is still experimental and should be treated as launch-readiness evidence, not as StarryOS-level maturity
 - current reporting still compares against Linux reference behavior, so ArceOS divergences should be interpreted in the context of this narrower execution model
 
