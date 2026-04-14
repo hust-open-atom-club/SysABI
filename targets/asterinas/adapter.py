@@ -4,6 +4,8 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from core.capabilities import CapabilitySet, capabilities_from_config
+from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE
 from targets.asterinas import api
 from targets.asterinas.common import RunnerError
 from orchestrator.common import runner_profiles
@@ -13,6 +15,63 @@ from . import initramfs
 
 class AsterinasTargetAdapter:
     name = "asterinas"
+
+    def capabilities(self, cfg: dict[str, Any]) -> CapabilitySet:
+        return capabilities_from_config(cfg)
+
+    def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
+        return (PACKAGED_PER_CASE_EXECUTION_MODE,)
+
+    def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
+        return {
+            "target": self.name,
+            "workflow": str(cfg.get("workflow", "")),
+            "arch": str(cfg.get("arch", "")),
+            "target_os": str(cfg.get("target_os", "")),
+            "supports_preflight": self.capabilities(cfg).supports_preflight,
+            "supported_execution_modes": list(self.execution_modes(cfg)),
+        }
+
+    def prepare_campaign_assets(self, cfg: dict[str, Any]) -> dict[str, object]:
+        paths = cfg.get("paths", {})
+        target_cfg = cfg.get("target_config", {})
+        return {
+            "target": self.name,
+            "workflow": str(cfg.get("workflow", "")),
+            "build_info_path": str(target_cfg.get("build_info_path", "")),
+            "candidate_initramfs_packages_dir": str(paths.get("candidate_initramfs_packages_dir", "")),
+        }
+
+    def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
+        return {
+            "target": self.name,
+            "workflow": str(cfg.get("workflow", "")),
+            "program_id": str(entry.get("program_id", "")),
+            "binary_path": str(entry.get("binary_path", "")),
+        }
+
+    def prepare_batch(self, cases: list[dict[str, object]], cfg: dict[str, Any]) -> dict[str, object] | None:
+        if not self.capabilities(cfg).supports_batch_execution:
+            return None
+        return {
+            "target": self.name,
+            "workflow": str(cfg.get("workflow", "")),
+            "execution_mode": PACKAGED_PER_CASE_EXECUTION_MODE,
+            "case_count": len(cases),
+            "program_ids": [str(case.get("program_id", "")) for case in cases],
+        }
+
+    def collect_result(self, result: object, cfg: dict[str, Any]) -> dict[str, object]:
+        return {
+            "target": self.name,
+            "workflow": str(cfg.get("workflow", "")),
+            "result": result,
+        }
+
+    def finalize_result(self, result: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
+        finalized = dict(result)
+        finalized["finalized"] = True
+        return finalized
 
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         preview_bytes = int(cfg["normalization"]["preview_bytes"])
