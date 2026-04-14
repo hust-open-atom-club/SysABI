@@ -16,9 +16,12 @@ from analyzer.classify import classify_result
 from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
 from core.capabilities import capabilities_from_config
+from core.workflow_contract import WorkflowContractError
 from orchestrator.common import clean_dir, config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, load_jsonl, report_path, reports_dir, runner_profiles
 from orchestrator.stability import all_equal, canonical_trace_hash, build_status_ok
 from orchestrator.vm_runner import build_root, execute_candidate_batch, execute_candidate_batch_with_context, execute_candidate_case_in_package, execute_side
+from targets.base import canonical_execution_mode
+from targets.registry import get_target_adapter
 from tools.render_summary import render_summary_reports
 
 
@@ -104,13 +107,15 @@ def run_candidate_once_with_package(
 
 def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str, object]:
     cfg = config()
+    adapter = get_target_adapter(cfg)
     program_id = entry["program_id"]
+    prepared_case = adapter.prepare_case(entry, cfg)
     scml_preflight_status = entry.get("scml_preflight_status", "not_run")
     build_result_path = build_root(program_id) / "build-result.json"
     if not build_status_ok(build_result_path):
-        return {
+        result = {
             "kind": "final",
-            "result": {
+            "result": adapter.finalize_result({
                 "program_id": program_id,
                 "classification": "build_failure",
                 "build_result_path": str(build_result_path),
@@ -127,8 +132,9 @@ def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str
                     classification="build_failure",
                     cfg=cfg,
                 ),
-            },
+            }, cfg),
         }
+        return result
 
     inject_trace = controlled_divergence_spec(getattr(args, "controlled_divergence", False))
     run_id = next_run_id(program_id)
@@ -147,9 +153,9 @@ def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str
             reference_results.append(rerun_result)
             if rerun_canonical is not None:
                 reference_hashes.append(canonical_trace_hash(rerun_canonical))
-        return {
+        result = {
             "kind": "final",
-            "result": {
+            "result": adapter.finalize_result({
                 "program_id": program_id,
                 "classification": cfg["classification"]["baseline_invalid"],
                 "normalized_path": entry.get("normalized_path", ""),
@@ -166,12 +172,14 @@ def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str
                     classification=cfg["classification"]["baseline_invalid"],
                     cfg=cfg,
                 ),
-            },
+            }, cfg),
         }
+        return result
 
     return {
         "kind": "candidate_ready",
         "entry": entry,
+        "prepared_case": prepared_case,
         "program_id": program_id,
         "run_id": run_id,
         "inject_trace": inject_trace,
@@ -191,6 +199,7 @@ def finalize_prepared_case(
     candidate_package_slot: int | None = None,
 ) -> dict[str, object]:
     cfg = config()
+    adapter = get_target_adapter(cfg)
     entry = prepared["entry"]
     program_id = prepared["program_id"]
     run_id = prepared["run_id"]
@@ -231,7 +240,7 @@ def finalize_prepared_case(
 
     reference_stable = all_equal(reference_hashes)
     if not reference_stable:
-        return {
+        return adapter.finalize_result({
             "program_id": program_id,
             "classification": cfg["classification"]["baseline_invalid"],
             "normalized_path": entry.get("normalized_path", ""),
@@ -250,7 +259,7 @@ def finalize_prepared_case(
                 comparison=None,
                 cfg=cfg,
             ),
-        }
+        }, cfg)
 
     candidate_status = candidate_results[-1].status
     if candidate_hashes and all_equal(candidate_hashes) and reference_hashes and candidate_hashes[-1] == reference_hashes[-1]:
@@ -291,7 +300,8 @@ def finalize_prepared_case(
     if candidate_canonical:
         result["reference_canonical_hash"] = reference_hashes[-1]
         result["candidate_canonical_hash"] = canonical_trace_hash(candidate_canonical)
-    return result
+    result["candidate_collection"] = adapter.collect_result(candidate_results[-1].to_dict(), cfg)
+    return adapter.finalize_result(result, cfg)
 
 
 def controlled_divergence_spec(enabled: bool) -> dict[str, object] | None:
@@ -326,6 +336,7 @@ def infra_error_result(
     candidate_results: list[object] | None = None,
 ) -> dict[str, object]:
     cfg = config()
+    adapter = get_target_adapter(cfg)
     scml_preflight_status = str(entry.get("scml_preflight_status", "not_run"))
     candidate_runs = serialize_runs(candidate_results or [])
     candidate_run = candidate_runs[-1] if candidate_runs else None
@@ -353,7 +364,7 @@ def infra_error_result(
     }
     if candidate_run is not None:
         result["candidate_run"] = candidate_run
-    return result
+    return adapter.finalize_result(result, cfg)
 
 
 def prepare_case_safe(entry: dict[str, object], args: argparse.Namespace) -> dict[str, object]:
@@ -730,8 +741,15 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     if not capabilities.supports_batch_execution:
         return False
     profile = runner_profiles()["candidate"]
-    if profile.get("kind") == "command" and profile.get("command_batching_mode") not in {"packaged_per_case", "shared_guest_shell", None}:
-        return False
+    if profile.get("kind") == "command":
+        adapter = get_target_adapter(cfg)
+        batching_mode = canonical_execution_mode(str(profile.get("command_batching_mode")) if profile.get("command_batching_mode") is not None else None)
+        if batching_mode is None:
+            raise WorkflowContractError("candidate batch execution requires an explicit command_batching_mode")
+        if batching_mode not in set(adapter.execution_modes(cfg)):
+            raise WorkflowContractError(
+                f"candidate runner batching mode {batching_mode!r} is not supported by target {cfg.get('target')!r}"
+            )
     return effective_candidate_batch_size(args, cfg) > 1
 
 

@@ -271,14 +271,10 @@ class TGOSKitsLaunchTests(unittest.TestCase):
         }
         captured = io.StringIO()
         with patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
-            "tools.tgoskits_launch.campaign_preflight_payload",
-            return_value={"target": "tgoskits_arceos", "mode": "experimental-c-app"},
-        ) as campaign_preflight, patch(
             "tools.tgoskits_launch.checked_preflight_payload",
-            side_effect=AssertionError("checked_preflight_payload should not be used for ArceOS preflight"),
+            return_value={"target": "tgoskits_arceos", "mode": "smoke-qemu"},
         ), patch("sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_arceos_smoke", "preflight"]), redirect_stdout(captured):
             launch.main()
-        self.assertTrue(campaign_preflight.called)
         self.assertEqual(json.loads(captured.getvalue())["target"], "tgoskits_arceos")
 
 

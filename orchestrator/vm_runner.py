@@ -15,6 +15,7 @@ from core.workflow_contract import trace_events_transport
 from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text
 from orchestrator.models import RunResult
 from runners import build_runner
+from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE, SHARED_RUNTIME_BATCH_EXECUTION_MODE, canonical_execution_mode
 from targets.registry import get_target_adapter
 
 TRACE_EVENT_STDOUT_PREFIX = "__SYZABI_TRACE_EVENT__ "
@@ -279,12 +280,18 @@ def package_case_descriptor(case: dict[str, object]) -> dict[str, object]:
     }
 
 
-def prepare_candidate_initramfs_package(cases: list[dict[str, object]], cfg: dict[str, object]) -> tuple[Path, dict[str, int]]:
+def prepare_candidate_initramfs_package(
+    cases: list[dict[str, object]],
+    cfg: dict[str, object],
+    *,
+    batch_metadata: dict[str, object] | None = None,
+) -> tuple[Path, dict[str, int]]:
     template_inputs = packaged_initramfs_template_inputs(cfg)
     package_descriptor = {
         "workflow": cfg["workflow"],
         "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
         "template_inputs": template_inputs,
+        "batch_metadata": batch_metadata or {},
         "cases": [package_case_descriptor(case) for case in cases],
     }
     package_id = sha256_text(json.dumps(package_descriptor, ensure_ascii=False, sort_keys=True))
@@ -295,6 +302,7 @@ def prepare_candidate_initramfs_package(cases: list[dict[str, object]], cfg: dic
         "workflow": cfg["workflow"],
         "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
         "template_inputs": template_inputs,
+        "batch_metadata": batch_metadata or {},
         "cases": [
             {
                 "slot": slot,
@@ -309,12 +317,18 @@ def prepare_candidate_initramfs_package(cases: list[dict[str, object]], cfg: dic
     return package_dir, {str(case["program_id"]): slot for slot, case in enumerate(cases)}
 
 
-def prepare_shared_batch_manifest(cases: list[dict[str, object]], cfg: dict[str, object]) -> Path:
+def prepare_shared_batch_manifest(
+    cases: list[dict[str, object]],
+    cfg: dict[str, object],
+    *,
+    batch_metadata: dict[str, object] | None = None,
+) -> Path:
     payload = {
         "workflow": str(cfg.get("workflow", "")),
         "target": str(cfg.get("target", "")),
         "arch": str(cfg.get("arch", "")),
         "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
+        "batch_metadata": batch_metadata or {},
         "cases": [
             {
                 "program_id": str(case["program_id"]),
@@ -660,7 +674,14 @@ def execute_candidate_batch_with_context(
     profile = runner_profiles()["candidate"]
     if profile.get("kind") != "command":
         raise ValueError("candidate batch execution requires a command runner profile")
-    command_batching_mode = str(profile.get("command_batching_mode") or "packaged_per_case")
+    adapter = get_target_adapter(cfg)
+    command_batching_mode = canonical_execution_mode(
+        str(profile.get("command_batching_mode") or PACKAGED_PER_CASE_EXECUTION_MODE)
+    )
+    if command_batching_mode not in set(adapter.execution_modes(cfg)):
+        raise ValueError(
+            f"candidate runner batching mode {command_batching_mode!r} is not supported by target {cfg.get('target')!r}"
+        )
 
     prepared_cases = [
         prepare_candidate_batch_case(
@@ -671,8 +692,9 @@ def execute_candidate_batch_with_context(
         )
         for case in batch_cases
     ]
-    if command_batching_mode == "shared_guest_shell":
-        manifest_path = prepare_shared_batch_manifest(prepared_cases, cfg)
+    batch_metadata = adapter.prepare_batch(prepared_cases, cfg) or {}
+    if command_batching_mode == SHARED_RUNTIME_BATCH_EXECUTION_MODE:
+        manifest_path = prepare_shared_batch_manifest(prepared_cases, cfg, batch_metadata=batch_metadata)
         manifest_dir = manifest_path.parent
         command_context = execution_context(
             program_id="candidate-batch",
@@ -727,7 +749,7 @@ def execute_candidate_batch_with_context(
         }
         return results, None, {str(case["program_id"]): None for case in prepared_cases}
 
-    package_dir, slot_by_program = prepare_candidate_initramfs_package(prepared_cases, cfg)
+    package_dir, slot_by_program = prepare_candidate_initramfs_package(prepared_cases, cfg, batch_metadata=batch_metadata)
     prewarm_packaged_candidate_bundle(prepared_cases, package_dir, cfg)
     if max_workers is None:
         selected_workers = int(cfg.get("parallel", {}).get("jobs", 1))

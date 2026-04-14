@@ -13,6 +13,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from orchestrator.common import config, configure_runtime, resolve_repo_path
+from targets.base import SHARED_RUNTIME_BATCH_EXECUTION_MODE
+from targets.registry import get_target_adapter
 from targets.tgoskits_arceos import api as arceos_api
 from targets.tgoskits_starryos import api as starry_api
 
@@ -42,23 +44,19 @@ def load_cfg(workflow: str) -> dict[str, object]:
     return config()
 
 
+def resolve_adapter(cfg: dict[str, object]):
+    return get_target_adapter(cfg)
+
+
 def preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
-    target = str(cfg.get("target", ""))
-    if target == "tgoskits_starryos":
-        return starry_api.preflight_payload(cfg)
-    if target == "tgoskits_arceos":
-        return arceos_api.preflight_payload(cfg)
-    raise SystemExit(f"unsupported TGOSKits target for launch tool: {target}")
+    return resolve_adapter(cfg).preflight_payload(cfg)
 
 
-def campaign_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
-    target = str(cfg.get("target", ""))
-    if target == "tgoskits_arceos":
-        try:
-            return arceos_api.replay_preflight_payload(cfg)
-        except RUNNER_ERRORS as exc:
-            raise SystemExit(str(exc))
-    return checked_preflight_payload(cfg)
+def campaign_preflight_payload(cfg: dict[str, object], args: argparse.Namespace | None = None) -> dict[str, object]:
+    try:
+        return resolve_adapter(cfg).prepare_campaign_assets(cfg, args)
+    except RUNNER_ERRORS as exc:
+        raise SystemExit(str(exc))
 
 
 def checked_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
@@ -84,16 +82,6 @@ def ensure_prog2c_exists(cfg: dict[str, object]) -> None:
     )
 
 
-def enforce_campaign_scope(cfg: dict[str, object], args: argparse.Namespace) -> None:
-    target = str(cfg.get("target", ""))
-    if target != "tgoskits_arceos":
-        return
-    if args.limit != 1 or args.jobs != 1:
-        raise SystemExit(
-            "ArceOS experimental campaign is single-case only; use `--limit 1 --jobs 1`."
-        )
-
-
 def healthcheck_command(workflow: str) -> list[str]:
     return ["python3", "targets/entrypoint.py", "--workflow", workflow, "--healthcheck"]
 
@@ -101,9 +89,10 @@ def healthcheck_command(workflow: str) -> list[str]:
 def main() -> None:
     args = parse_args()
     cfg = load_cfg(args.workflow)
+    adapter = resolve_adapter(cfg)
 
     if args.command == "preflight":
-        payload = campaign_preflight_payload(cfg) if str(cfg.get("target", "")) == "tgoskits_arceos" else checked_preflight_payload(cfg)
+        payload = checked_preflight_payload(cfg)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
@@ -116,10 +105,9 @@ def main() -> None:
         return
 
     if args.command == "campaign":
-        enforce_campaign_scope(cfg, args)
-        campaign_preflight_payload(cfg)
+        campaign_preflight_payload(cfg, args)
         eligible_file = args.eligible_file or str(cfg["paths"]["eligible_file"])
-        if str(cfg.get("target", "")) == "tgoskits_starryos":
+        if SHARED_RUNTIME_BATCH_EXECUTION_MODE in set(adapter.execution_modes(cfg)):
             run_command(healthcheck_command(args.workflow), env=env)
         if not args.skip_build:
             ensure_prog2c_exists(cfg)

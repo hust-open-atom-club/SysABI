@@ -18,26 +18,12 @@ class TGOSKitsArceOSTargetAdapter:
         return (SINGLE_COMMAND_EXECUTION_MODE,)
 
     def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
-        target_cfg = cfg.get("target_config", {})
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "arch": str(cfg.get("arch", "")),
-            "default_mode": str(target_cfg.get("default_mode", "")),
-            "repo_dir_env": str(target_cfg.get("repo_dir_env", "")),
-            "feature_flag_env": str(target_cfg.get("feature_flag_env", "")),
-            "supported_execution_modes": list(self.execution_modes(cfg)),
-        }
+        return api.preflight_payload(cfg)
 
-    def prepare_campaign_assets(self, cfg: dict[str, Any]) -> dict[str, object]:
-        target_cfg = cfg.get("target_config", {})
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "workspace_subdir": str(target_cfg.get("workspace_subdir", "")),
-            "build_info_path": str(target_cfg.get("build_info_path", "")),
-            "prepare_commands": list(target_cfg.get("prepare_commands", [])),
-        }
+    def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
+        if args is not None and (getattr(args, "limit", None) != 1 or getattr(args, "jobs", None) != 1):
+            raise api.RunnerError("ArceOS experimental campaign is single-case only; use `--limit 1 --jobs 1`.")
+        return api.replay_preflight_payload(cfg)
 
     def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
         return {

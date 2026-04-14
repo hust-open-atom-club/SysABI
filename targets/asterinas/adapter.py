@@ -32,7 +32,7 @@ class AsterinasTargetAdapter:
             "supported_execution_modes": list(self.execution_modes(cfg)),
         }
 
-    def prepare_campaign_assets(self, cfg: dict[str, Any]) -> dict[str, object]:
+    def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
         paths = cfg.get("paths", {})
         target_cfg = cfg.get("target_config", {})
         return {

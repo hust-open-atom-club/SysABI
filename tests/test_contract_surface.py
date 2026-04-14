@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
-from contextlib import redirect_stderr
+from contextlib import ExitStack, redirect_stderr
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -24,6 +24,7 @@ from targets.base import (
     SINGLE_COMMAND_EXECUTION_MODE,
     TargetAdapter,
 )
+from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload
 from targets.registry import TargetLookupError, get_target_adapter
 from tools.render_summary import workflow_side_labels
 
@@ -113,34 +114,55 @@ class ContractSurfaceTests(unittest.TestCase):
             with self.subTest(workflow=workflow):
                 cfg = config(workflow=workflow)
                 adapter = get_target_adapter(cfg)
+                with ExitStack() as stack:
+                    if cfg["target"] == "tgoskits_starryos":
+                        stack.enter_context(
+                            patch(
+                                "targets.tgoskits_starryos.adapter.api.preflight_payload",
+                                return_value={"target": cfg["target"], "workflow": cfg["workflow"]},
+                            )
+                        )
+                    elif cfg["target"] == "tgoskits_arceos":
+                        stack.enter_context(
+                            patch(
+                                "targets.tgoskits_arceos.adapter.api.preflight_payload",
+                                return_value={"target": cfg["target"], "workflow": cfg["workflow"]},
+                            )
+                        )
+                        stack.enter_context(
+                            patch(
+                                "targets.tgoskits_arceos.adapter.api.replay_preflight_payload",
+                                return_value={"target": cfg["target"], "workflow": cfg["workflow"], "mode": "experimental-c-app"},
+                            )
+                        )
 
-                self.assertIsInstance(adapter, TargetAdapter)
-                self.assertEqual(adapter.capabilities(cfg), capabilities_from_config(cfg))
-                self.assertEqual(adapter.execution_modes(cfg), (expected_mode,))
+                    self.assertIsInstance(adapter, TargetAdapter)
+                    self.assertEqual(adapter.capabilities(cfg), capabilities_from_config(cfg))
+                    self.assertEqual(adapter.execution_modes(cfg), (expected_mode,))
 
-                preflight = adapter.preflight_payload(cfg)
-                self.assertEqual(preflight["target"], cfg["target"])
-                self.assertEqual(preflight["workflow"], cfg["workflow"])
+                    preflight = adapter.preflight_payload(cfg)
+                    self.assertEqual(preflight["target"], cfg["target"])
+                    self.assertEqual(preflight["workflow"], cfg["workflow"])
 
-                campaign_assets = adapter.prepare_campaign_assets(cfg)
-                self.assertEqual(campaign_assets["target"], cfg["target"])
+                    campaign_assets = adapter.prepare_campaign_assets(cfg)
+                    self.assertEqual(campaign_assets["target"], cfg["target"])
 
-                prepared_case = adapter.prepare_case({"program_id": "case-one", "binary_path": "/tmp/case-one.bin"}, cfg)
-                self.assertEqual(prepared_case["target"], cfg["target"])
-                self.assertEqual(prepared_case["program_id"], "case-one")
+                    prepared_case = adapter.prepare_case({"program_id": "case-one", "binary_path": "/tmp/case-one.bin"}, cfg)
+                    self.assertEqual(prepared_case["target"], cfg["target"])
+                    self.assertEqual(prepared_case["program_id"], "case-one")
 
-                prepared_batch = adapter.prepare_batch([prepared_case], cfg)
-                if capabilities_from_config(cfg).supports_batch_execution:
-                    self.assertIsNotNone(prepared_batch)
-                    self.assertEqual(prepared_batch["case_count"], 1)
-                    self.assertEqual(prepared_batch["execution_mode"], expected_mode)
-                else:
-                    self.assertIsNone(prepared_batch)
+                    prepared_batch = adapter.prepare_batch([prepared_case], cfg)
+                    if capabilities_from_config(cfg).supports_batch_execution:
+                        self.assertIsNotNone(prepared_batch)
+                        self.assertEqual(prepared_batch["case_count"], 1)
+                        self.assertEqual(prepared_batch["execution_mode"], expected_mode)
+                    else:
+                        self.assertIsNone(prepared_batch)
 
-                collected = adapter.collect_result({"status": "ok"}, cfg)
-                self.assertEqual(collected["target"], cfg["target"])
-                finalized = adapter.finalize_result(collected, cfg)
-                self.assertTrue(finalized["finalized"])
+                    collected = adapter.collect_result({"status": "ok"}, cfg)
+                    self.assertEqual(collected["target"], cfg["target"])
+                    finalized = adapter.finalize_result(collected, cfg)
+                    self.assertTrue(finalized["finalized"])
 
     def test_target_adapter_protocol_rejects_missing_lifecycle_methods(self) -> None:
         class IncompleteAdapter:
@@ -168,6 +190,33 @@ class ContractSurfaceTests(unittest.TestCase):
                 return None
 
         self.assertFalse(isinstance(IncompleteAdapter(), TargetAdapter))
+
+    def test_repo_workflow_contract_requires_normalized_top_level_mappings(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        payload = {
+            "workflow": "invalid",
+            "target": "linux",
+            "arch": "amd64",
+            "runner_profiles_path": "configs/targets/linux/runner_profiles.baseline.json",
+            "target_config_path": "configs/targets/linux/target.json",
+            "paths": {
+                "build_dir": "build/targets/linux/invalid/testcases",
+                "artifacts_dir": "artifacts/runs/targets/linux/invalid",
+                "reports_dir": "reports/targets/linux/invalid",
+                "eligible_file": "eligible_programs/targets/linux/invalid/default.jsonl",
+                "temp_dir": "artifacts/tmp",
+            },
+            "parallel": {},
+            "presentation": {},
+            "stability": {},
+            "thresholds": {},
+        }
+        with self.assertRaises(WorkflowContractError):
+            validate_repo_workflow_payload(
+                payload,
+                resolved_path=repo_root / "configs" / "workflows" / "invalid.json",
+                repo_root=repo_root,
+            )
 
     def test_execute_side_command_runner_materializes_protocol_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -544,15 +593,15 @@ class ContractSurfaceTests(unittest.TestCase):
             "orchestrator.scheduler.runner_profiles",
             return_value={"candidate": {"kind": "command", "command_batching_mode": "unknown_mode"}},
         ):
-            self.assertFalse(
+            with self.assertRaises(WorkflowContractError):
                 candidate_batching_enabled(
                     args,
                     {
                         "workflow": "custom_workflow",
+                        "target": "asterinas",
                         "capabilities": {"supports_batch_execution": True},
                     },
                 )
-            )
         with patch(
             "orchestrator.scheduler.runner_profiles",
             return_value={"candidate": {"kind": "command", "command_batching_mode": "packaged_per_case"}},

@@ -11,6 +11,12 @@ from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_p
 from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload, validate_target_config_payload
 from orchestrator.legacy_compat import default_presentation, emit_deprecation_warning_once, infer_legacy_target
 from runners.factory import available_runner_kinds
+from targets.base import (
+    LEGACY_SHARED_GUEST_SHELL_EXECUTION_MODE,
+    PACKAGED_PER_CASE_EXECUTION_MODE,
+    SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+    canonical_execution_mode,
+)
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -157,8 +163,15 @@ def validate_runner_profiles_payload(
     candidate = payload.get("candidate", {})
     if isinstance(candidate, dict):
         batching_mode = candidate.get("command_batching_mode")
-        if batching_mode == "shared_guest_shell" and not candidate.get("batch_command"):
-            raise WorkflowContractError("candidate runner profile with shared_guest_shell batching must define batch_command")
+        if batching_mode not in {
+            None,
+            PACKAGED_PER_CASE_EXECUTION_MODE,
+            SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+            LEGACY_SHARED_GUEST_SHELL_EXECUTION_MODE,
+        }:
+            raise WorkflowContractError(f"unsupported candidate command_batching_mode: {batching_mode!r}")
+        if canonical_execution_mode(str(batching_mode) if batching_mode is not None else None) == SHARED_RUNTIME_BATCH_EXECUTION_MODE and not candidate.get("batch_command"):
+            raise WorkflowContractError("candidate runner profile with shared runtime batching must define batch_command")
 
 
 def config(*, workflow: str | None = None, config_path: str | Path | None = None) -> dict[str, Any]:

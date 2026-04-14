@@ -9,6 +9,13 @@ from core.capabilities import CapabilitySet
 SINGLE_COMMAND_EXECUTION_MODE = "single_command"
 PACKAGED_PER_CASE_EXECUTION_MODE = "packaged_per_case"
 SHARED_RUNTIME_BATCH_EXECUTION_MODE = "shared_runtime_batch"
+LEGACY_SHARED_GUEST_SHELL_EXECUTION_MODE = "shared_guest_shell"
+
+
+def canonical_execution_mode(mode: str | None) -> str | None:
+    if mode == LEGACY_SHARED_GUEST_SHELL_EXECUTION_MODE:
+        return SHARED_RUNTIME_BATCH_EXECUTION_MODE
+    return mode
 
 
 @runtime_checkable
@@ -24,7 +31,7 @@ class TargetAdapter(Protocol):
     def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
         ...
 
-    def prepare_campaign_assets(self, cfg: dict[str, Any]) -> dict[str, object]:
+    def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
         ...
 
     def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
