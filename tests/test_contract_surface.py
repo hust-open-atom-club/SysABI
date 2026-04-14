@@ -12,11 +12,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from core.capabilities import capabilities_from_config
 from orchestrator.common import config, configure_runtime, resolved_config_path, runner_profiles
 from orchestrator.legacy_compat import _WARNED_DEPRECATIONS
 from orchestrator.scheduler import candidate_batching_enabled
 from orchestrator.vm_runner import TRACE_EVENT_STDOUT_PREFIX, execute_side
 from runners.factory import build_runner
+from targets.base import (
+    PACKAGED_PER_CASE_EXECUTION_MODE,
+    SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+    SINGLE_COMMAND_EXECUTION_MODE,
+    TargetAdapter,
+)
 from targets.registry import TargetLookupError, get_target_adapter
 from tools.render_summary import workflow_side_labels
 
@@ -93,6 +100,74 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("asterinas", legacy)
         self.assertEqual(legacy["asterinas"]["build_info_path"], "artifacts/asterinas/build-info.json")
         self.assertIn("deprecated compatibility path", stderr.getvalue())
+
+    def test_builtin_target_adapters_expose_expanded_lifecycle_contract(self) -> None:
+        workflow_modes = {
+            "baseline": SINGLE_COMMAND_EXECUTION_MODE,
+            "asterinas": PACKAGED_PER_CASE_EXECUTION_MODE,
+            "tgoskits_starryos": SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+            "tgoskits_arceos_smoke": SINGLE_COMMAND_EXECUTION_MODE,
+        }
+
+        for workflow, expected_mode in workflow_modes.items():
+            with self.subTest(workflow=workflow):
+                cfg = config(workflow=workflow)
+                adapter = get_target_adapter(cfg)
+
+                self.assertIsInstance(adapter, TargetAdapter)
+                self.assertEqual(adapter.capabilities(cfg), capabilities_from_config(cfg))
+                self.assertEqual(adapter.execution_modes(cfg), (expected_mode,))
+
+                preflight = adapter.preflight_payload(cfg)
+                self.assertEqual(preflight["target"], cfg["target"])
+                self.assertEqual(preflight["workflow"], cfg["workflow"])
+
+                campaign_assets = adapter.prepare_campaign_assets(cfg)
+                self.assertEqual(campaign_assets["target"], cfg["target"])
+
+                prepared_case = adapter.prepare_case({"program_id": "case-one", "binary_path": "/tmp/case-one.bin"}, cfg)
+                self.assertEqual(prepared_case["target"], cfg["target"])
+                self.assertEqual(prepared_case["program_id"], "case-one")
+
+                prepared_batch = adapter.prepare_batch([prepared_case], cfg)
+                if capabilities_from_config(cfg).supports_batch_execution:
+                    self.assertIsNotNone(prepared_batch)
+                    self.assertEqual(prepared_batch["case_count"], 1)
+                    self.assertEqual(prepared_batch["execution_mode"], expected_mode)
+                else:
+                    self.assertIsNone(prepared_batch)
+
+                collected = adapter.collect_result({"status": "ok"}, cfg)
+                self.assertEqual(collected["target"], cfg["target"])
+                finalized = adapter.finalize_result(collected, cfg)
+                self.assertTrue(finalized["finalized"])
+
+    def test_target_adapter_protocol_rejects_missing_lifecycle_methods(self) -> None:
+        class IncompleteAdapter:
+            name = "incomplete"
+
+            def compose_template_inputs(self, cfg):
+                return {}
+
+            def packaged_candidate_env(self, package_dir, slot):
+                return {}
+
+            def prewarm_candidate_batch(self, *, prepared_cases, package_dir, cfg):
+                return None
+
+            def prepare_target(self, **kwargs):
+                return None
+
+            def healthcheck(self, *args, **kwargs):
+                return None
+
+            def run_case(self, *args, **kwargs):
+                return None
+
+            def run_batch(self, *args, **kwargs):
+                return None
+
+        self.assertFalse(isinstance(IncompleteAdapter(), TargetAdapter))
 
     def test_execute_side_command_runner_materializes_protocol_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
