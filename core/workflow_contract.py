@@ -17,6 +17,14 @@ REQUIRED_PATH_KEYS = (
     "temp_dir",
 )
 
+REQUIRED_TOP_LEVEL_MAPPING_KEYS = (
+    "capabilities",
+    "parallel",
+    "presentation",
+    "stability",
+    "thresholds",
+)
+
 ALLOWED_TRACE_EVENT_TRANSPORTS = {"file", "stdout"}
 
 TARGET_REQUIRED_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
@@ -89,6 +97,13 @@ def _require_paths(payload: dict[str, Any]) -> dict[str, Any]:
     return paths
 
 
+def _require_mapping(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    value = payload.get(key)
+    if not isinstance(value, dict):
+        raise WorkflowContractError(f"workflow field {key} must be a mapping")
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class WorkflowPathsContract:
     artifacts_dir: str
@@ -116,6 +131,8 @@ class WorkflowContract:
         runner_profiles_path = _require_non_empty_str(payload, "runner_profiles_path")
         target_config_path = _require_non_empty_str(payload, "target_config_path")
         paths = _require_paths(payload)
+        for key in REQUIRED_TOP_LEVEL_MAPPING_KEYS:
+            _require_mapping(payload, key)
         return cls(
             workflow=workflow,
             target=target,

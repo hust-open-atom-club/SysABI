@@ -17,7 +17,7 @@
       "--batch-manifest",
       "{batch_manifest_path}"
     ],
-    "command_batching_mode": "shared_guest_shell",
+    "command_batching_mode": "shared_runtime_batch",
     "command": [
       "python3",
       "{repo_root}/targets/entrypoint.py",
