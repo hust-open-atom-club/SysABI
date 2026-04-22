@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Protocol, runtime_checkable, Any
 
@@ -16,6 +18,18 @@ def canonical_execution_mode(mode: str | None) -> str | None:
     if mode == LEGACY_SHARED_GUEST_SHELL_EXECUTION_MODE:
         return SHARED_RUNTIME_BATCH_EXECUTION_MODE
     return mode
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def case_package_id(payload: dict[str, object]) -> str:
+    return sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def batch_manifest_id(payload: dict[str, object]) -> str:
+    return sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
 @runtime_checkable
@@ -63,6 +77,15 @@ class TargetAdapter(Protocol):
         cfg: dict[str, Any],
         batch_metadata: dict[str, object] | None,
     ) -> dict[str, object] | None:
+        ...
+
+    def case_package_id(self, payload: dict[str, object]) -> str:
+        ...
+
+    def batch_manifest_id(self, payload: dict[str, object]) -> str:
+        ...
+
+    def runner_errors(self) -> tuple[type[Exception], ...]:
         ...
 
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
