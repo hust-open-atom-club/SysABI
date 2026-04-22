@@ -293,11 +293,20 @@ def system_ovmf_code_path(*, hooks) -> Path:
     for candidate in (Path("/usr/share/OVMF/OVMF_CODE_4M.fd"), Path("/usr/share/ovmf/OVMF.fd")):
         if candidate.exists():
             return candidate
+    # Fallback to user-local OVMF for non-root environments
+    user_ovmf = Path.home() / ".local/share/OVMF/OVMF_CODE_4M.fd"
+    if user_ovmf.exists():
+        return user_ovmf
     raise hooks.RunnerError("failed to locate system OVMF code image")
 
 
 def prepare_ovmf_vars(work_dir: Path, *, hooks) -> Path:
-    for candidate in (Path("/usr/share/OVMF/OVMF_VARS_4M.fd"), Path("/usr/share/OVMF/OVMF_VARS.fd")):
+    candidates = [
+        Path("/usr/share/OVMF/OVMF_VARS_4M.fd"),
+        Path("/usr/share/OVMF/OVMF_VARS.fd"),
+        Path.home() / ".local/share/OVMF/OVMF_VARS.fd",
+    ]
+    for candidate in candidates:
         if not candidate.exists():
             continue
         target = work_dir / "OVMF_VARS.fd"
