@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,7 +66,7 @@ class ReleaseGateTests(unittest.TestCase):
             env["SYZABI_CONFIG_PATH"] = str(config_path)
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     "tools/check_workflow_thresholds.py",
                     "--workflow",
                     "thresholds",
@@ -121,7 +122,7 @@ class ReleaseGateTests(unittest.TestCase):
             env["SYZABI_CONFIG_PATH"] = str(config_path)
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     "tools/check_workflow_thresholds.py",
                     "--workflow",
                     "thresholds",
@@ -178,7 +179,7 @@ class ReleaseGateTests(unittest.TestCase):
             env["SYZABI_CONFIG_PATH"] = str(config_path)
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     "tools/check_workflow_thresholds.py",
                     "--workflow",
                     "thresholds",
@@ -199,7 +200,7 @@ class ReleaseGateTests(unittest.TestCase):
             (summary_path.parent / "minimized-report.json").write_text("{}", encoding="utf-8")
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     "tools/check_workflow_thresholds.py",
                     "--workflow",
                     "thresholds",

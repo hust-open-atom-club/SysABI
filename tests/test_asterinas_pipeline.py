@@ -1683,12 +1683,33 @@ class AsterinasPipelineTests(unittest.TestCase):
                 "workflow": "asterinas",
                 "normalization": {"preview_bytes": 32},
             }
+
+            template_inputs_iter = iter([
+                {"compose_packaged_autorun": "v1", "busybox_sha256": "a"},
+                {"compose_packaged_autorun": "v2", "busybox_sha256": "a"},
+            ])
+
+            class FakeAdapter:
+                name = "asterinas"
+
+                def prepare_case_package_payload(self, cases, cfg, batch_metadata):
+                    return {
+                        "workflow": cfg["workflow"],
+                        "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
+                        "template_inputs": next(template_inputs_iter),
+                        "batch_metadata": batch_metadata or {},
+                        "cases": [
+                            {"program_id": str(case["program_id"]), "binary_sha256": "a" * 64}
+                            for case in cases
+                        ],
+                    }
+
+                def case_package_id(self, payload):
+                    from targets.base import case_package_id as _case_package_id
+                    return _case_package_id(payload)
+
             with patch("orchestrator.vm_runner.candidate_initramfs_package_root", return_value=root), patch(
-                "orchestrator.vm_runner.packaged_initramfs_template_inputs",
-                side_effect=[
-                    {"compose_packaged_autorun": "v1", "busybox_sha256": "a"},
-                    {"compose_packaged_autorun": "v2", "busybox_sha256": "a"},
-                ],
+                "orchestrator.vm_runner.get_target_adapter", return_value=FakeAdapter()
             ):
                 first_dir, _ = prepare_candidate_initramfs_package([case], cfg)
                 second_dir, _ = prepare_candidate_initramfs_package([case], cfg)

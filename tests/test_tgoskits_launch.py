@@ -169,7 +169,7 @@ class TGOSKitsLaunchTests(unittest.TestCase):
         with patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
             "tools.tgoskits_launch.checked_preflight_payload",
             return_value={"target": "tgoskits_starryos"},
-        ), patch("tools.tgoskits_launch.ensure_prog2c_exists"), patch(
+        ), patch("tools.tgoskits_launch.campaign_preflight_payload", return_value={"target": "tgoskits_starryos"}), patch("tools.tgoskits_launch.ensure_prog2c_exists"), patch(
             "tools.tgoskits_launch.run_command", side_effect=lambda command, env: commands.append(command)
         ), patch(
             "sys.argv",

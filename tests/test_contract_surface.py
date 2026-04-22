@@ -623,6 +623,7 @@ class ContractSurfaceTests(unittest.TestCase):
                     args,
                     {
                         "workflow": "custom_workflow",
+                        "target": "asterinas",
                         "capabilities": {"supports_batch_execution": True},
                     },
                 )
@@ -867,6 +868,17 @@ class ContractSurfaceTests(unittest.TestCase):
 
             def prepare_batch_manifest_payload(self, cases, cfg, batch_metadata):
                 return None
+
+            def case_package_id(self, payload):
+                from targets.base import case_package_id as _case_package_id
+                return _case_package_id(payload)
+
+            def batch_manifest_id(self, payload):
+                from targets.base import batch_manifest_id as _batch_manifest_id
+                return _batch_manifest_id(payload)
+
+            def runner_errors(self):
+                return ()
 
             def compose_template_inputs(self, cfg):
                 return {}

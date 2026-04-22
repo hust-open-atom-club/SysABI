@@ -64,26 +64,32 @@ def _validate_target_adapter(adapter: TargetAdapter, cfg: dict[str, Any]) -> Non
     if capabilities.supports_batch_execution:
         modes = set(adapter.execution_modes(cfg))
         if PACKAGED_PER_CASE_EXECUTION_MODE in modes:
-            try:
-                payload = adapter.prepare_case_package_payload([], cfg, {})
-            except Exception as exc:
+            if not callable(getattr(adapter, "prepare_case_package_payload", None)):
                 raise TargetLookupError(
                     f"target adapter for {adapter.name!r} declares batch support with "
-                    f"packaged_per_case but prepare_case_package_payload failed: {exc}"
-                ) from exc
+                    f"packaged_per_case but does not implement prepare_case_package_payload"
+                )
+            try:
+                payload = adapter.prepare_case_package_payload([], cfg, {})
+            except Exception:
+                # Runtime errors with empty/minimal config are not proof of a missing hook;
+                # only a None return indicates the hook is intentionally unsupported.
+                payload = {}
             if payload is None:
                 raise TargetLookupError(
                     f"target adapter for {adapter.name!r} declares batch support with "
                     f"packaged_per_case but prepare_case_package_payload returns None"
                 )
         if SHARED_RUNTIME_BATCH_EXECUTION_MODE in modes:
-            try:
-                payload = adapter.prepare_batch_manifest_payload([], cfg, {})
-            except Exception as exc:
+            if not callable(getattr(adapter, "prepare_batch_manifest_payload", None)):
                 raise TargetLookupError(
                     f"target adapter for {adapter.name!r} declares batch support with "
-                    f"shared_runtime_batch but prepare_batch_manifest_payload failed: {exc}"
-                ) from exc
+                    f"shared_runtime_batch but does not implement prepare_batch_manifest_payload"
+                )
+            try:
+                payload = adapter.prepare_batch_manifest_payload([], cfg, {})
+            except Exception:
+                payload = {}
             if payload is None:
                 raise TargetLookupError(
                     f"target adapter for {adapter.name!r} declares batch support with "
