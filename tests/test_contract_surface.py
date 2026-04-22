@@ -56,6 +56,10 @@ class ContractSurfaceTests(unittest.TestCase):
             resolved_config_path(workflow="tgoskits_starryos"),
             repo_root / "configs" / "workflows" / "tgoskits_starryos.json",
         )
+        self.assertEqual(
+            resolved_config_path(workflow="tgoskits_starryos_scale"),
+            repo_root / "configs" / "workflows" / "tgoskits_starryos_scale.json",
+        )
 
     def test_runner_profiles_load_for_builtin_workflows(self) -> None:
         baseline = runner_profiles(workflow="baseline")
@@ -77,6 +81,10 @@ class ContractSurfaceTests(unittest.TestCase):
         starry = runner_profiles(workflow="tgoskits_starryos")
         self.assertEqual(starry["candidate"]["kind"], "command")
         self.assertIn("/targets/entrypoint.py", " ".join(starry["candidate"]["command"]))
+
+        starry_scale = runner_profiles(workflow="tgoskits_starryos_scale")
+        self.assertEqual(starry_scale["candidate"]["kind"], "command")
+        self.assertEqual(starry_scale["candidate"]["command_batching_mode"], "shared_runtime_batch")
 
     def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
         baseline = config(workflow="baseline")
@@ -107,6 +115,7 @@ class ContractSurfaceTests(unittest.TestCase):
             "baseline": SINGLE_COMMAND_EXECUTION_MODE,
             "asterinas": PACKAGED_PER_CASE_EXECUTION_MODE,
             "tgoskits_starryos": SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+            "tgoskits_starryos_scale": SHARED_RUNTIME_BATCH_EXECUTION_MODE,
             "tgoskits_arceos_smoke": SINGLE_COMMAND_EXECUTION_MODE,
         }
 
@@ -217,6 +226,35 @@ class ContractSurfaceTests(unittest.TestCase):
                 resolved_path=repo_root / "configs" / "workflows" / "invalid.json",
                 repo_root=repo_root,
             )
+
+    def test_repo_workflow_contract_rejects_unknown_top_level_keys(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        payload = {
+            "workflow": "invalid",
+            "target": "linux",
+            "arch": "amd64",
+            "runner_profiles_path": "configs/targets/linux/runner_profiles.baseline.json",
+            "target_config_path": "configs/targets/linux/target.json",
+            "paths": {
+                "build_dir": "build/targets/linux/invalid/testcases",
+                "artifacts_dir": "artifacts/runs/targets/linux/invalid",
+                "reports_dir": "reports/targets/linux/invalid",
+                "eligible_file": "eligible_programs/targets/linux/invalid/default.jsonl",
+                "temp_dir": "artifacts/tmp",
+            },
+            "parallel": {},
+            "presentation": {},
+            "stability": {},
+            "thresholds": {},
+            "unexpected_knob": True,
+        }
+        with self.assertRaises(WorkflowContractError) as cm:
+            validate_repo_workflow_payload(
+                payload,
+                resolved_path=repo_root / "configs" / "workflows" / "invalid.json",
+                repo_root=repo_root,
+            )
+        self.assertIn("unknown top-level keys", str(cm.exception))
 
     def test_execute_side_command_runner_materializes_protocol_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -616,6 +654,23 @@ class ContractSurfaceTests(unittest.TestCase):
                 )
             )
 
+    def test_candidate_batching_rejects_non_command_runner(self) -> None:
+        args = SimpleNamespace(candidate_batch_size=2)
+        with patch(
+            "orchestrator.scheduler.runner_profiles",
+            return_value={"candidate": {"kind": "local", "command_batching_mode": "shared_runtime_batch"}},
+        ):
+            with self.assertRaises(WorkflowContractError) as cm:
+                candidate_batching_enabled(
+                    args,
+                    {
+                        "workflow": "custom_workflow",
+                        "target": "tgoskits_starryos",
+                        "capabilities": {"supports_batch_execution": True},
+                    },
+                )
+            self.assertIn("command runner profile", str(cm.exception))
+
     def test_legacy_make_targets_route_through_generic_workflow_entrypoints(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         run = subprocess.run(
@@ -719,6 +774,18 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key target", prepare_scml.stdout)
         self.assertIn("targets/entrypoint.py --mode \"$TARGET_MODE\" --healthcheck", prepare_scml.stdout)
         self.assertNotIn("tools/run_asterinas.py", prepare_scml.stdout)
+
+        starry_scale = subprocess.run(
+            ["make", "-n", "run-tgoskits-starryos-scale"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(starry_scale.returncode, 0)
+        self.assertIn("tools/tgoskits_launch.py --workflow tgoskits_starryos_scale campaign --campaign full", starry_scale.stdout)
+        self.assertIn("--limit 200", starry_scale.stdout)
+        self.assertIn("--jobs 8", starry_scale.stdout)
 
         clean = subprocess.run(
             ["make", "-n", "clean"],

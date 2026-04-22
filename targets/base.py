@@ -49,6 +49,22 @@ class TargetAdapter(Protocol):
     def finalize_result(self, result: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
         ...
 
+    def prepare_case_package_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        ...
+
+    def prepare_batch_manifest_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        ...
+
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         ...
 

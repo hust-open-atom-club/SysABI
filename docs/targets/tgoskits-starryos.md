@@ -167,6 +167,42 @@ Expected output locations:
 - `reports/targets/tgoskits_starryos/tgoskits_starryos/summary.json`
 - `reports/targets/tgoskits_starryos/tgoskits_starryos/campaign-results.jsonl`
 
+## SysABI StarryOS Scale Replay
+
+StarryOS supports high-concurrency execution through the shared-runtime batch execution mode. The scale workflow uses larger batch sizes and higher job counts than the smoke workflow.
+
+### Build candidate/reference testcases for scale
+
+```bash
+python3 tools/prog2c_wrap.py --workflow tgoskits_starryos_scale --eligible-file <eligible.jsonl> --limit 200 --jobs 8
+```
+
+### Run the scale workflow
+
+```bash
+make run-tgoskits-starryos-scale ELIGIBLE_FILE=<eligible.jsonl>
+```
+
+Or directly:
+
+```bash
+python3 tools/tgoskits_launch.py \
+  --workflow tgoskits_starryos_scale \
+  campaign \
+  --campaign full \
+  --eligible-file <eligible.jsonl> \
+  --limit 200 \
+  --jobs 8
+```
+
+The scale workflow defaults to `limit=200` and `jobs=8`, with a `candidate_batch_size` of 16.
+
+Expected output locations:
+
+- `artifacts/runs/targets/tgoskits_starryos/tgoskits_starryos_scale/...`
+- `reports/targets/tgoskits_starryos/tgoskits_starryos_scale/summary.json`
+- `reports/targets/tgoskits_starryos/tgoskits_starryos_scale/campaign-results.jsonl`
+
 ## Troubleshooting
 
 ### `missing required StarryOS tools: riscv64-linux-musl-gcc`

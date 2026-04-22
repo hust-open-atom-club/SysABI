@@ -27,6 +27,32 @@ REQUIRED_TOP_LEVEL_MAPPING_KEYS = (
 
 ALLOWED_TRACE_EVENT_TRANSPORTS = {"file", "stdout"}
 
+ALLOWED_TOP_LEVEL_KEYS = (
+    "allowlist",
+    "arch",
+    "build",
+    "capabilities",
+    "classification",
+    "compat_manifest_path",
+    "derivation",
+    "generation_profile_path",
+    "normalization",
+    "parallel",
+    "paths",
+    "preflight",
+    "presentation",
+    "runner_profiles_path",
+    "schema_version",
+    "stability",
+    "syzkaller",
+    "target",
+    "target_config_path",
+    "target_os",
+    "thresholds",
+    "trace",
+    "workflow",
+)
+
 TARGET_REQUIRED_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
     "tgoskits_starryos": (
         "default_mode",
@@ -150,6 +176,14 @@ class WorkflowContract:
         )
 
 
+def _reject_unknown_top_level_keys(payload: dict[str, Any]) -> None:
+    unknown = [key for key in payload.keys() if key not in ALLOWED_TOP_LEVEL_KEYS]
+    if unknown:
+        raise WorkflowContractError(
+            f"repo-owned workflow contains unknown top-level keys: {sorted(unknown)!r}"
+        )
+
+
 def validate_repo_workflow_payload(
     payload: dict[str, Any],
     *,
@@ -158,6 +192,7 @@ def validate_repo_workflow_payload(
 ) -> WorkflowContract | None:
     if not is_repo_owned_canonical_workflow(resolved_path=resolved_path, repo_root=repo_root):
         return None
+    _reject_unknown_top_level_keys(payload)
     return WorkflowContract.from_payload(payload)
 
 
