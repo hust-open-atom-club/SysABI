@@ -895,6 +895,61 @@ class ContractSurfaceTests(unittest.TestCase):
             _validate_target_adapter(adapter, {"target": "fake", "capabilities": {"supports_batch_execution": True}})
         self.assertIn("packaged_per_case", str(cm.exception))
 
+    def test_vm_runner_delegates_package_identity_to_adapter(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from orchestrator.vm_runner import prepare_candidate_initramfs_package, prepare_shared_batch_manifest
+
+        calls = []
+
+        class IdentityAdapter:
+            name = "identity"
+
+            def prepare_case_package_payload(self, cases, cfg, batch_metadata):
+                return {"cases": []}
+
+            def prepare_batch_manifest_payload(self, cases, cfg, batch_metadata):
+                return {"cases": []}
+
+            def case_package_id(self, payload):
+                calls.append("case_package_id")
+                return "custom-package-id"
+
+            def batch_manifest_id(self, payload):
+                calls.append("batch_manifest_id")
+                return "custom-batch-id"
+
+        cfg = {
+            "workflow": "identity",
+            "target": "identity",
+            "normalization": {"preview_bytes": 32},
+            "paths": {"candidate_initramfs_packages_dir": "artifacts/packages"},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            pkg_root = root / "artifacts" / "packages"
+            pkg_root.mkdir(parents=True, exist_ok=True)
+            cfg["paths"] = {
+                "candidate_initramfs_packages_dir": str(pkg_root),
+                "temp_dir": str(root / "tmp"),
+            }
+            with patch("orchestrator.vm_runner.config", return_value=cfg), patch(
+                "orchestrator.vm_runner.get_target_adapter", return_value=IdentityAdapter()
+            ), patch("orchestrator.vm_runner.candidate_initramfs_package_root", return_value=pkg_root):
+                package_dir, slot_map = prepare_candidate_initramfs_package([], cfg)
+                self.assertEqual(package_dir.name, "custom-package-id")
+                self.assertIn("case_package_id", calls)
+
+            with patch("orchestrator.vm_runner.config", return_value=cfg), patch(
+                "orchestrator.vm_runner.get_target_adapter", return_value=IdentityAdapter()
+            ):
+                manifest_path = prepare_shared_batch_manifest([], cfg)
+                self.assertEqual(manifest_path.stem, "custom-batch-id")
+                self.assertIn("batch_manifest_id", calls)
+
 
 if __name__ == "__main__":
     unittest.main()
