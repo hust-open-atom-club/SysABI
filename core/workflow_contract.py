@@ -19,7 +19,6 @@ REQUIRED_PATH_KEYS = (
 
 REQUIRED_TOP_LEVEL_MAPPING_KEYS = (
     "capabilities",
-    "parallel",
     "presentation",
     "stability",
     "thresholds",
