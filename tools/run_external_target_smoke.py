@@ -24,7 +24,7 @@ def main() -> None:
     env["SYZABI_CONSOLE_LOG_PATH"] = str(artifact_root / "console.log")
     env["SYZABI_RUNNER_RESULT_PATH"] = str(artifact_root / "runner-result.json")
     completed = subprocess.run(
-        ["python3", "targets/entrypoint.py", "--workflow", args.workflow, "--healthcheck"],
+        [sys.executable, "targets/entrypoint.py", "--workflow", args.workflow, "--healthcheck"],
         cwd=ROOT,
         env=env,
         check=False,

@@ -75,7 +75,7 @@ def ensure_prog2c_exists(cfg: dict[str, object]) -> None:
 
 
 def healthcheck_command(workflow: str) -> list[str]:
-    return ["python3", "targets/entrypoint.py", "--workflow", workflow, "--healthcheck"]
+    return [sys.executable, "targets/entrypoint.py", "--workflow", workflow, "--healthcheck"]
 
 
 def main() -> None:
@@ -104,7 +104,7 @@ def main() -> None:
         if not args.skip_build:
             ensure_prog2c_exists(cfg)
             build_cmd = [
-                "python3",
+                sys.executable,
                 "tools/prog2c_wrap.py",
                 "--workflow",
                 args.workflow,
@@ -117,7 +117,7 @@ def main() -> None:
                 build_cmd.extend(["--limit", str(args.limit)])
             run_command(build_cmd, env=env)
         scheduler_cmd = [
-            "python3",
+            sys.executable,
             "orchestrator/scheduler.py",
             "--workflow",
             args.workflow,

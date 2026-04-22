@@ -439,7 +439,9 @@ static size_t collect_outputs(long syscall_number, long ret, long a0, long a1, l
 			count++;
 		}
 		break;
+#ifdef __NR_pipe
 	case __NR_pipe:
+#endif
 #ifdef __NR_pipe2
 	case __NR_pipe2:
 #endif
