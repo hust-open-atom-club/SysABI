@@ -84,7 +84,10 @@ def main() -> None:
     adapter = resolve_adapter(cfg)
 
     if args.command == "preflight":
-        payload = checked_preflight_payload(cfg)
+        if str(cfg.get("target", "")) == "tgoskits_arceos":
+            payload = campaign_preflight_payload(cfg)
+        else:
+            payload = checked_preflight_payload(cfg)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
