@@ -58,6 +58,43 @@ class TGOSKitsStarryOSTargetAdapter:
         finalized["finalized"] = True
         return finalized
 
+    def prepare_case_package_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        return None
+
+    def prepare_batch_manifest_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        return {
+            "workflow": str(cfg.get("workflow", "")),
+            "target": str(cfg.get("target", "")),
+            "arch": str(cfg.get("arch", "")),
+            "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
+            "batch_metadata": batch_metadata or {},
+            "cases": [
+                {
+                    "program_id": str(case.get("program_id", "")),
+                    "run_id": str(case.get("run_id", "")),
+                    "binary_path": str(case.get("binary_path", "")),
+                    "stdout_path": str(case.get("stdout_path", "")),
+                    "stderr_path": str(case.get("stderr_path", "")),
+                    "console_path": str(case.get("console_path", "")),
+                    "events_path": str(case.get("events_path", "")),
+                    "raw_trace_path": str(case.get("raw_trace_path", "")),
+                    "external_state_path": str(case.get("external_state_path", "")),
+                    "runner_result_path": str(case.get("runner_result_path", "")),
+                }
+                for case in cases
+            ],
+        }
+
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         return {}
 

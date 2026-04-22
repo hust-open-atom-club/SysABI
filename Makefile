@@ -9,7 +9,7 @@ JOBS ?=
 ELIGIBLE_FILE ?=
 RUN_LIMIT ?= 100
 
-.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target preflight-tgoskits-starryos run-tgoskits-starryos-smoke preflight-tgoskits-arceos run-tgoskits-arceos-smoke test clean
+.PHONY: bootstrap init-layout generate-corpus import-corpus filter-corpus build-eligible run run-smoke run-full analyze report build-asterinas-scml-manifest derive-asterinas-scml preflight-asterinas-scml derive-asterinas prepare-asterinas-candidate build-asterinas run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas run-workflow analyze-workflow report-workflow build-workflow derive-workflow preflight-workflow prepare-target preflight-tgoskits-starryos run-tgoskits-starryos-smoke run-tgoskits-starryos-scale preflight-tgoskits-arceos run-tgoskits-arceos-smoke test clean
 
 bootstrap:
 	./tools/bootstrap_syzkaller.sh
@@ -104,6 +104,9 @@ preflight-tgoskits-starryos:
 
 run-tgoskits-starryos-smoke:
 	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) --jobs $(or $(JOBS),1)
+
+run-tgoskits-starryos-scale:
+	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos_scale campaign --campaign full $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) --limit $(or $(LIMIT),200) --jobs $(or $(JOBS),8)
 
 preflight-tgoskits-arceos:
 	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight

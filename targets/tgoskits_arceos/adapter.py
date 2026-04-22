@@ -60,6 +60,22 @@ class TGOSKitsArceOSTargetAdapter:
         finalized["finalized"] = True
         return finalized
 
+    def prepare_case_package_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        return None
+
+    def prepare_batch_manifest_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        return None
+
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         return {}
 

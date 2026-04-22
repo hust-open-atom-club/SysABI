@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import concurrent.futures
-import hashlib
 import json
 import os
 import shutil
@@ -275,44 +274,28 @@ def packaged_initramfs_template_inputs(cfg: dict[str, object]) -> dict[str, obje
     return get_target_adapter(cfg).compose_template_inputs(cfg)
 
 
-def package_case_descriptor(case: dict[str, object]) -> dict[str, object]:
-    binary_path = Path(str(case["binary_path"]))
-    digest = hashlib.sha256(binary_path.read_bytes()).hexdigest()
-    return {
-        "program_id": str(case["program_id"]),
-        "binary_sha256": digest,
-    }
-
-
 def prepare_candidate_initramfs_package(
     cases: list[dict[str, object]],
     cfg: dict[str, object],
     *,
     batch_metadata: dict[str, object] | None = None,
 ) -> tuple[Path, dict[str, int]]:
-    template_inputs = packaged_initramfs_template_inputs(cfg)
-    package_descriptor = {
-        "workflow": cfg["workflow"],
-        "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
-        "template_inputs": template_inputs,
-        "batch_metadata": batch_metadata or {},
-        "cases": [package_case_descriptor(case) for case in cases],
-    }
-    package_id = sha256_text(json.dumps(package_descriptor, ensure_ascii=False, sort_keys=True))
+    adapter = get_target_adapter(cfg)
+    payload = adapter.prepare_case_package_payload(cases, cfg, batch_metadata)
+    if payload is None:
+        raise ValueError("target does not support case packages")
+    package_id = sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     package_dir = ensure_dir(candidate_initramfs_package_root() / package_id)
     manifest_path = package_dir / "package-manifest.json"
     manifest_payload = {
         "package_id": package_id,
-        "workflow": cfg["workflow"],
-        "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
-        "template_inputs": template_inputs,
-        "batch_metadata": batch_metadata or {},
+        **payload,
         "cases": [
             {
                 "slot": slot,
                 "program_id": str(case["program_id"]),
                 "binary_path": str(case["binary_path"]),
-                "binary_sha256": package_descriptor["cases"][slot]["binary_sha256"],
+                "binary_sha256": payload["cases"][slot]["binary_sha256"],
             }
             for slot, case in enumerate(cases)
         ],
@@ -327,28 +310,10 @@ def prepare_shared_batch_manifest(
     *,
     batch_metadata: dict[str, object] | None = None,
 ) -> Path:
-    payload = {
-        "workflow": str(cfg.get("workflow", "")),
-        "target": str(cfg.get("target", "")),
-        "arch": str(cfg.get("arch", "")),
-        "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
-        "batch_metadata": batch_metadata or {},
-        "cases": [
-            {
-                "program_id": str(case["program_id"]),
-                "run_id": str(case["run_id"]),
-                "binary_path": str(case["binary_path"]),
-                "stdout_path": str(case["stdout_path"]),
-                "stderr_path": str(case["stderr_path"]),
-                "console_path": str(case["console_path"]),
-                "events_path": str(case["events_path"]),
-                "raw_trace_path": str(case["raw_trace_path"]),
-                "external_state_path": str(case["external_state_path"]),
-                "runner_result_path": str(case["runner_result_path"]),
-            }
-            for case in cases
-        ],
-    }
+    adapter = get_target_adapter(cfg)
+    payload = adapter.prepare_batch_manifest_payload(cases, cfg, batch_metadata)
+    if payload is None:
+        raise ValueError("target does not support batch manifests")
     manifest_dir = ensure_dir(path_resolver(cfg).temp_dir() / "target-batches")
     batch_id = sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     manifest_path = manifest_dir / f"{batch_id}.json"

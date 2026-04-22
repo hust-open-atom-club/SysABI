@@ -741,15 +741,18 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     if not capabilities.supports_batch_execution:
         return False
     profile = runner_profiles()["candidate"]
-    if profile.get("kind") == "command":
-        adapter = get_target_adapter(cfg)
-        batching_mode = canonical_execution_mode(str(profile.get("command_batching_mode")) if profile.get("command_batching_mode") is not None else None)
-        if batching_mode is None:
-            raise WorkflowContractError("candidate batch execution requires an explicit command_batching_mode")
-        if batching_mode not in set(adapter.execution_modes(cfg)):
-            raise WorkflowContractError(
-                f"candidate runner batching mode {batching_mode!r} is not supported by target {cfg.get('target')!r}"
-            )
+    if profile.get("kind") != "command":
+        raise WorkflowContractError(
+            "candidate batch execution requires a command runner profile"
+        )
+    adapter = get_target_adapter(cfg)
+    batching_mode = canonical_execution_mode(str(profile.get("command_batching_mode")) if profile.get("command_batching_mode") is not None else None)
+    if batching_mode is None:
+        raise WorkflowContractError("candidate batch execution requires an explicit command_batching_mode")
+    if batching_mode not in set(adapter.execution_modes(cfg)):
+        raise WorkflowContractError(
+            f"candidate runner batching mode {batching_mode!r} is not supported by target {cfg.get('target')!r}"
+        )
     return effective_candidate_batch_size(args, cfg) > 1
 
 

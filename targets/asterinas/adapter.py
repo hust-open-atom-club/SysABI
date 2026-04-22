@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from core.capabilities import CapabilitySet, capabilities_from_config
+import hashlib
+from pathlib import Path
+
 from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE
 from targets.asterinas import api
 from targets.asterinas.common import RunnerError
@@ -76,6 +79,37 @@ class AsterinasTargetAdapter:
         finalized = dict(result)
         finalized["finalized"] = True
         return finalized
+
+    def prepare_case_package_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        template_inputs = self.compose_template_inputs(cfg)
+        return {
+            "workflow": str(cfg.get("workflow", "")),
+            "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
+            "template_inputs": template_inputs,
+            "batch_metadata": batch_metadata or {},
+            "cases": [
+                {
+                    "program_id": str(case.get("program_id", "")),
+                    "binary_sha256": hashlib.sha256(
+                        Path(str(case["binary_path"])).read_bytes()
+                    ).hexdigest(),
+                }
+                for case in cases
+            ],
+        }
+
+    def prepare_batch_manifest_payload(
+        self,
+        cases: list[dict[str, object]],
+        cfg: dict[str, Any],
+        batch_metadata: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        return None
 
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         preview_bytes = int(cfg["normalization"]["preview_bytes"])
