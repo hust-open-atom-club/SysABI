@@ -14,11 +14,6 @@ if str(ROOT) not in sys.path:
 
 from orchestrator.common import config, configure_runtime, resolve_repo_path
 from targets.registry import get_target_adapter
-from targets.tgoskits_arceos import api as arceos_api
-from targets.tgoskits_starryos import api as starry_api
-
-
-RUNNER_ERRORS = (starry_api.RunnerError, arceos_api.RunnerError)
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,21 +42,19 @@ def resolve_adapter(cfg: dict[str, object]):
     return get_target_adapter(cfg)
 
 
-def preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
-    return resolve_adapter(cfg).preflight_payload(cfg)
-
-
 def campaign_preflight_payload(cfg: dict[str, object], args: argparse.Namespace | None = None) -> dict[str, object]:
+    adapter = resolve_adapter(cfg)
     try:
-        return resolve_adapter(cfg).prepare_campaign_assets(cfg, args)
-    except RUNNER_ERRORS as exc:
+        return adapter.prepare_campaign_assets(cfg, args)
+    except adapter.runner_errors() as exc:
         raise SystemExit(str(exc))
 
 
 def checked_preflight_payload(cfg: dict[str, object]) -> dict[str, object]:
+    adapter = resolve_adapter(cfg)
     try:
-        return preflight_payload(cfg)
-    except RUNNER_ERRORS as exc:
+        return adapter.preflight_payload(cfg)
+    except adapter.runner_errors() as exc:
         raise SystemExit(str(exc))
 
 

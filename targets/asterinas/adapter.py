@@ -111,6 +111,18 @@ class AsterinasTargetAdapter:
     ) -> dict[str, object] | None:
         return None
 
+    def case_package_id(self, payload: dict[str, object]) -> str:
+        from targets.base import case_package_id as _case_package_id
+        return _case_package_id(payload)
+
+    def batch_manifest_id(self, payload: dict[str, object]) -> str:
+        from targets.base import batch_manifest_id as _batch_manifest_id
+        return _batch_manifest_id(payload)
+
+    def runner_errors(self) -> tuple[type[Exception], ...]:
+        from targets.asterinas.common import RunnerError
+        return (RunnerError,)
+
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         preview_bytes = int(cfg["normalization"]["preview_bytes"])
         busybox_path = Path("/usr/bin/busybox")

@@ -284,7 +284,7 @@ def prepare_candidate_initramfs_package(
     payload = adapter.prepare_case_package_payload(cases, cfg, batch_metadata)
     if payload is None:
         raise ValueError("target does not support case packages")
-    package_id = sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    package_id = adapter.case_package_id(payload)
     package_dir = ensure_dir(candidate_initramfs_package_root() / package_id)
     manifest_path = package_dir / "package-manifest.json"
     manifest_payload = {
@@ -315,7 +315,7 @@ def prepare_shared_batch_manifest(
     if payload is None:
         raise ValueError("target does not support batch manifests")
     manifest_dir = ensure_dir(path_resolver(cfg).temp_dir() / "target-batches")
-    batch_id = sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    batch_id = adapter.batch_manifest_id(payload)
     manifest_path = manifest_dir / f"{batch_id}.json"
     dump_json(manifest_path, payload)
     return manifest_path
