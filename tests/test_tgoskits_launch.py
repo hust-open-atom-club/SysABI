@@ -277,6 +277,27 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             launch.main()
         self.assertEqual(json.loads(captured.getvalue())["target"], "tgoskits_arceos")
 
+    def test_campaign_preflight_routes_through_adapter_runner_errors(self) -> None:
+        class FakeAdapter:
+            name = "fake"
+
+            def prepare_campaign_assets(self, cfg, args=None):
+                raise RuntimeError("fake campaign failure")
+
+            def runner_errors(self):
+                return (RuntimeError,)
+
+        cfg = {
+            "target": "tgoskits_starryos",
+            "paths": {"eligible_file": "eligible.jsonl", "syzkaller_dir": "third_party/syzkaller"},
+        }
+        with patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
+            "tools.tgoskits_launch.resolve_adapter", return_value=FakeAdapter()
+        ), patch("sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_starryos", "campaign", "--campaign", "smoke"]):
+            with self.assertRaises(SystemExit) as ctx:
+                launch.main()
+        self.assertIn("fake campaign failure", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
