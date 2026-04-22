@@ -4,6 +4,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -158,7 +159,7 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             "sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_starryos", "healthcheck"]
         ):
             launch.main()
-        self.assertEqual(commands, [["python3", "targets/entrypoint.py", "--workflow", "tgoskits_starryos", "--healthcheck"]])
+        self.assertEqual(commands, [[sys.executable, "targets/entrypoint.py", "--workflow", "tgoskits_starryos", "--healthcheck"]])
 
     def test_starry_campaign_runs_healthcheck_before_build_and_scheduler(self) -> None:
         cfg = {
@@ -192,9 +193,9 @@ class TGOSKitsLaunchTests(unittest.TestCase):
         self.assertEqual(
             commands,
             [
-                ["python3", "targets/entrypoint.py", "--workflow", "tgoskits_starryos", "--healthcheck"],
-                ["python3", "tools/prog2c_wrap.py", "--workflow", "tgoskits_starryos", "--eligible-file", "eligible.jsonl", "--jobs", "1", "--limit", "1"],
-                ["python3", "orchestrator/scheduler.py", "--workflow", "tgoskits_starryos", "--campaign", "smoke", "--eligible-file", "eligible.jsonl", "--jobs", "1", "--limit", "1"],
+                [sys.executable, "targets/entrypoint.py", "--workflow", "tgoskits_starryos", "--healthcheck"],
+                [sys.executable, "tools/prog2c_wrap.py", "--workflow", "tgoskits_starryos", "--eligible-file", "eligible.jsonl", "--jobs", "1", "--limit", "1"],
+                [sys.executable, "orchestrator/scheduler.py", "--workflow", "tgoskits_starryos", "--campaign", "smoke", "--eligible-file", "eligible.jsonl", "--jobs", "1", "--limit", "1"],
             ],
         )
 
@@ -261,7 +262,7 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             "sys.argv", ["tools/tgoskits_launch.py", "--workflow", "tgoskits_arceos_smoke", "healthcheck"]
         ):
             launch.main()
-        self.assertEqual(commands, [["python3", "targets/entrypoint.py", "--workflow", "tgoskits_arceos_smoke", "--healthcheck"]])
+        self.assertEqual(commands, [[sys.executable, "targets/entrypoint.py", "--workflow", "tgoskits_arceos_smoke", "--healthcheck"]])
 
     def test_arceos_preflight_uses_replay_prerequisites(self) -> None:
         cfg = {
