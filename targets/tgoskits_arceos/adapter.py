@@ -85,8 +85,7 @@ class TGOSKitsArceOSTargetAdapter:
         return _batch_manifest_id(payload)
 
     def runner_errors(self) -> tuple[type[Exception], ...]:
-        from targets.tgoskits_arceos.api import RunnerError
-        return (RunnerError,)
+        return (api.RunnerError,)
 
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
         return {}

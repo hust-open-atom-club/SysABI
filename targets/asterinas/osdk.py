@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+from core.compat import tomllib
 from pathlib import Path
 
 from orchestrator.common import resolve_repo_path

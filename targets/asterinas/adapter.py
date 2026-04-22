@@ -5,9 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from core.capabilities import CapabilitySet, capabilities_from_config
-import hashlib
-from pathlib import Path
-
 from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE
 from targets.asterinas import api
 from targets.asterinas.common import RunnerError
@@ -119,7 +116,6 @@ class AsterinasTargetAdapter:
         return _batch_manifest_id(payload)
 
     def runner_errors(self) -> tuple[type[Exception], ...]:
-        from targets.asterinas.common import RunnerError
         return (RunnerError,)
 
     def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:

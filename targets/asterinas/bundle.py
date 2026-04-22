@@ -3,10 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+from core.compat import tomllib
 from pathlib import Path
 
 from orchestrator.common import resolve_repo_path

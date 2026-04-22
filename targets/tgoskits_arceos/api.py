@@ -10,10 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+from core.compat import tomllib
 from pathlib import Path
 from typing import Any
 
