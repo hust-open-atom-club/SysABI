@@ -19,3 +19,4 @@ reports/phase*/
 eligible_programs/*.jsonl
 eligible_programs/targets/
 coverage/
+.humanize*

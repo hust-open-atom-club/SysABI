@@ -16,6 +16,9 @@ class LinuxTargetAdapter:
     def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
         return (SINGLE_COMMAND_EXECUTION_MODE,)
 
+    def requires_campaign_healthcheck(self, cfg: dict[str, Any]) -> bool:
+        return False
+
     def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
         return {
             "target": self.name,
@@ -51,6 +54,7 @@ class LinuxTargetAdapter:
             "execution_mode": SINGLE_COMMAND_EXECUTION_MODE,
             "case_count": len(cases),
             "program_ids": [str(case.get("program_id", "")) for case in cases],
+            "cases": list(cases),
         }
 
     def collect_result(self, result: object, cfg: dict[str, Any]) -> dict[str, object]:

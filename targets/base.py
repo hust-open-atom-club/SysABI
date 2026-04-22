@@ -28,6 +28,9 @@ class TargetAdapter(Protocol):
     def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
         ...
 
+    def requires_campaign_healthcheck(self, cfg: dict[str, Any]) -> bool:
+        ...
+
     def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
         ...
 
