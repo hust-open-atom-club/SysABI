@@ -24,12 +24,12 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def case_package_id(payload: dict[str, object]) -> str:
+def canonical_json_sha256(payload: dict[str, object]) -> str:
     return sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
-def batch_manifest_id(payload: dict[str, object]) -> str:
-    return sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+case_package_id = canonical_json_sha256
+batch_manifest_id = canonical_json_sha256
 
 
 @runtime_checkable

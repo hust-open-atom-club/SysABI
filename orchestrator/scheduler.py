@@ -751,7 +751,7 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     batching_mode = canonical_execution_mode(str(profile.get("command_batching_mode")) if profile.get("command_batching_mode") is not None else None)
     if batching_mode is None:
         raise WorkflowContractError("candidate batch execution requires an explicit command_batching_mode")
-    if batching_mode not in set(adapter.execution_modes(cfg)):
+    if batching_mode not in adapter.execution_modes(cfg):
         raise WorkflowContractError(
             f"candidate runner batching mode {batching_mode!r} is not supported by target {cfg.get('target')!r}"
         )
