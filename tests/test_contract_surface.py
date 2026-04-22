@@ -809,6 +809,87 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("Phase 0 冻结的已知耦合", content)
         self.assertNotIn("`candidate_batching_enabled()` 仍以 `workflow.startswith(\"asterinas\")` 判断是否允许 batching；", content)
 
+    def test_target_config_validation_rejects_missing_asterinas_keys(self) -> None:
+        from core.workflow_contract import validate_target_config_payload
+
+        workflow_payload = {"target": "asterinas"}
+        malformed = {
+            "base_initramfs_path": "third_party/asterinas/test/initramfs/build/initramfs.cpio.gz",
+            "build_info_path": "artifacts/targets/asterinas/build-info.json",
+            "build_timeout_sec": 3600,
+            "default_mode": "docker-qemu",
+            "docker_image": "asterinas/asterinas:0.17.1-20260317",
+            "repo_dir": "third_party/asterinas",
+            "revision": "main",
+            # missing run_timeout_sec
+        }
+        with self.assertRaises(WorkflowContractError) as cm:
+            validate_target_config_payload(malformed, workflow_payload=workflow_payload)
+        self.assertIn("run_timeout_sec", str(cm.exception))
+
+    def test_registry_rejects_incomplete_adapter_at_runtime(self) -> None:
+        from targets.registry import TargetLookupError, _validate_target_adapter
+        from targets.base import TargetAdapter
+
+        class FakeAdapter:
+            name = "fake"
+
+            def capabilities(self, cfg):
+                from core.capabilities import CapabilitySet
+                return CapabilitySet(supports_batch_execution=True, supports_preflight=False, supports_snapshot_reuse=False)
+
+            def execution_modes(self, cfg):
+                return ("packaged_per_case",)
+
+            def requires_campaign_healthcheck(self, cfg):
+                return False
+
+            def preflight_payload(self, cfg):
+                return {}
+
+            def prepare_campaign_assets(self, cfg, args=None):
+                return {}
+
+            def prepare_case(self, entry, cfg):
+                return {}
+
+            def prepare_batch(self, cases, cfg):
+                return {}
+
+            def collect_result(self, result, cfg):
+                return {}
+
+            def finalize_result(self, result, cfg):
+                return {}
+
+            def compose_template_inputs(self, cfg):
+                return {}
+
+            def packaged_candidate_env(self, package_dir, slot):
+                return {}
+
+            def prewarm_candidate_batch(self, *, prepared_cases, package_dir, cfg):
+                return None
+
+            def prepare_target(self, **kwargs):
+                return None
+
+            def healthcheck(self, *args, **kwargs):
+                return None
+
+            def run_case(self, *args, **kwargs):
+                return None
+
+            def run_batch(self, *args, **kwargs):
+                return None
+
+            # Missing prepare_case_package_payload and prepare_batch_manifest_payload
+
+        adapter = FakeAdapter()
+        with self.assertRaises(TargetLookupError) as cm:
+            _validate_target_adapter(adapter, {"target": "fake", "capabilities": {"supports_batch_execution": True}})
+        self.assertIn("packaged_per_case", str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,16 @@ ALLOWED_TOP_LEVEL_KEYS = (
 )
 
 TARGET_REQUIRED_CONFIG_KEYS: dict[str, tuple[str, ...]] = {
+    "asterinas": (
+        "base_initramfs_path",
+        "build_info_path",
+        "build_timeout_sec",
+        "default_mode",
+        "docker_image",
+        "repo_dir",
+        "revision",
+        "run_timeout_sec",
+    ),
     "tgoskits_starryos": (
         "default_mode",
         "revision",
