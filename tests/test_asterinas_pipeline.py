@@ -1697,7 +1697,6 @@ class AsterinasPipelineTests(unittest.TestCase):
                         "workflow": cfg["workflow"],
                         "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
                         "template_inputs": next(template_inputs_iter),
-                        "batch_metadata": batch_metadata or {},
                         "cases": [
                             {"program_id": str(case["program_id"]), "binary_sha256": "a" * 64}
                             for case in cases

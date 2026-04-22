@@ -91,7 +91,6 @@ class AsterinasTargetAdapter:
             "workflow": str(cfg.get("workflow", "")),
             "preview_bytes": int(cfg["normalization"]["preview_bytes"]),
             "template_inputs": template_inputs,
-            "batch_metadata": batch_metadata or {},
             "cases": [
                 {
                     "program_id": str(case.get("program_id", "")),
