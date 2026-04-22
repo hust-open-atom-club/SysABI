@@ -862,6 +862,12 @@ class ContractSurfaceTests(unittest.TestCase):
             def finalize_result(self, result, cfg):
                 return {}
 
+            def prepare_case_package_payload(self, cases, cfg, batch_metadata):
+                return None  # structurally present but functionally incomplete
+
+            def prepare_batch_manifest_payload(self, cases, cfg, batch_metadata):
+                return None
+
             def compose_template_inputs(self, cfg):
                 return {}
 
@@ -883,9 +889,8 @@ class ContractSurfaceTests(unittest.TestCase):
             def run_batch(self, *args, **kwargs):
                 return None
 
-            # Missing prepare_case_package_payload and prepare_batch_manifest_payload
-
         adapter = FakeAdapter()
+        self.assertIsInstance(adapter, TargetAdapter)
         with self.assertRaises(TargetLookupError) as cm:
             _validate_target_adapter(adapter, {"target": "fake", "capabilities": {"supports_batch_execution": True}})
         self.assertIn("packaged_per_case", str(cm.exception))
