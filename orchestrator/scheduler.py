@@ -740,6 +740,8 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     capabilities = capabilities_from_config(cfg)
     if not capabilities.supports_batch_execution:
         return False
+    if effective_candidate_batch_size(args, cfg) <= 1:
+        return False
     profile = runner_profiles()["candidate"]
     if profile.get("kind") != "command":
         raise WorkflowContractError(
@@ -753,7 +755,7 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
         raise WorkflowContractError(
             f"candidate runner batching mode {batching_mode!r} is not supported by target {cfg.get('target')!r}"
         )
-    return effective_candidate_batch_size(args, cfg) > 1
+    return True
 
 
 def schedule_entries_with_candidate_batch(entries: list[dict[str, object]], args: argparse.Namespace, jobs: int) -> list[dict[str, object]]:

@@ -39,7 +39,11 @@ def load_cfg(workflow: str) -> dict[str, object]:
 
 
 def resolve_adapter(cfg: dict[str, object]):
-    return get_target_adapter(cfg)
+    from targets.registry import TargetLookupError
+    try:
+        return get_target_adapter(cfg)
+    except TargetLookupError as exc:
+        raise SystemExit(str(exc))
 
 
 def campaign_preflight_payload(cfg: dict[str, object], args: argparse.Namespace | None = None) -> dict[str, object]:
