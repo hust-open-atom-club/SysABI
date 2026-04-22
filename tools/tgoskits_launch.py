@@ -13,7 +13,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from orchestrator.common import config, configure_runtime, resolve_repo_path
-from targets.base import SHARED_RUNTIME_BATCH_EXECUTION_MODE
 from targets.registry import get_target_adapter
 from targets.tgoskits_arceos import api as arceos_api
 from targets.tgoskits_starryos import api as starry_api
@@ -107,7 +106,7 @@ def main() -> None:
     if args.command == "campaign":
         campaign_preflight_payload(cfg, args)
         eligible_file = args.eligible_file or str(cfg["paths"]["eligible_file"])
-        if SHARED_RUNTIME_BATCH_EXECUTION_MODE in set(adapter.execution_modes(cfg)):
+        if adapter.requires_campaign_healthcheck(cfg):
             run_command(healthcheck_command(args.workflow), env=env)
         if not args.skip_build:
             ensure_prog2c_exists(cfg)

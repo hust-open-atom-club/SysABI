@@ -217,6 +217,7 @@ def prepare_candidate_batch_case(
     timeout_sec: int,
     run_id: str,
     inject_trace: dict[str, object] | None = None,
+    prepared_case: dict[str, object] | None = None,
 ) -> dict[str, object]:
     cfg = config()
     profile = runner_profiles()["candidate"]
@@ -242,7 +243,7 @@ def prepare_candidate_batch_case(
     for stale_path in (events_path, raw_trace_path, external_state_path, stdout_path, stderr_path, console_path, runner_result_path):
         stale_path.unlink(missing_ok=True)
 
-    return {
+    payload = {
         "program_id": program_id,
         "run_id": run_id,
         "effective_timeout_sec": effective_timeout_sec,
@@ -261,6 +262,9 @@ def prepare_candidate_batch_case(
         "snapshot_id": profile["snapshot_id"],
         "runner_kind": profile.get("kind", "command"),
     }
+    if prepared_case:
+        payload.update(prepared_case)
+    return payload
 
 
 def candidate_initramfs_package_root() -> Path:
@@ -689,10 +693,13 @@ def execute_candidate_batch_with_context(
             timeout_sec=timeout_sec,
             run_id=str(case["run_id"]),
             inject_trace=case.get("inject_trace"),
+            prepared_case=case.get("prepared_case") if isinstance(case.get("prepared_case"), dict) else None,
         )
         for case in batch_cases
     ]
     batch_metadata = adapter.prepare_batch(prepared_cases, cfg) or {}
+    if isinstance(batch_metadata.get("cases"), list):
+        prepared_cases = list(batch_metadata["cases"])
     if command_batching_mode == SHARED_RUNTIME_BATCH_EXECUTION_MODE:
         manifest_path = prepare_shared_batch_manifest(prepared_cases, cfg, batch_metadata=batch_metadata)
         manifest_dir = manifest_path.parent

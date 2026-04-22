@@ -22,6 +22,9 @@ class AsterinasTargetAdapter:
     def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
         return (PACKAGED_PER_CASE_EXECUTION_MODE,)
 
+    def requires_campaign_healthcheck(self, cfg: dict[str, Any]) -> bool:
+        return False
+
     def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
         return {
             "target": self.name,
@@ -59,6 +62,7 @@ class AsterinasTargetAdapter:
             "execution_mode": PACKAGED_PER_CASE_EXECUTION_MODE,
             "case_count": len(cases),
             "program_ids": [str(case.get("program_id", "")) for case in cases],
+            "cases": list(cases),
         }
 
     def collect_result(self, result: object, cfg: dict[str, Any]) -> dict[str, object]:

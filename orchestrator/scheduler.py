@@ -791,6 +791,7 @@ def schedule_entries_with_candidate_batch(entries: list[dict[str, object]], args
                         "program_id": prepared["program_id"],
                         "run_id": f"{prepared['run_id']}-candidate0",
                         "inject_trace": prepared["inject_trace"],
+                        "prepared_case": prepared.get("prepared_case"),
                     }
                     for _, prepared in chunk
                 ],
