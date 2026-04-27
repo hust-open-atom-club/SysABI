@@ -7,6 +7,17 @@ Use this checklist before signoff or release for any workflow that produces a `s
 ## Required Steps
 
 1. Run the relevant workflow and generate `summary.json`.
+
+   Unified command interface:
+   ```bash
+   make run WORKFLOW=<workflow> CAMPAIGN=<campaign> LIMIT=<n> JOBS=<n>
+   ```
+
+   Example for Asterinas smoke:
+   ```bash
+   make run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=4
+   ```
+
 2. Run threshold validation:
 
 ```bash
@@ -18,9 +29,10 @@ python3 tools/check_workflow_thresholds.py --workflow <workflow> --campaign <cam
 The authoritative blocking thresholds are the checked-in workflow thresholds. See [threshold-decision.md](threshold-decision.md).
 
 3. Review:
-   - `summary.json`
+   - `summary.json` (now includes `concurrency_breakdown` and `infra_error_breakdown`)
    - `summary.md`
    - `failure-report.json`
+   - `report.md` (unified report with confirmed/unconfirmed divergences)
    - any uploaded smoke artifacts for external targets
 
 4. Confirm migration / rollback notes:
@@ -28,6 +40,7 @@ The authoritative blocking thresholds are the checked-in workflow thresholds. Se
    - baseline / asterinas workflows still run without TGOSKits
    - StarryOS operator bring-up steps match [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md)
    - ArceOS experimental launch steps match [targets/tgoskits-arceos.md](targets/tgoskits-arceos.md)
+   - Old Makefile aliases (`run-smoke`, `run-asterinas-smoke`, etc.) are deprecated; use unified `make run WORKFLOW=...`
 
 ## External Target Smoke
 
