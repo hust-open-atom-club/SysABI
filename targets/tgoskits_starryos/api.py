@@ -8,6 +8,7 @@ import pty
 import shlex
 import signal
 import socket
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -209,8 +210,9 @@ def guest_binary_path(cfg: dict[str, Any], *, suffix: str = "") -> str:
     return str(path.with_name(f"{path.stem}{suffix}{path.suffix}"))
 
 
-def install_binary_into_rootfs(cfg: dict[str, Any], host_binary: Path, guest_path: str) -> None:
-    image = disk_image_path(cfg)
+def install_binary_into_rootfs(cfg: dict[str, Any], host_binary: Path, guest_path: str, image: Path | None = None) -> None:
+    if image is None:
+        image = disk_image_path(cfg)
     if not image.exists():
         raise RunnerError(f"StarryOS disk image is missing: {image}")
     subprocess.run(
@@ -244,8 +246,9 @@ def reserve_unix_socket_path() -> Path:
 
 
 class ShellSession:
-    def __init__(self, cfg: dict[str, Any]) -> None:
+    def __init__(self, cfg: dict[str, Any], *, cwd: Path | None = None) -> None:
         self.cfg = cfg
+        self._cwd = cwd
         self._console_parts: list[str] = []
         self._lock = threading.Lock()
         self.process: subprocess.Popen[str] | None = None
@@ -294,12 +297,13 @@ class ShellSession:
             target_config(self.cfg)["shell_launch_command"],
             command_values(self.cfg, serial_port=serial_port, serial_socket_path=serial_socket_path),
         )
+        cwd = str(self._cwd) if self._cwd else str(workspace_dir(self.cfg))
         if serial_transport == "stdio":
             master_fd, slave_fd = pty.openpty()
             self.pty_master_fd = master_fd
             self.process = subprocess.Popen(
                 launch_command,
-                cwd=str(workspace_dir(self.cfg)),
+                cwd=cwd,
                 stdin=slave_fd,
                 stdout=slave_fd,
                 stderr=slave_fd,
@@ -313,7 +317,7 @@ class ShellSession:
         else:
             self.process = subprocess.Popen(
                 launch_command,
-                cwd=str(workspace_dir(self.cfg)),
+                cwd=cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -564,8 +568,20 @@ def run_case(args: argparse.Namespace) -> None:
     label = prepare_target(cfg)
     binary = Path(str(args.binary)).resolve()
     guest_path = guest_binary_path(cfg)
-    install_binary_into_rootfs(cfg, binary, guest_path)
-    session = ShellSession(cfg)
+
+    work_dir = Path(str(args.work_dir)) if args.work_dir else None
+    if work_dir is not None:
+        repo_copy = work_dir / "repo"
+        _copytree_with_links(repo_dir(cfg), repo_copy)
+        private_image = repo_copy / str(target_config(cfg).get("disk_image_path", ""))
+        if private_image.exists():
+            private_image.unlink()
+        shutil.copy2(disk_image_path(cfg), private_image)
+        install_binary_into_rootfs(cfg, binary, guest_path, image=private_image)
+        session = ShellSession(cfg, cwd=repo_copy)
+    else:
+        install_binary_into_rootfs(cfg, binary, guest_path)
+        session = ShellSession(cfg)
     try:
         session.start()
         command = f"{env_assignments(cfg)} {shlex.quote(guest_path)}"
