@@ -604,7 +604,7 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.report_path",
                 side_effect=lambda *parts, **_kwargs: root / parts[0],
             ):
-                minimized_path, info, comparison, runs, minimized_preflight = greedy_reduce(
+                minimized_path, info, comparison, runs, minimized_preflight, confirmed, confirmation_runs = greedy_reduce(
                     program_path,
                     source_entry=source_entry,
                 )
@@ -696,7 +696,7 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.report_path",
                 side_effect=lambda *parts, **_kwargs: root / parts[0],
             ):
-                minimized_path, info, comparison, runs, minimized_preflight = greedy_reduce(
+                minimized_path, info, comparison, runs, minimized_preflight, confirmed, confirmation_runs = greedy_reduce(
                     program_path,
                     source_entry=source_entry,
                 )
@@ -769,6 +769,22 @@ class SCMLReduceCaseTests(unittest.TestCase):
                         {"equivalent": False, "first_divergence_index": 0},
                         valid_trial_runs,
                     ),
+                    # confirmation runs for accepted step
+                    (
+                        {"program_id": "reduced", "call_count": 1},
+                        {"equivalent": False, "first_divergence_index": 0},
+                        valid_trial_runs,
+                    ),
+                    (
+                        {"program_id": "reduced", "call_count": 1},
+                        {"equivalent": False, "first_divergence_index": 0},
+                        valid_trial_runs,
+                    ),
+                    (
+                        {"program_id": "reduced", "call_count": 1},
+                        {"equivalent": False, "first_divergence_index": 0},
+                        valid_trial_runs,
+                    ),
                     (
                         {"program_id": "reduced", "call_count": 1},
                         {"equivalent": True, "first_divergence_index": None},
@@ -804,10 +820,10 @@ class SCMLReduceCaseTests(unittest.TestCase):
                 "tools.reduce_case.report_path",
                 side_effect=lambda *parts, **_kwargs: root / parts[0],
             ):
-                minimized_path, info, comparison, runs, minimized_preflight = greedy_reduce(program_path)
+                minimized_path, info, comparison, runs, minimized_preflight, confirmed, confirmation_runs = greedy_reduce(program_path)
                 minimized_text = minimized_path.read_text(encoding="utf-8")
 
-        self.assertEqual(run_case.call_count, 4)
+        self.assertEqual(run_case.call_count, 7)
         self.assertEqual(info["program_id"], "reduced")
         self.assertEqual(comparison["first_divergence_index"], 0)
         self.assertEqual(runs["candidate"]["trace_json_path"], str(root / "valid-cand.json"))

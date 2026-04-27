@@ -508,14 +508,49 @@ def require_recorded_source_evidence(
     return fallback_info, comparison, runs, tagged_preflight
 
 
+def _confirm_divergence(
+    program_path: Path,
+    *,
+    rerun_count: int = 3,
+    campaign_package_dir: Path | None = None,
+    campaign_package_slot: int | None = None,
+) -> tuple[bool, list[dict[str, object]]]:
+    """Rerun a trial program multiple times to confirm divergence stability.
+
+    Returns (all_diverged, runs) where all_diverged is True only if every
+    rerun produced a non-equivalent comparison.
+    """
+    confirmation_runs: list[dict[str, object]] = []
+    for attempt in range(rerun_count):
+        try:
+            confirm_info, confirm_comparison, confirm_runs = run_case(
+                program_path,
+                campaign_package_dir=campaign_package_dir,
+                campaign_package_slot=campaign_package_slot,
+            )
+        except SystemExit:
+            return False, confirmation_runs
+        confirmation_runs.append({
+            "attempt": attempt,
+            "equivalent": confirm_comparison["equivalent"],
+            "first_divergence_index": confirm_comparison.get("first_divergence_index"),
+            "reference_status": confirm_runs["reference"].get("status"),
+            "candidate_status": confirm_runs["candidate"].get("status"),
+        })
+        if confirm_comparison["equivalent"]:
+            return False, confirmation_runs
+    return True, confirmation_runs
+
+
 def greedy_reduce(
     initial_program: Path,
     *,
     source_entry: dict[str, object] | None = None,
-) -> tuple[Path, dict[str, object], dict[str, object], dict[str, object], dict[str, object] | None]:
+) -> tuple[Path, dict[str, object], dict[str, object], dict[str, object], dict[str, object] | None, bool, list[dict[str, object]]]:
     cfg = config()
     current_text = read_text(initial_program)
     reduction_blocked = False
+    confirmed = True
     current_info: dict[str, object]
     current_comparison: dict[str, object]
     current_runs: dict[str, object]
@@ -537,6 +572,7 @@ def greedy_reduce(
             reason=f"fresh replay failed before reduction: {exc}",
         )
         reduction_blocked = True
+        confirmed = False
     if scml_overlay_enabled(cfg):
         if current_preflight is None:
             try:
@@ -548,6 +584,7 @@ def greedy_reduce(
                     reason=f"fresh replay preflight failed: {exc}",
                 )
                 reduction_blocked = True
+                confirmed = False
         if not scml_reduction_invariants_hold(
             current_comparison,
             current_runs["reference_canonical"],
@@ -559,6 +596,8 @@ def greedy_reduce(
                 reason="fresh replay did not preserve the recorded divergence or SCML pass status",
             )
             reduction_blocked = True
+            confirmed = False
+    confirmation_runs: list[dict[str, object]] = []
     changed = True
     with tempfile.TemporaryDirectory(dir=temp_dir()) as tempdir:
         tempdir_path = Path(tempdir)
@@ -586,6 +625,15 @@ def greedy_reduce(
                         trial_preflight["status"],
                     ):
                         continue
+                # Confirmation: rerun the accepted step 3 times to verify stability
+                all_diverged, step_confirmation_runs = _confirm_divergence(
+                    trial_path,
+                    rerun_count=3,
+                    campaign_package_dir=initial_package_dir if scml_overlay_enabled(cfg) else None,
+                    campaign_package_slot=initial_package_slot if scml_overlay_enabled(cfg) else None,
+                )
+                if not all_diverged:
+                    continue
                 current_text = read_text(trial_path)
                 current_info = trial_info
                 current_comparison = trial_comparison
@@ -593,10 +641,11 @@ def greedy_reduce(
                 current_preflight = trial_preflight
                 initial_program = trial_path
                 changed = True
+                confirmation_runs.extend(step_confirmation_runs)
                 break
         final_path = report_path(f"{current_info['program_id']}-minimized.syz", cfg=cfg)
         write_text(final_path, current_text)
-        return final_path, current_info, current_comparison, current_runs, current_preflight
+        return final_path, current_info, current_comparison, current_runs, current_preflight, confirmed, confirmation_runs
 
 
 def main() -> None:
@@ -604,7 +653,7 @@ def main() -> None:
     configure_runtime(workflow=args.workflow)
     cfg = config()
     source_program, source_entry = seed_program(args.fixture, args.program_id)
-    minimized_path, info, comparison, runs, minimized_preflight = greedy_reduce(source_program, source_entry=source_entry)
+    minimized_path, info, comparison, runs, minimized_preflight, confirmed, confirmation_runs = greedy_reduce(source_program, source_entry=source_entry)
     original_text = read_text(source_program)
     minimized_text = read_text(minimized_path)
     divergence_event_index = comparison["first_divergence_index"]
@@ -635,6 +684,8 @@ def main() -> None:
         "scml_sctrace_output_path": minimized_preflight["sctrace_output_path"] if minimized_preflight else (source_entry.get("scml_sctrace_output_path", "") if source_entry else ""),
         "reducer_replay_mode": minimized_preflight["reducer_replay_mode"] if minimized_preflight else "not_applicable",
         "reducer_replay_recovery_reason": minimized_preflight["reducer_replay_recovery_reason"] if minimized_preflight else "",
+        "confirmed": confirmed,
+        "confirmation_runs": confirmation_runs,
     }
     json_path = report_path("minimized-report.json", cfg=cfg)
     md_path = report_path("minimized-report.md", cfg=cfg)

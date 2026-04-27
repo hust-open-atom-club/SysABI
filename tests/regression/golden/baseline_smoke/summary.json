@@ -15,8 +15,25 @@
     "NO_DIFF": 1,
     "WEAK_SPEC_OR_ENV_NOISE": 1
   },
+  "concurrency_breakdown": {
+    "candidate_bug_cases": 0,
+    "completed_cases": 3,
+    "crash_cases": 0,
+    "infra_error_cases": 0,
+    "jobs": 1,
+    "max_concurrent_vms": 1,
+    "timeout_cases": 0,
+    "total_cases": 4
+  },
   "dual_execution_completion_rate": 0.75,
   "eligible_program_count": 4,
+  "infra_error_breakdown": {
+    "candidate_bug": 0,
+    "crash": 0,
+    "infra_error": 0,
+    "other": 0,
+    "timeout": 0
+  },
   "scml_preflight_pass_rate": 1.0,
   "scml_rejected_count": 0,
   "scml_result_counts": {},

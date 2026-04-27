@@ -664,8 +664,8 @@ def write_failure_reports(results: list[dict[str, object]], campaign: str) -> No
     report_path("failure-report.md", cfg=cfg).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def write_post_run_reports(results: list[dict[str, object]], campaign: str) -> None:
-    write_summary(results, campaign)
+def write_post_run_reports(results: list[dict[str, object]], campaign: str, *, jobs: int | None = None) -> None:
+    write_summary(results, campaign, jobs=jobs)
     render_summary_reports(campaign=campaign)
     write_failure_reports(results, campaign)
 
@@ -881,7 +881,7 @@ def schedule_entries(entries: list[dict[str, object]], args: argparse.Namespace,
     return [result for result in results if result is not None]
 
 
-def write_summary(results: list[dict[str, object]], campaign: str) -> None:
+def write_summary(results: list[dict[str, object]], campaign: str, *, jobs: int | None = None) -> None:
     cfg = config()
     classes = Counter(result["classification"] for result in results)
     summary = {
@@ -894,6 +894,8 @@ def write_summary(results: list[dict[str, object]], campaign: str) -> None:
             if results
             else 0.0
         ),
+        "jobs": jobs,
+        "max_concurrent_vms": _max_concurrent_vms(),
     }
     reports_dir(cfg).mkdir(parents=True, exist_ok=True)
     dump_json(report_path("summary.json", cfg=cfg), summary)
@@ -952,9 +954,10 @@ def main() -> None:
         args.eligible_file = cfg["paths"]["eligible_file"]
     entries = selected_entries(args)
     ensure_entries_built(entries)
-    results = schedule_entries(entries, args, effective_jobs(args, cfg))
+    jobs = effective_jobs(args, cfg)
+    results = schedule_entries(entries, args, jobs)
     dump_jsonl(report_path("campaign-results.jsonl", cfg=cfg), results)
-    write_post_run_reports(results, args.campaign)
+    write_post_run_reports(results, args.campaign, jobs=jobs)
 
 
 if __name__ == "__main__":
