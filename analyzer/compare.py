@@ -1,5 +1,20 @@
 from __future__ import annotations
 
+from orchestrator.common import config
+
+
+def _is_noise_event(left: dict[str, object], right: dict[str, object], noise_syscalls: set[str]) -> bool:
+    if left["syscall_name"] != right["syscall_name"]:
+        return False
+    if left["syscall_name"] not in noise_syscalls:
+        return False
+    # For noise syscalls, differences in return_value and errno are ignored,
+    # but args and outputs must still match.
+    for field in ("args", "outputs"):
+        if left[field] != right[field]:
+            return False
+    return True
+
 
 def compare_canonical(reference: dict[str, object], candidate: dict[str, object]) -> dict[str, object]:
     if reference["event_count"] != candidate["event_count"]:
@@ -10,6 +25,8 @@ def compare_canonical(reference: dict[str, object], candidate: dict[str, object]
             "reason": "event_count_mismatch",
         }
 
+    noise_syscalls = set(config().get("normalization", {}).get("noise_syscalls", []))
+
     first_divergence_index = None
     noise_only = True
     for left, right in zip(reference["events"], candidate["events"], strict=True):
@@ -17,8 +34,11 @@ def compare_canonical(reference: dict[str, object], candidate: dict[str, object]
             first_divergence_index = left["index"]
             noise_only = False
             break
+        is_noise = _is_noise_event(left, right, noise_syscalls)
         for field in ("args", "return_value", "errno", "outputs"):
             if left[field] != right[field]:
+                if is_noise and field in ("return_value", "errno"):
+                    continue
                 first_divergence_index = left["index"]
                 noise_only = False
                 break
