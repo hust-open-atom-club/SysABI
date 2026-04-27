@@ -1,25 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-import shutil
-import threading
 from pathlib import Path
 from typing import Any
 
-_vm_concurrency_semaphore: threading.Semaphore | None = None
-
-
-def set_vm_concurrency_limit(limit: int) -> None:
-    global _vm_concurrency_semaphore
-    _vm_concurrency_semaphore = threading.Semaphore(limit)
-
-
-def vm_concurrency_semaphore() -> threading.Semaphore | None:
-    return _vm_concurrency_semaphore
-
+from core.concurrency import ConcurrencyLimiter
+from core.environment import env_with_go as _env_with_go, env_with_temp as _env_with_temp, temp_dir as _temp_dir
+from core.filesystem import clean_dir as _clean_dir, ensure_dir as _ensure_dir
 from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
+from core.persistence import dump_json as _dump_json, dump_jsonl as _dump_jsonl, load_json as _load_json, load_jsonl as _load_jsonl, read_text as _read_text, write_text as _write_text
 from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload, validate_target_config_payload
 from orchestrator.legacy_compat import default_presentation, emit_deprecation_warning_once, infer_legacy_target
 from runners.factory import available_runner_kinds
@@ -30,12 +20,28 @@ from targets.base import (
     canonical_execution_mode,
 )
 
+_vm_concurrency_limiter: ConcurrencyLimiter | None = None
+
+
+def set_vm_concurrency_limit(limit: int) -> None:
+    global _vm_concurrency_limiter
+    _vm_concurrency_limiter = ConcurrencyLimiter(limit)
+
+
+def vm_concurrency_limiter() -> ConcurrencyLimiter | None:
+    return _vm_concurrency_limiter
+
+
+def vm_concurrency_semaphore() -> Any | None:
+    """Deprecated: use vm_concurrency_limiter() instead."""
+    limiter = _vm_concurrency_limiter
+    return limiter._semaphore if limiter is not None else None
+
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_WORKFLOW = "baseline"
 WORKFLOW_ENV = "SYZABI_WORKFLOW"
 CONFIG_PATH_ENV = "SYZABI_CONFIG_PATH"
-TEMP_DIR_ENV = "SYZABI_TMPDIR"
 
 
 def repo_root() -> Path:
@@ -87,67 +93,21 @@ def resolved_config_path(*, workflow: str | None = None, config_path: str | Path
     return resolve_repo_path("configs/baseline_rules.json")
 
 
-def load_json(path: str | Path) -> dict[str, Any]:
-    with resolve_repo_path(path).open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+# Re-export persistence helpers for backward compatibility
+load_json = _load_json
+dump_json = _dump_json
+dump_jsonl = _dump_jsonl
+load_jsonl = _load_jsonl
+read_text = _read_text
+write_text = _write_text
 
-
-def dump_json(path: str | Path, payload: Any) -> None:
-    destination = resolve_repo_path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
-        handle.write("\n")
-
-
-def dump_jsonl(path: str | Path, rows: list[dict[str, Any]]) -> None:
-    destination = resolve_repo_path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True))
-            handle.write("\n")
-
-
-def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    with resolve_repo_path(path).open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            rows.append(json.loads(line))
-    return rows
+# Re-export filesystem helpers for backward compatibility
+ensure_dir = _ensure_dir
+clean_dir = _clean_dir
 
 
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def ensure_dir(path: str | Path) -> Path:
-    resolved = resolve_repo_path(path)
-    resolved.mkdir(parents=True, exist_ok=True)
-    return resolved
-
-
-def clean_dir(path: str | Path) -> Path:
-    resolved = resolve_repo_path(path)
-    if resolved.exists():
-        shutil.rmtree(resolved)
-    resolved.mkdir(parents=True, exist_ok=True)
-    return resolved
-
-
-def read_text(path: str | Path) -> str:
-    with resolve_repo_path(path).open("r", encoding="utf-8") as handle:
-        return handle.read()
-
-
-def write_text(path: str | Path, content: str) -> None:
-    destination = resolve_repo_path(path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with destination.open("w", encoding="utf-8") as handle:
-        handle.write(content)
 
 
 def validate_runner_profiles_payload(
@@ -278,23 +238,13 @@ def path_resolver(cfg: dict[str, Any] | None = None) -> PathResolver:
 
 
 def temp_dir(cfg: dict[str, Any] | None = None) -> Path:
-    override = os.environ.get(TEMP_DIR_ENV)
-    if override:
-        return ensure_dir(override)
-    payload = cfg or config()
-    return ensure_dir(path_resolver(payload).temp_dir())
+    override = os.environ.get("SYZABI_TMPDIR")
+    return _temp_dir(override=override, cfg=cfg)
 
 
 def env_with_temp(base: dict[str, str] | None = None, cfg: dict[str, Any] | None = None) -> dict[str, str]:
-    env = dict(base) if base is not None else os.environ.copy()
-    env["TMPDIR"] = str(temp_dir(cfg))
-    return env
+    return _env_with_temp(base, cfg=cfg)
 
 
 def env_with_go() -> dict[str, str]:
-    cfg = config()
-    env = env_with_temp(cfg=cfg)
-    go_root = resolve_repo_path(cfg["paths"]["go_root"])
-    env["GOROOT"] = str(go_root)
-    env["PATH"] = f"{go_root / 'bin'}:{env.get('PATH', '')}"
-    return env
+    return _env_with_go(cfg=config())

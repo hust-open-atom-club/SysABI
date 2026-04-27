@@ -18,6 +18,7 @@ from analyzer.classify import classify_result
 from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
 from core.capabilities import capabilities_from_config
+from core.constants import Classification, ExecutionStatus
 from core.workflow_contract import WorkflowContractError
 from orchestrator.common import clean_dir, config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, load_jsonl, report_path, reports_dir, runner_profiles, set_vm_concurrency_limit
 from orchestrator.stability import all_equal, canonical_trace_hash, build_status_ok
@@ -108,76 +109,89 @@ def run_candidate_once_with_package(
     return result, canonical
 
 
-def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str, object]:
-    cfg = config()
-    adapter = get_target_adapter(cfg)
-    program_id = entry["program_id"]
-    prepared_case = adapter.prepare_case(entry, cfg)
-    scml_preflight_status = entry.get("scml_preflight_status", "not_run")
-    build_result_path = build_root(program_id) / "build-result.json"
-    if not build_status_ok(build_result_path):
-        result = {
-            "kind": "final",
-            "result": adapter.finalize_result({
-                "program_id": program_id,
-                "classification": "build_failure",
-                "build_result_path": str(build_result_path),
-                "normalized_path": entry.get("normalized_path", ""),
-                "meta_path": entry.get("meta_path", ""),
-                "scml_preflight_status": scml_preflight_status,
-                "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
-                "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
-                "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
-                "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
-                "scml_result_bucket": scml_result_bucket(
-                    preflight_status=scml_preflight_status,
-                    candidate_status=None,
-                    classification="build_failure",
-                    cfg=cfg,
-                ),
-            }, cfg),
-        }
-        return result
+def _scml_fields(entry: dict[str, object]) -> dict[str, object]:
+    """Extract SCML-related fields from an entry for result assembly."""
+    return {
+        "scml_preflight_status": entry.get("scml_preflight_status", "not_run"),
+        "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
+        "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
+        "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
+        "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+    }
 
-    inject_trace = controlled_divergence_spec(getattr(args, "controlled_divergence", False))
-    run_id = next_run_id(program_id)
-    reference_results = []
-    reference_hashes = []
+
+def _build_reference_runs(program_id: str, run_id: str, cfg: dict[str, object]) -> tuple[list[object], list[str], dict[str, object] | None]:
+    """Run reference side once and return (results, hashes, canonical).
+
+    If the first run fails, reruns up to stability.rerun_count times.
+    """
+    reference_results: list[object] = []
+    reference_hashes: list[str] = []
 
     reference_result, reference_canonical = run_reference_once(program_id, run_id, "ref0")
     reference_results.append(reference_result)
-    current_reference_canonical = reference_canonical
     if reference_canonical is not None:
         reference_hashes.append(canonical_trace_hash(reference_canonical))
 
-    if reference_result.status != "ok":
+    if reference_result.status != ExecutionStatus.OK:
         for attempt in range(cfg["stability"]["rerun_count"]):
             rerun_result, rerun_canonical = run_reference_once(program_id, run_id, f"ref-triage{attempt}")
             reference_results.append(rerun_result)
             if rerun_canonical is not None:
                 reference_hashes.append(canonical_trace_hash(rerun_canonical))
-        result = {
+
+    return reference_results, reference_hashes, reference_canonical
+
+
+def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str, object]:
+    cfg = config()
+    adapter = get_target_adapter(cfg)
+    program_id = entry["program_id"]
+    prepared_case = adapter.prepare_case(entry, cfg)
+    scml = _scml_fields(entry)
+    build_result_path = build_root(program_id) / "build-result.json"
+
+    if not build_status_ok(build_result_path):
+        return {
             "kind": "final",
             "result": adapter.finalize_result({
                 "program_id": program_id,
-                "classification": cfg["classification"]["baseline_invalid"],
+                "classification": Classification.BUILD_FAILURE,
+                "build_result_path": str(build_result_path),
                 "normalized_path": entry.get("normalized_path", ""),
                 "meta_path": entry.get("meta_path", ""),
-                "reference_runs": [result.to_dict() for result in reference_results],
-                "scml_preflight_status": scml_preflight_status,
-                "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
-                "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
-                "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
-                "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+                **scml,
                 "scml_result_bucket": scml_result_bucket(
-                    preflight_status=scml_preflight_status,
+                    preflight_status=scml["scml_preflight_status"],
                     candidate_status=None,
-                    classification=cfg["classification"]["baseline_invalid"],
+                    classification=Classification.BUILD_FAILURE,
                     cfg=cfg,
                 ),
             }, cfg),
         }
-        return result
+
+    inject_trace = controlled_divergence_spec(getattr(args, "controlled_divergence", False))
+    run_id = next_run_id(program_id)
+    reference_results, reference_hashes, reference_canonical = _build_reference_runs(program_id, run_id, cfg)
+
+    if reference_results[0].status != ExecutionStatus.OK:
+        return {
+            "kind": "final",
+            "result": adapter.finalize_result({
+                "program_id": program_id,
+                "classification": cfg["classification"][Classification.BASELINE_INVALID],
+                "normalized_path": entry.get("normalized_path", ""),
+                "meta_path": entry.get("meta_path", ""),
+                "reference_runs": [result.to_dict() for result in reference_results],
+                **scml,
+                "scml_result_bucket": scml_result_bucket(
+                    preflight_status=scml["scml_preflight_status"],
+                    candidate_status=None,
+                    classification=cfg["classification"][Classification.BASELINE_INVALID],
+                    cfg=cfg,
+                ),
+            }, cfg),
+        }
 
     return {
         "kind": "candidate_ready",
@@ -188,8 +202,51 @@ def prepare_case(entry: dict[str, object], args: argparse.Namespace) -> dict[str
         "inject_trace": inject_trace,
         "reference_results": reference_results,
         "reference_hashes": reference_hashes,
-        "current_reference_canonical": current_reference_canonical,
+        "current_reference_canonical": reference_canonical,
     }
+
+
+def _run_triage_loop(
+    *,
+    program_id: str,
+    run_id: str,
+    inject_trace: dict[str, object] | None,
+    reference_results: list[object],
+    reference_hashes: list[str],
+    current_reference_canonical: dict[str, object] | None,
+    candidate_results: list[object],
+    candidate_hashes: list[str],
+    candidate_canonical: dict[str, object] | None,
+    comparison: dict[str, object] | None,
+    cfg: dict[str, object],
+    candidate_package_dir: Path | None = None,
+    candidate_package_slot: int | None = None,
+) -> tuple[list[object], list[str], dict[str, object] | None, list[object], list[str], dict[str, object] | None, dict[str, object] | None]:
+    """Rerun reference and candidate up to stability.rerun_count times.
+
+    Returns updated (reference_results, reference_hashes, current_reference_canonical,
+    candidate_results, candidate_hashes, candidate_canonical, comparison).
+    """
+    for attempt in range(cfg["stability"]["rerun_count"]):
+        ref_rerun, ref_canonical = run_reference_once(program_id, run_id, f"ref-triage{attempt}")
+        reference_results.append(ref_rerun)
+        if ref_canonical is not None:
+            current_reference_canonical = ref_canonical
+            reference_hashes.append(canonical_trace_hash(ref_canonical))
+        cand_rerun, cand_canonical = run_candidate_once_with_package(
+            program_id,
+            run_id,
+            f"candidate-triage{attempt}",
+            inject_trace,
+            package_dir=candidate_package_dir,
+            package_slot=candidate_package_slot,
+        )
+        candidate_results.append(cand_rerun)
+        if cand_canonical is not None:
+            candidate_hashes.append(canonical_trace_hash(cand_canonical))
+            candidate_canonical = cand_canonical
+            comparison = compare_canonical(current_reference_canonical, cand_canonical) if current_reference_canonical is not None else None
+    return reference_results, reference_hashes, current_reference_canonical, candidate_results, candidate_hashes, candidate_canonical, comparison
 
 
 def finalize_prepared_case(
@@ -210,55 +267,47 @@ def finalize_prepared_case(
     reference_results = list(prepared["reference_results"])
     reference_hashes = list(prepared["reference_hashes"])
     current_reference_canonical = prepared["current_reference_canonical"]
-    scml_preflight_status = entry.get("scml_preflight_status", "not_run")
+    scml = _scml_fields(entry)
 
     candidate_results = [candidate_result]
-    candidate_hashes = []
+    candidate_hashes: list[str] = []
     if candidate_canonical is not None:
         candidate_hashes.append(canonical_trace_hash(candidate_canonical))
 
     comparison = compare_canonical(current_reference_canonical, candidate_canonical) if candidate_canonical else None
-    needs_triage = candidate_result.status != "ok" or (comparison is not None and not comparison["equivalent"])
+    needs_triage = candidate_result.status != ExecutionStatus.OK or (comparison is not None and not comparison["equivalent"])
 
     if needs_triage:
-        for attempt in range(cfg["stability"]["rerun_count"]):
-            ref_rerun, ref_canonical = run_reference_once(program_id, run_id, f"ref-triage{attempt}")
-            reference_results.append(ref_rerun)
-            if ref_canonical is not None:
-                current_reference_canonical = ref_canonical
-                reference_hashes.append(canonical_trace_hash(ref_canonical))
-            cand_rerun, cand_canonical = run_candidate_once_with_package(
-                program_id,
-                run_id,
-                f"candidate-triage{attempt}",
-                inject_trace,
-                package_dir=candidate_package_dir,
-                package_slot=candidate_package_slot,
-            )
-            candidate_results.append(cand_rerun)
-            if cand_canonical is not None:
-                candidate_hashes.append(canonical_trace_hash(cand_canonical))
-                candidate_canonical = cand_canonical
-                comparison = compare_canonical(current_reference_canonical, cand_canonical)
+        reference_results, reference_hashes, current_reference_canonical, candidate_results, candidate_hashes, candidate_canonical, comparison = _run_triage_loop(
+            program_id=program_id,
+            run_id=run_id,
+            inject_trace=inject_trace,
+            reference_results=reference_results,
+            reference_hashes=reference_hashes,
+            current_reference_canonical=current_reference_canonical,
+            candidate_results=candidate_results,
+            candidate_hashes=candidate_hashes,
+            candidate_canonical=candidate_canonical,
+            comparison=comparison,
+            cfg=cfg,
+            candidate_package_dir=candidate_package_dir,
+            candidate_package_slot=candidate_package_slot,
+        )
 
     reference_stable = all_equal(reference_hashes)
     if not reference_stable:
         return adapter.finalize_result({
             "program_id": program_id,
-            "classification": cfg["classification"]["baseline_invalid"],
+            "classification": cfg["classification"][Classification.BASELINE_INVALID],
             "normalized_path": entry.get("normalized_path", ""),
             "meta_path": entry.get("meta_path", ""),
             "reference_runs": [result.to_dict() for result in reference_results],
             "candidate_runs": [result.to_dict() for result in candidate_results],
-            "scml_preflight_status": scml_preflight_status,
-            "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
-            "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
-            "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
-            "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+            **scml,
             "scml_result_bucket": scml_result_bucket(
-                preflight_status=scml_preflight_status,
+                preflight_status=scml["scml_preflight_status"],
                 candidate_status=candidate_results[-1].status if candidate_results else None,
-                classification=cfg["classification"]["baseline_invalid"],
+                classification=cfg["classification"][Classification.BASELINE_INVALID],
                 comparison=None,
                 cfg=cfg,
             ),
@@ -275,7 +324,7 @@ def finalize_prepared_case(
         candidate_status=candidate_status,
         comparison=comparison,
     )
-    result = {
+    result: dict[str, object] = {
         "program_id": program_id,
         "classification": classification,
         "normalized_path": entry.get("normalized_path", ""),
@@ -284,16 +333,12 @@ def finalize_prepared_case(
         "candidate_run": candidate_results[-1].to_dict(),
         "candidate_runs": [result.to_dict() for result in candidate_results],
         "comparison": comparison,
-        "scml_preflight_status": scml_preflight_status,
-        "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
-        "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
-        "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
-        "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+        **scml,
         "candidate_package_dir": str(candidate_package_dir) if candidate_package_dir is not None else "",
         "candidate_package_slot": candidate_package_slot,
         "candidate_package_workflow": str(cfg.get("workflow", "")) if candidate_package_dir is not None else "",
         "scml_result_bucket": scml_result_bucket(
-            preflight_status=scml_preflight_status,
+            preflight_status=scml["scml_preflight_status"],
             candidate_status=candidate_status,
             classification=classification,
             comparison=comparison,
@@ -340,27 +385,23 @@ def infra_error_result(
 ) -> dict[str, object]:
     cfg = config()
     adapter = get_target_adapter(cfg)
-    scml_preflight_status = str(entry.get("scml_preflight_status", "not_run"))
+    scml = _scml_fields(entry)
     candidate_runs = serialize_runs(candidate_results or [])
     candidate_run = candidate_runs[-1] if candidate_runs else None
-    result = {
+    result: dict[str, object] = {
         "program_id": entry["program_id"],
-        "classification": "infra_error",
+        "classification": Classification.INFRA_ERROR,
         "normalized_path": entry.get("normalized_path", ""),
         "meta_path": entry.get("meta_path", ""),
         "reference_runs": serialize_runs(reference_results or []),
         "candidate_runs": candidate_runs,
-        "scml_preflight_status": scml_preflight_status,
-        "scml_rejection_reasons": entry.get("scml_rejection_reasons", []),
-        "scml_trace_log_path": entry.get("scml_trace_log_path", ""),
-        "scml_sctrace_output_path": entry.get("scml_sctrace_output_path", ""),
-        "scml_preflight_run_root": entry.get("scml_preflight_run_root", ""),
+        **scml,
         "error_stage": stage,
         "error_detail": f"{type(exc).__name__}: {exc}",
         "scml_result_bucket": scml_result_bucket(
-            preflight_status=scml_preflight_status,
+            preflight_status=scml["scml_preflight_status"],
             candidate_status=str(candidate_run.get("status")) if candidate_run else None,
-            classification="infra_error",
+            classification=Classification.INFRA_ERROR,
             comparison=None,
             cfg=cfg,
         ),
@@ -420,12 +461,12 @@ def scml_result_bucket(
         return ""
     if preflight_status != "passed":
         return "rejected_by_scml"
-    if classification == "build_failure":
+    if classification == Classification.BUILD_FAILURE:
         return "passed_scml_but_candidate_failed"
     if comparison is None:
-        if classification == cfg["classification"]["baseline_invalid"]:
+        if classification == cfg["classification"][Classification.BASELINE_INVALID]:
             return "passed_scml_but_reference_failed"
-        return "passed_scml_but_candidate_failed" if candidate_status != "ok" else "passed_scml_but_reference_failed"
+        return "passed_scml_but_candidate_failed" if candidate_status != ExecutionStatus.OK else "passed_scml_but_reference_failed"
     if comparison.get("equivalent"):
         return "passed_scml_and_no_diff"
     return "passed_scml_and_diverged"
@@ -508,7 +549,7 @@ def first_divergence_details(result: dict[str, object]) -> tuple[int | None, str
 
 
 def write_bug_likely_reports(results: list[dict[str, object]], cfg: dict[str, object]) -> None:
-    bug_results = [result for result in results if result["classification"] == cfg["classification"]["bug_likely"]]
+    bug_results = [result for result in results if result["classification"] == cfg["classification"][Classification.BUG_LIKELY]]
     bug_root = clean_dir(report_path("bug_likely", cfg=cfg))
     testcase_root = ensure_dir(bug_root / "testcases")
     case_root = ensure_dir(bug_root / "cases")
@@ -611,7 +652,7 @@ def build_failure_case_summary(result: dict[str, object]) -> dict[str, object]:
 
 def write_failure_reports(results: list[dict[str, object]], campaign: str) -> None:
     cfg = config()
-    failure_results = [result for result in results if result["classification"] != cfg["classification"]["no_diff"]]
+    failure_results = [result for result in results if result["classification"] != cfg["classification"][Classification.NO_DIFF]]
     classification_counts = Counter(result["classification"] for result in failure_results)
     grouped_rows = {
         classification: [
@@ -888,9 +929,9 @@ def write_summary(results: list[dict[str, object]], campaign: str, *, jobs: int 
         "campaign": campaign,
         "total": len(results),
         "classification_counts": dict(classes),
-        "baseline_invalid_rate": classes[cfg["classification"]["baseline_invalid"]] / len(results) if results else 0.0,
+        "baseline_invalid_rate": classes[cfg["classification"][Classification.BASELINE_INVALID]] / len(results) if results else 0.0,
         "dual_execution_completion_rate": (
-            sum(1 for result in results if result.get("candidate_run", {}).get("status") == "ok") / len(results)
+            sum(1 for result in results if result.get("candidate_run", {}).get("status") == ExecutionStatus.OK) / len(results)
             if results
             else 0.0
         ),
@@ -913,15 +954,15 @@ def write_summary(results: list[dict[str, object]], campaign: str, *, jobs: int 
     report_path("summary.md", cfg=cfg).write_text("\n".join(lines) + "\n", encoding="utf-8")
     dump_jsonl(
         report_path("baseline-invalid.jsonl", cfg=cfg),
-        [result for result in results if result["classification"] == cfg["classification"]["baseline_invalid"]],
+        [result for result in results if result["classification"] == cfg["classification"][Classification.BASELINE_INVALID]],
     )
     dump_jsonl(
         report_path("divergence-index.jsonl", cfg=cfg),
-        [result for result in results if result["classification"] in {cfg["classification"]["bug_likely"], cfg["classification"]["weak_spec_or_env_noise"]}],
+        [result for result in results if result["classification"] in {cfg["classification"][Classification.BUG_LIKELY], cfg["classification"][Classification.WEAK_SPEC_OR_ENV_NOISE]}],
     )
     dump_jsonl(
         report_path("unsupported-feature.jsonl", cfg=cfg),
-        [result for result in results if result["classification"] == cfg["classification"]["unsupported_feature"]],
+        [result for result in results if result["classification"] == cfg["classification"][Classification.UNSUPPORTED_FEATURE]],
     )
     write_bug_likely_reports(results, cfg)
 
@@ -935,7 +976,7 @@ def _run_healthchecks(cfg: dict[str, Any]) -> None:
             continue
         runner = build_runner(profile)
         result = runner.healthcheck()
-        if result.get("status") != "ok":
+        if result.get("status") != ExecutionStatus.OK:
             raise WorkflowContractError(
                 f"{side} runner healthcheck failed: {result}"
             )

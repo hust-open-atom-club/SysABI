@@ -11,8 +11,11 @@ import time
 from pathlib import Path
 
 from analyzer.schemas import validate_raw_trace
+from core.concurrency import ConcurrencyLimiter
+from core.constants import ExecutionStatus, Side, TraceEventsTransport
 from core.workflow_contract import trace_events_transport
-from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text, vm_concurrency_semaphore
+from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text, vm_concurrency_limiter
+from orchestrator.execution_context import ExecutionContext
 from orchestrator.models import RunResult
 from runners import build_runner
 from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE, SHARED_RUNTIME_BATCH_EXECUTION_MODE, canonical_execution_mode
@@ -21,10 +24,10 @@ from targets.registry import get_target_adapter
 TRACE_EVENT_STDOUT_PREFIX = "__SYZABI_TRACE_EVENT__ "
 
 
-def _run_case_with_semaphore(runner, **kwargs):
-    sem = vm_concurrency_semaphore()
-    if sem is not None:
-        with sem:
+def _run_case_with_semaphore(runner, *, limiter: ConcurrencyLimiter | None = None, **kwargs):
+    effective_limiter = limiter or vm_concurrency_limiter()
+    if effective_limiter is not None:
+        with effective_limiter:
             return runner.run_case(**kwargs)
     return runner.run_case(**kwargs)
 
@@ -104,9 +107,15 @@ def parse_events(path: Path) -> list[dict[str, object]]:
 def extract_framed_events(text: str) -> list[dict[str, object]]:
     events: list[dict[str, object]] = []
     for raw_line in text.splitlines():
-        if not raw_line.startswith(TRACE_EVENT_STDOUT_PREFIX):
+        cleaned = raw_line
+        while cleaned.startswith("\x1b["):
+            end = cleaned.find("m", 2)
+            if end == -1:
+                break
+            cleaned = cleaned[end + 1 :]
+        if not cleaned.startswith(TRACE_EVENT_STDOUT_PREFIX):
             continue
-        payload = raw_line[len(TRACE_EVENT_STDOUT_PREFIX) :].strip()
+        payload = cleaned[len(TRACE_EVENT_STDOUT_PREFIX) :].strip()
         if not payload:
             continue
         events.append(json.loads(payload))
@@ -163,7 +172,7 @@ def classify_process_returncode(returncode: int) -> str:
     return "ok"
 
 
-def execution_context(
+def make_execution_context(
     *,
     program_id: str,
     side: str,
@@ -180,35 +189,35 @@ def execution_context(
     external_state_path: Path,
     runner_result_path: Path,
     batch_manifest_path: Path | None = None,
-) -> dict[str, str]:
-    return {
-        "program_id": program_id,
-        "side": side,
-        "run_id": run_id,
-        "repo_root": str(repo_root()),
-        "timeout_sec": str(timeout_sec),
-        "sandbox_root": str(sandbox_root),
-        "artifact_root": str(artifact_root),
-        "binary_path": str(binary_path),
-        "stdout_path": str(stdout_path),
-        "stderr_path": str(stderr_path),
-        "console_path": str(console_path),
-        "events_path": str(events_path),
-        "raw_trace_path": str(raw_trace_path),
-        "external_state_path": str(external_state_path),
-        "runner_result_path": str(runner_result_path),
-        "batch_manifest_path": str(batch_manifest_path) if batch_manifest_path is not None else "",
-    }
+) -> ExecutionContext:
+    return ExecutionContext(
+        program_id=program_id,
+        side=side,
+        run_id=run_id,
+        timeout_sec=timeout_sec,
+        sandbox_root=sandbox_root,
+        artifact_root=artifact_root,
+        binary_path=binary_path,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        console_path=console_path,
+        events_path=events_path,
+        raw_trace_path=raw_trace_path,
+        external_state_path=external_state_path,
+        runner_result_path=runner_result_path,
+        batch_manifest_path=batch_manifest_path,
+    )
 
 
-def resolve_command(profile: dict[str, object], context: dict[str, str], *, key: str = "command") -> list[str]:
+def resolve_command(profile: dict[str, object], context: ExecutionContext | dict[str, str], *, key: str = "command") -> list[str]:
     command = profile.get(key)
     if not command:
         raise ValueError(f"command runner profile is missing `{key}`")
+    template_vars = context.to_command_context() if isinstance(context, ExecutionContext) else context
     if isinstance(command, str):
-        return [token.format(**context) for token in shlex.split(command)]
+        return [token.format(**template_vars) for token in shlex.split(command)]
     if isinstance(command, list):
-        return [str(token).format(**context) for token in command]
+        return [str(token).format(**template_vars) for token in command]
     raise TypeError(f"unsupported command profile type: {type(command)!r}")
 
 
@@ -295,7 +304,27 @@ def prepare_candidate_batch_case(
         "runner_kind": profile.get("kind", "command"),
     }
     if prepared_case:
-        payload.update(prepared_case)
+        protected_keys = {
+            "binary_path",
+            "artifact_root",
+            "sandbox_root",
+            "stdout_path",
+            "stderr_path",
+            "console_path",
+            "events_path",
+            "raw_trace_path",
+            "external_state_path",
+            "runner_result_path",
+            "program_id",
+            "run_id",
+            "effective_timeout_sec",
+            "role",
+            "snapshot_id",
+            "runner_kind",
+        }
+        for key, value in prepared_case.items():
+            if key not in protected_keys:
+                payload[key] = value
     return payload
 
 
@@ -366,6 +395,134 @@ def prewarm_packaged_candidate_bundle(
     )
 
 
+def _run_case_core(
+    *,
+    runner,
+    command: list[str],
+    cwd: str,
+    env: dict[str, str],
+    timeout_sec: int,
+    kernel_build_command: str,
+    profile_kind: str,
+    runner_result_path: Path,
+) -> tuple[str, int | None, str, str, str | None, str, int]:
+    """Execute a single case and handle common exceptions.
+
+    Returns (status, exit_code, stdout, stderr, status_detail, kernel_build, elapsed_ms).
+    """
+    start = time.monotonic()
+    status = ExecutionStatus.OK
+    exit_code: int | None = None
+    stdout = ""
+    stderr = ""
+    status_detail = None
+    kernel_build_value = safe_kernel_build(kernel_build_command)
+
+    execution = _run_case_with_semaphore(
+        runner,
+        command=command,
+        cwd=cwd,
+        env=env,
+        timeout_sec=timeout_sec,
+    )
+    try:
+        stdout = execution.stdout
+        stderr = execution.stderr
+        kernel_build_value = safe_kernel_build(kernel_build_command)
+        status, exit_code, status_detail, kernel_build_value = finalize_process_result(
+            profile_kind=profile_kind,
+            completed_returncode=execution.returncode,
+            execution_status=execution.status,
+            runner_result=load_runner_result(runner_result_path),
+            fallback_kernel_build=kernel_build_value,
+        )
+        if execution.timed_out:
+            raise subprocess.TimeoutExpired(command, timeout_sec, output=stdout, stderr=stderr)
+        if execution.os_error is not None:
+            raise OSError(execution.os_error)
+    except subprocess.TimeoutExpired as exc:
+        status = ExecutionStatus.TIMEOUT
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        status_detail = None
+        kernel_build_value = safe_kernel_build(kernel_build_command)
+    except OSError as exc:
+        status = ExecutionStatus.INFRA_ERROR
+        stdout = ""
+        stderr = str(exc)
+        status_detail = str(exc)
+        kernel_build_value = safe_kernel_build(kernel_build_command)
+
+    elapsed_ms = int((time.monotonic() - start) * 1000)
+
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode("utf-8", errors="replace")
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+
+    return status, exit_code, stdout, stderr, status_detail, kernel_build_value, elapsed_ms
+
+
+def _persist_case_outputs(
+    *,
+    stdout: str,
+    stderr: str,
+    stdout_path: Path,
+    stderr_path: Path,
+    console_path: Path,
+    console_meta: dict[str, object],
+) -> None:
+    if not stdout_path.exists():
+        stdout_path.write_text(stdout, encoding="utf-8")
+    if not stderr_path.exists():
+        stderr_path.write_text(stderr, encoding="utf-8")
+    if not console_path.exists():
+        console_path.write_text(
+            json.dumps(console_meta, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
+def _build_and_persist_raw_trace(
+    *,
+    program_id: str,
+    side: str,
+    run_id: str,
+    status: str,
+    exit_code: int | None,
+    raw_trace_path: Path,
+    events_path: Path,
+    stdout_text: str,
+    stderr_text: str,
+    console_path: Path,
+    cfg: dict[str, object],
+) -> None:
+    if raw_trace_path.exists():
+        validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
+    else:
+        events = persisted_trace_events(
+            cfg=cfg,
+            events_path=events_path,
+            stdout_text=stdout_text,
+            stderr_text=stderr_text,
+            console_path=console_path,
+        )
+        raw_trace = {
+            "program_id": program_id,
+            "side": side,
+            "run_id": run_id,
+            "status": status,
+            "events": events,
+            "process_exit": {
+                "status": status,
+                "exit_code": exit_code,
+                "timed_out": status == ExecutionStatus.TIMEOUT,
+            },
+        }
+        validate_raw_trace(raw_trace)
+        dump_json(raw_trace_path, raw_trace)
+
+
 def execute_prepared_candidate_case(
     *,
     case: dict[str, object],
@@ -387,7 +544,7 @@ def execute_prepared_candidate_case(
     effective_timeout_sec = int(case["effective_timeout_sec"])
 
     env = env_with_temp(cfg=cfg)
-    env["SYZABI_SIDE"] = "candidate"
+    env["SYZABI_SIDE"] = Side.CANDIDATE
     env["SYZABI_PROGRAM_ID"] = str(case["program_id"])
     env["SYZABI_RUN_ID"] = str(case["run_id"])
     env["SYZABI_TRACE_EVENTS_PATH"] = trace_events_destination(cfg=cfg, events_path=events_path)
@@ -409,9 +566,9 @@ def execute_prepared_candidate_case(
         env["SYZABI_INJECT_TRACE_FIELD"] = str(inject_trace.get("field", "return"))
         env["SYZABI_INJECT_TRACE_VALUE"] = str(inject_trace.get("value", 0))
 
-    command_context = execution_context(
+    command_context = make_execution_context(
         program_id=str(case["program_id"]),
-        side="candidate",
+        side=Side.CANDIDATE,
         run_id=str(case["run_id"]),
         timeout_sec=effective_timeout_sec,
         sandbox_root=sandbox_root,
@@ -427,104 +584,52 @@ def execute_prepared_candidate_case(
     )
     command = resolve_command(profile, command_context)
 
-    start = time.monotonic()
-    status = "ok"
-    exit_code: int | None = None
-    stdout = ""
-    stderr = ""
-    runner = build_runner(profile)
-    execution = _run_case_with_semaphore(
-        runner,
+    status, exit_code, stdout, stderr, status_detail, kernel_build_value, elapsed_ms = _run_case_core(
+        runner=build_runner(profile),
         command=command,
         cwd=str(sandbox_root),
         env=env,
         timeout_sec=effective_timeout_sec,
+        kernel_build_command=profile["kernel_build_command"],
+        profile_kind=str(case["runner_kind"]),
+        runner_result_path=runner_result_path,
     )
-    try:
-        stdout = execution.stdout
-        stderr = execution.stderr
-        fallback_kernel_build = safe_kernel_build(profile["kernel_build_command"])
-        status, exit_code, status_detail, kernel_build_value = finalize_process_result(
-            profile_kind=str(case["runner_kind"]),
-            completed_returncode=execution.returncode,
-            runner_result=load_runner_result(runner_result_path),
-            fallback_kernel_build=fallback_kernel_build,
-        )
-        if execution.timed_out:
-            raise subprocess.TimeoutExpired(command, effective_timeout_sec, output=stdout, stderr=stderr)
-        if execution.os_error is not None:
-            raise OSError(execution.os_error)
-    except subprocess.TimeoutExpired as exc:
-        status = "timeout"
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
-        status_detail = None
-        kernel_build_value = safe_kernel_build(profile["kernel_build_command"])
-    except OSError as exc:
-        status = "infra_error"
-        stdout = ""
-        stderr = str(exc)
-        status_detail = str(exc)
-        kernel_build_value = safe_kernel_build(profile["kernel_build_command"])
-    elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    if isinstance(stdout, bytes):
-        stdout = stdout.decode("utf-8", errors="replace")
-    if isinstance(stderr, bytes):
-        stderr = stderr.decode("utf-8", errors="replace")
-
-    if not stdout_path.exists():
-        stdout_path.write_text(stdout, encoding="utf-8")
-    if not stderr_path.exists():
-        stderr_path.write_text(stderr, encoding="utf-8")
-    if not console_path.exists():
-        console_path.write_text(
-            json.dumps(
-                {
-                    "command": command,
-                    "cwd": str(sandbox_root),
-                    "runner_kind": str(case["runner_kind"]),
-                    "status": status,
-                    "elapsed_ms": elapsed_ms,
-                    "initramfs_package_dir": str(package_dir),
-                    "initramfs_package_slot": slot,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    if raw_trace_path.exists():
-        validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
-    else:
-        events = persisted_trace_events(
-            cfg=cfg,
-            events_path=events_path,
-            stdout_text=stdout,
-            stderr_text=stderr,
-            console_path=console_path,
-        )
-        raw_trace = {
-            "program_id": str(case["program_id"]),
-            "side": "candidate",
-            "run_id": str(case["run_id"]),
+    _persist_case_outputs(
+        stdout=stdout,
+        stderr=stderr,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        console_path=console_path,
+        console_meta={
+            "command": command,
+            "cwd": str(sandbox_root),
+            "runner_kind": str(case["runner_kind"]),
             "status": status,
-            "events": events,
-            "process_exit": {
-                "status": status,
-                "exit_code": exit_code,
-                "timed_out": status == "timeout",
-            },
-        }
-        validate_raw_trace(raw_trace)
-        dump_json(raw_trace_path, raw_trace)
+            "elapsed_ms": elapsed_ms,
+            "initramfs_package_dir": str(package_dir),
+            "initramfs_package_slot": slot,
+        },
+    )
+    _build_and_persist_raw_trace(
+        program_id=str(case["program_id"]),
+        side=Side.CANDIDATE,
+        run_id=str(case["run_id"]),
+        status=status,
+        exit_code=exit_code,
+        raw_trace_path=raw_trace_path,
+        events_path=events_path,
+        stdout_text=stdout,
+        stderr_text=stderr,
+        console_path=console_path,
+        cfg=cfg,
+    )
     if not external_state_path.exists():
         dump_json(external_state_path, {"files": []})
 
     result = RunResult(
         program_id=str(case["program_id"]),
-        side="candidate",
+        side=Side.CANDIDATE,
         status=status,
         exit_code=exit_code,
         stdout_path=str(stdout_path),
@@ -581,7 +686,7 @@ def finalize_batch_case_result(
     runner_result = load_runner_result(runner_result_path)
 
     if runner_result is None:
-        status = "infra_error"
+        status = ExecutionStatus.INFRA_ERROR
         exit_code = None
         status_detail = "missing candidate batch runner result"
         kernel_build_value = safe_kernel_build(runner_profiles()["candidate"]["kernel_build_command"])
@@ -589,6 +694,7 @@ def finalize_batch_case_result(
         status, exit_code, status_detail, kernel_build_value = finalize_process_result(
             profile_kind=str(case["runner_kind"]),
             completed_returncode=0,
+            execution_status=None,
             runner_result=runner_result,
             fallback_kernel_build=safe_kernel_build(runner_profiles()["candidate"]["kernel_build_command"]),
         )
@@ -607,14 +713,14 @@ def finalize_batch_case_result(
         )
         raw_trace = {
             "program_id": str(case["program_id"]),
-            "side": "candidate",
+            "side": Side.CANDIDATE,
             "run_id": str(case["run_id"]),
             "status": status,
             "events": events,
             "process_exit": {
                 "status": status,
                 "exit_code": exit_code,
-                "timed_out": status == "timeout",
+                "timed_out": status == ExecutionStatus.TIMEOUT,
             },
         }
         validate_raw_trace(raw_trace)
@@ -702,9 +808,9 @@ def execute_candidate_batch_with_context(
     if command_batching_mode == SHARED_RUNTIME_BATCH_EXECUTION_MODE:
         manifest_path = prepare_shared_batch_manifest(prepared_cases, cfg, batch_metadata=batch_metadata)
         manifest_dir = manifest_path.parent
-        command_context = execution_context(
+        command_context = make_execution_context(
             program_id="candidate-batch",
-            side="candidate",
+            side=Side.CANDIDATE,
             run_id=manifest_path.stem,
             timeout_sec=timeout_sec,
             sandbox_root=manifest_dir,
@@ -779,14 +885,8 @@ def execute_candidate_batch_with_context(
     results: dict[str, RunResult] = {}
 
     def execute_with_semaphore(case):
-        sem = vm_concurrency_semaphore()
-        if sem is not None:
-            with sem:
-                return execute_prepared_candidate_case(
-                    case=case,
-                    package_dir=package_dir,
-                    slot=slot_by_program[str(case["program_id"])],
-                )
+        # execute_prepared_candidate_case already acquires vm_concurrency_semaphore
+        # via _run_case_with_semaphore; do not double-acquire here.
         return execute_prepared_candidate_case(
             case=case,
             package_dir=package_dir,
@@ -857,7 +957,7 @@ def execute_side(
         env["SYZABI_INJECT_TRACE_VALUE"] = str(inject_trace.get("value", 0))
 
     runner_kind = profile.get("kind", "local")
-    command_context = execution_context(
+    command_context = make_execution_context(
         program_id=program_id,
         side=side,
         run_id=run_id,
@@ -878,97 +978,44 @@ def execute_side(
     else:
         command = [str(binary_path)]
 
-    start = time.monotonic()
-    status = "ok"
-    exit_code: int | None = None
-    stdout = ""
-    stderr = ""
-    runner = build_runner(profile)
-    execution = _run_case_with_semaphore(
-        runner,
+    status, exit_code, stdout, stderr, status_detail, kernel_build_value, elapsed_ms = _run_case_core(
+        runner=build_runner(profile),
         command=command,
         cwd=str(sandbox_root),
         env=env,
         timeout_sec=effective_timeout_sec,
+        kernel_build_command=profile["kernel_build_command"],
+        profile_kind=runner_kind,
+        runner_result_path=runner_result_path,
     )
-    try:
-        stdout = execution.stdout
-        stderr = execution.stderr
-        fallback_kernel_build = safe_kernel_build(profile["kernel_build_command"])
-        status, exit_code, status_detail, kernel_build_value = finalize_process_result(
-            profile_kind=runner_kind,
-            completed_returncode=execution.returncode,
-            execution_status=execution.status,
-            runner_result=load_runner_result(runner_result_path),
-            fallback_kernel_build=fallback_kernel_build,
-        )
-        if execution.timed_out:
-            raise subprocess.TimeoutExpired(command, effective_timeout_sec, output=stdout, stderr=stderr)
-        if execution.os_error is not None:
-            raise OSError(execution.os_error)
-    except subprocess.TimeoutExpired as exc:
-        status = "timeout"
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
-        status_detail = None
-        kernel_build_value = safe_kernel_build(profile["kernel_build_command"])
-    except OSError as exc:
-        status = "infra_error"
-        stdout = ""
-        stderr = str(exc)
-        status_detail = str(exc)
-        kernel_build_value = safe_kernel_build(profile["kernel_build_command"])
-    elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    if isinstance(stdout, bytes):
-        stdout = stdout.decode("utf-8", errors="replace")
-    if isinstance(stderr, bytes):
-        stderr = stderr.decode("utf-8", errors="replace")
-
-    if not stdout_path.exists():
-        stdout_path.write_text(stdout, encoding="utf-8")
-    if not stderr_path.exists():
-        stderr_path.write_text(stderr, encoding="utf-8")
-    if not console_path.exists():
-        console_path.write_text(
-            json.dumps(
-                {
-                    "command": command,
-                    "cwd": str(sandbox_root),
-                    "runner_kind": runner_kind,
-                    "status": status,
-                    "elapsed_ms": elapsed_ms,
-                },
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-    if raw_trace_path.exists():
-        validate_raw_trace(json.loads(raw_trace_path.read_text(encoding="utf-8")))
-    else:
-        events = persisted_trace_events(
-            cfg=cfg,
-            events_path=events_path,
-            stdout_text=stdout,
-            stderr_text=stderr,
-            console_path=console_path,
-        )
-        raw_trace = {
-            "program_id": program_id,
-            "side": side,
-            "run_id": run_id,
+    _persist_case_outputs(
+        stdout=stdout,
+        stderr=stderr,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        console_path=console_path,
+        console_meta={
+            "command": command,
+            "cwd": str(sandbox_root),
+            "runner_kind": runner_kind,
             "status": status,
-            "events": events,
-            "process_exit": {
-                "status": status,
-                "exit_code": exit_code,
-                "timed_out": status == "timeout",
-            },
-        }
-        validate_raw_trace(raw_trace)
-        dump_json(raw_trace_path, raw_trace)
+            "elapsed_ms": elapsed_ms,
+        },
+    )
+    _build_and_persist_raw_trace(
+        program_id=program_id,
+        side=side,
+        run_id=run_id,
+        status=status,
+        exit_code=exit_code,
+        raw_trace_path=raw_trace_path,
+        events_path=events_path,
+        stdout_text=stdout,
+        stderr_text=stderr,
+        console_path=console_path,
+        cfg=cfg,
+    )
     if not external_state_path.exists():
         dump_json(external_state_path, sample_external_state(sandbox_root))
 

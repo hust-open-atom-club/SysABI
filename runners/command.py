@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any
 
+from core.constants import ExecutionStatus
 from runners.common import RunnerExecution
 
 
@@ -49,34 +50,41 @@ class CommandRunner:
         """Kill process group and ensure cleanup of child processes."""
         try:
             os.killpg(process.pid, signal.SIGKILL)
-        except Exception:
+        except (ProcessLookupError, PermissionError, OSError):
             try:
                 process.kill()
-            except Exception:
+            except (ProcessLookupError, PermissionError, OSError):
                 pass
         try:
             process.wait(timeout=5)
-        except Exception:
+        except (subprocess.TimeoutExpired, ProcessLookupError, PermissionError, OSError):
             pass
         # Cleanup any remaining children
+        psutil = None
         try:
-            import psutil
+            import psutil as _psutil
+            psutil = _psutil
+        except ImportError:
+            pass
+        if psutil is None:
+            return
+        try:
             parent = psutil.Process(process.pid)
             for child in parent.children(recursive=True):
                 try:
                     child.kill()
                     child.wait(timeout=2)
-                except Exception:
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
                     pass
-        except Exception:
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
 
-    def _classify_returncode(self, returncode: int | None, stdout: str, stderr: str) -> str:
-        """Classify non-zero returncode as candidate_bug or infra_error."""
+    def _classify_returncode(self, returncode: int | None, stdout: str, stderr: str) -> str | None:
+        """Classify returncode as ok, candidate_bug, or infra_error."""
         if returncode == 0:
-            return "ok"
+            return ExecutionStatus.OK
         if returncode is None:
-            return "infra_error"
+            return ExecutionStatus.INFRA_ERROR
         # Check for kernel panic indicators in output
         combined = (stdout or "") + (stderr or "")
         panic_indicators = [
@@ -91,8 +99,8 @@ class CommandRunner:
         ]
         for indicator in panic_indicators:
             if indicator in combined:
-                return "candidate_bug"
-        return "infra_error"
+                return ExecutionStatus.CANDIDATE_BUG
+        return ExecutionStatus.INFRA_ERROR
 
     def run_case(
         self,
