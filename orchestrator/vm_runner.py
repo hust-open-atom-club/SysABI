@@ -6,18 +6,27 @@ import os
 import shutil
 import shlex
 import subprocess
+import threading
 import time
 from pathlib import Path
 
 from analyzer.schemas import validate_raw_trace
 from core.workflow_contract import trace_events_transport
-from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text
+from orchestrator.common import clean_dir, config, dump_json, ensure_dir, env_with_temp, path_resolver, repo_root, resolve_repo_path, runner_profiles, sha256_text, vm_concurrency_semaphore
 from orchestrator.models import RunResult
 from runners import build_runner
 from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE, SHARED_RUNTIME_BATCH_EXECUTION_MODE, canonical_execution_mode
 from targets.registry import get_target_adapter
 
 TRACE_EVENT_STDOUT_PREFIX = "__SYZABI_TRACE_EVENT__ "
+
+
+def _run_case_with_semaphore(runner, **kwargs):
+    sem = vm_concurrency_semaphore()
+    if sem is not None:
+        with sem:
+            return runner.run_case(**kwargs)
+    return runner.run_case(**kwargs)
 
 
 def build_root(program_id: str) -> Path:
@@ -36,8 +45,20 @@ def safe_kernel_build(command: str) -> str:
 
 
 def sample_external_state(work_dir: Path) -> dict[str, object]:
+    cfg = config()
+    limits = cfg.get("external_state_limits", {})
+    max_files = int(limits.get("max_files", 1000))
+    max_total_size = int(limits.get("max_total_size_bytes", 104857600))
+    max_file_sample = int(limits.get("max_file_sample_bytes", 4096))
+
     files: list[dict[str, object]] = []
+    total_size = 0
+    truncated = False
+
     for path in sorted(work_dir.rglob("*")):
+        if len(files) >= max_files:
+            truncated = True
+            break
         try:
             if not path.is_file():
                 continue
@@ -49,14 +70,22 @@ def sample_external_state(work_dir: Path) -> dict[str, object]:
             "path": relative,
             "size": size,
         }
+        total_size += size
+        if total_size > max_total_size:
+            truncated = True
+            break
         try:
-            content = path.read_bytes()
+            content = path.read_bytes()[:max_file_sample]
             item["sha256"] = sha256_text(content.decode("latin1"))
         except (PermissionError, OSError):
             item["sha256"] = None
             item["read_error"] = "permission_denied"
         files.append(item)
-    return {"files": files}
+
+    result: dict[str, object] = {"files": files}
+    if truncated:
+        result["truncated"] = True
+    return result
 
 
 def parse_events(path: Path) -> list[dict[str, object]]:
@@ -192,11 +221,14 @@ def finalize_process_result(
     *,
     profile_kind: str,
     completed_returncode: int | None,
+    execution_status: str | None,
     runner_result: dict[str, object] | None,
     fallback_kernel_build: str,
 ) -> tuple[str, int | None, str | None, str]:
     exit_code = completed_returncode
-    if profile_kind == "command":
+    if execution_status is not None:
+        status = execution_status
+    elif profile_kind == "command":
         status = "ok" if completed_returncode == 0 else "infra_error"
     else:
         status = classify_process_returncode(completed_returncode or 0)
@@ -400,7 +432,8 @@ def execute_prepared_candidate_case(
     stdout = ""
     stderr = ""
     runner = build_runner(profile)
-    execution = runner.run_case(
+    execution = _run_case_with_semaphore(
+        runner,
         command=command,
         cwd=str(sandbox_root),
         env=env,
@@ -743,14 +776,25 @@ def execute_candidate_batch_with_context(
         )
 
     results: dict[str, RunResult] = {}
+
+    def execute_with_semaphore(case):
+        sem = vm_concurrency_semaphore()
+        if sem is not None:
+            with sem:
+                return execute_prepared_candidate_case(
+                    case=case,
+                    package_dir=package_dir,
+                    slot=slot_by_program[str(case["program_id"])],
+                )
+        return execute_prepared_candidate_case(
+            case=case,
+            package_dir=package_dir,
+            slot=slot_by_program[str(case["program_id"])],
+        )
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map = {
-            executor.submit(
-                execute_prepared_candidate_case,
-                case=case,
-                package_dir=package_dir,
-                slot=slot_by_program[str(case["program_id"])],
-            ): str(case["program_id"])
+            executor.submit(execute_with_semaphore, case): str(case["program_id"])
             for case in prepared_cases
         }
         for future in concurrent.futures.as_completed(future_map):
@@ -839,7 +883,8 @@ def execute_side(
     stdout = ""
     stderr = ""
     runner = build_runner(profile)
-    execution = runner.run_case(
+    execution = _run_case_with_semaphore(
+        runner,
         command=command,
         cwd=str(sandbox_root),
         env=env,
@@ -852,6 +897,7 @@ def execute_side(
         status, exit_code, status_detail, kernel_build_value = finalize_process_result(
             profile_kind=runner_kind,
             completed_returncode=execution.returncode,
+            execution_status=execution.status,
             runner_result=load_runner_result(runner_result_path),
             fallback_kernel_build=fallback_kernel_build,
         )
