@@ -44,9 +44,10 @@ def safe_kernel_build(command: str) -> str:
         return "unknown"
 
 
-def sample_external_state(work_dir: Path) -> dict[str, object]:
-    cfg = config()
-    limits = cfg.get("external_state_limits", {})
+def sample_external_state(work_dir: Path, limits: dict[str, object] | None = None) -> dict[str, object]:
+    if limits is None:
+        cfg = config()
+        limits = cfg.get("external_state_limits", {})
     max_files = int(limits.get("max_files", 1000))
     max_total_size = int(limits.get("max_total_size_bytes", 104857600))
     max_file_sample = int(limits.get("max_file_sample_bytes", 4096))

@@ -339,6 +339,49 @@ def build_rendered_summary(cfg: dict[str, object], campaign: str | None = None) 
         )
     ]
     candidate_runs = [result["candidate_run"] for result in campaign_results if "candidate_run" in result]
+
+    # Load scheduler-level summary for concurrency metadata
+    scheduler_summary_path = report_path("summary.json", cfg=cfg)
+    scheduler_summary = load_json(scheduler_summary_path) if scheduler_summary_path.exists() else {}
+
+    # Concurrency breakdown: candidate run status distribution
+    candidate_status_counts: dict[str, int] = {}
+    for run in candidate_runs:
+        status = str(run.get("status", "unknown"))
+        candidate_status_counts[status] = candidate_status_counts.get(status, 0) + 1
+
+    concurrency_breakdown = {
+        "jobs": scheduler_summary.get("jobs"),
+        "max_concurrent_vms": scheduler_summary.get("max_concurrent_vms"),
+        "total_cases": total,
+        "completed_cases": candidate_status_counts.get("ok", 0),
+        "timeout_cases": candidate_status_counts.get("timeout", 0),
+        "infra_error_cases": candidate_status_counts.get("infra_error", 0),
+        "crash_cases": candidate_status_counts.get("crash", 0),
+        "candidate_bug_cases": candidate_status_counts.get("candidate_bug", 0),
+    }
+
+    # Infra error breakdown: finer-grained classification of non-ok runs
+    infra_error_breakdown: dict[str, int] = {
+        "timeout": 0,
+        "infra_error": 0,
+        "crash": 0,
+        "candidate_bug": 0,
+        "other": 0,
+    }
+    for run in candidate_runs:
+        status = str(run.get("status", "unknown"))
+        if status == "timeout":
+            infra_error_breakdown["timeout"] += 1
+        elif status == "infra_error":
+            infra_error_breakdown["infra_error"] += 1
+        elif status == "crash":
+            infra_error_breakdown["crash"] += 1
+        elif status == "candidate_bug":
+            infra_error_breakdown["candidate_bug"] += 1
+        elif status != "ok":
+            infra_error_breakdown["other"] += 1
+
     summary = {
         "campaign": selected_campaign(cfg, campaign),
         "workflow": current_workflow(cfg),
@@ -359,6 +402,8 @@ def build_rendered_summary(cfg: dict[str, object], campaign: str | None = None) 
         ),
         "candidate_runner_kinds": sorted({run.get("runner_kind") for run in candidate_runs if run.get("runner_kind")}),
         "candidate_kernel_builds": sorted({run.get("kernel_build") for run in candidate_runs if run.get("kernel_build")}),
+        "concurrency_breakdown": concurrency_breakdown,
+        "infra_error_breakdown": infra_error_breakdown,
     }
     import_summary_path = report_path("import-summary.json", cfg=cfg)
     if import_summary_path.exists():
@@ -429,6 +474,22 @@ def write_rendered_summary(summary: dict[str, object], cfg: dict[str, object]) -
     if summary["scml_result_counts"]:
         lines.extend(["", "## scml result counts"])
         for key, value in sorted(summary["scml_result_counts"].items()):
+            lines.append(f"- {key}: {value}")
+    cb = summary.get("concurrency_breakdown")
+    if cb:
+        lines.extend(["", "## concurrency breakdown"])
+        lines.append(f"- jobs: {cb.get('jobs', 'n/a')}")
+        lines.append(f"- max_concurrent_vms: {cb.get('max_concurrent_vms', 'n/a')}")
+        lines.append(f"- total_cases: {cb.get('total_cases', 0)}")
+        lines.append(f"- completed_cases: {cb.get('completed_cases', 0)}")
+        lines.append(f"- timeout_cases: {cb.get('timeout_cases', 0)}")
+        lines.append(f"- infra_error_cases: {cb.get('infra_error_cases', 0)}")
+        lines.append(f"- crash_cases: {cb.get('crash_cases', 0)}")
+        lines.append(f"- candidate_bug_cases: {cb.get('candidate_bug_cases', 0)}")
+    ieb = summary.get("infra_error_breakdown")
+    if ieb:
+        lines.extend(["", "## infra error breakdown"])
+        for key, value in sorted(ieb.items()):
             lines.append(f"- {key}: {value}")
     report_path("summary.md", cfg=cfg).write_text("\n".join(lines) + "\n", encoding="utf-8")
     signoff_lines = [
