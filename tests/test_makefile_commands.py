@@ -32,28 +32,6 @@ class MakefileCommandsTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0)
         self.assertIn("run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=4", run.stdout)
 
-    def test_deprecated_run_smoke_emits_warning(self) -> None:
-        run = subprocess.run(
-            ["make", "-n", "run-smoke"],
-            cwd=self.repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(run.returncode, 0)
-        self.assertIn("warning: run-smoke is deprecated", run.stdout)
-        self.assertIn("run WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100", run.stdout)
-
-    def test_deprecated_run_asterinas_smoke_emits_warning(self) -> None:
-        run = subprocess.run(
-            ["make", "-n", "run-asterinas-smoke"],
-            cwd=self.repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(run.returncode, 0)
-        self.assertIn("warning: run-asterinas-smoke is deprecated", run.stdout)
 
     def test_unified_build_command_routes_to_build_workflow(self) -> None:
         run = subprocess.run(
@@ -77,16 +55,6 @@ class MakefileCommandsTests(unittest.TestCase):
         self.assertEqual(run.returncode, 0)
         self.assertIn("analyze-workflow WORKFLOW=asterinas", run.stdout)
 
-    def test_deprecated_build_eligible_emits_warning(self) -> None:
-        run = subprocess.run(
-            ["make", "-n", "build-eligible"],
-            cwd=self.repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(run.returncode, 0)
-        self.assertIn("warning: build-eligible is deprecated", run.stdout)
 
 
 if __name__ == "__main__":

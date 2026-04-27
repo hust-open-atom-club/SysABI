@@ -41,10 +41,7 @@ help:
 	@echo "  make run WORKFLOW=tgoskits_starryos CAMPAIGN=smoke LIMIT=20 JOBS=4"
 	@echo "  make run WORKFLOW=tgoskits_arceos_smoke CAMPAIGN=smoke LIMIT=10 JOBS=2"
 	@echo ""
-	@echo "Deprecated aliases (still work, but will be removed):"
-	@echo "  run-smoke, run-full, run-asterinas-smoke, run-asterinas-full"
-	@echo "  run-tgoskits-starryos-smoke, run-tgoskits-starryos-scale"
-	@echo "  run-tgoskits-arceos-smoke, build-eligible, derive-asterinas-scml"
+
 
 init:
 	$(PYTHON) tools/init_layout.py --workflow $(WORKFLOW)
@@ -134,96 +131,6 @@ prepare-target:
 		SYZABI_WORKFLOW=$(WORKFLOW) $(PYTHON) targets/entrypoint.py --healthcheck; \
 	fi
 
-# ---------------------------------------------------------------------------
-# Deprecated aliases
-# ---------------------------------------------------------------------------
-
-.PHONY: run-smoke run-full run-asterinas-smoke run-asterinas-full analyze-asterinas report-asterinas build-asterinas derive-asterinas prepare-asterinas-candidate derive-asterinas-scml preflight-asterinas-scml build-eligible run-pipeline
-
-run-smoke:
-	@echo "warning: run-smoke is deprecated; use 'make run WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100'" >&2
-	$(MAKE) run WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100
-
-run-full:
-	@echo "warning: run-full is deprecated; use 'make run WORKFLOW=baseline CAMPAIGN=full LIMIT=1000'" >&2
-	$(MAKE) run WORKFLOW=baseline CAMPAIGN=full LIMIT=1000
-
-run-pipeline:
-	@echo "warning: run-pipeline is deprecated; use the individual init/derive/build/run commands" >&2
-	$(PYTHON) tools/init_layout.py --workflow baseline
-	$(PYTHON) tools/init_layout.py --workflow asterinas
-	$(MAKE) filter-corpus
-	$(MAKE) derive-workflow WORKFLOW=asterinas
-	$(MAKE) build-workflow WORKFLOW=asterinas LIMIT=$(RUN_LIMIT) JOBS=$(ASTERINAS_JOBS)
-	$(MAKE) run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=$(RUN_LIMIT) JOBS=$(ASTERINAS_JOBS)
-
-run-asterinas-smoke:
-	@echo "warning: run-asterinas-smoke is deprecated; use 'make run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=$(ASTERINAS_JOBS)'" >&2
-	$(MAKE) run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=$(ASTERINAS_JOBS)
-
-run-asterinas-full:
-	@echo "warning: run-asterinas-full is deprecated; use 'make run WORKFLOW=asterinas CAMPAIGN=full LIMIT=200 JOBS=$(ASTERINAS_JOBS)'" >&2
-	$(MAKE) run WORKFLOW=asterinas CAMPAIGN=full LIMIT=200 JOBS=$(ASTERINAS_JOBS)
-
-analyze-asterinas:
-	@echo "warning: analyze-asterinas is deprecated; use 'make analyze WORKFLOW=asterinas'" >&2
-	$(MAKE) analyze WORKFLOW=asterinas
-
-report-asterinas:
-	@echo "warning: report-asterinas is deprecated; use 'make report WORKFLOW=asterinas'" >&2
-	$(MAKE) report WORKFLOW=asterinas
-
-build-asterinas:
-	@echo "warning: build-asterinas is deprecated; use 'make build WORKFLOW=asterinas'" >&2
-	$(MAKE) prepare-target WORKFLOW=asterinas
-	$(MAKE) build-workflow WORKFLOW=asterinas
-
-derive-asterinas:
-	@echo "warning: derive-asterinas is deprecated; use 'make derive WORKFLOW=asterinas'" >&2
-	$(MAKE) derive WORKFLOW=asterinas
-
-prepare-asterinas-candidate:
-	@echo "warning: prepare-asterinas-candidate is deprecated; use 'make prepare-target WORKFLOW=asterinas'" >&2
-	$(MAKE) prepare-target WORKFLOW=asterinas
-
-derive-asterinas-scml:
-	@echo "warning: derive-asterinas-scml is deprecated; use 'make derive WORKFLOW=asterinas_scml'" >&2
-	$(MAKE) derive-workflow WORKFLOW=asterinas_scml
-	$(MAKE) preflight-workflow WORKFLOW=asterinas_scml
-
-preflight-asterinas-scml:
-	@echo "warning: preflight-asterinas-scml is deprecated; use 'make preflight-workflow WORKFLOW=asterinas_scml'" >&2
-	$(MAKE) preflight-workflow WORKFLOW=asterinas_scml
-
-build-eligible:
-	@echo "warning: build-eligible is deprecated; use 'make build WORKFLOW=baseline'" >&2
-	$(MAKE) build WORKFLOW=baseline
-
-# ---------------------------------------------------------------------------
-# TGOSKits legacy aliases
-# ---------------------------------------------------------------------------
-
-.PHONY: preflight-tgoskits-starryos run-tgoskits-starryos-smoke run-tgoskits-starryos-scale preflight-tgoskits-arceos run-tgoskits-arceos-smoke
-
-preflight-tgoskits-starryos:
-	@echo "warning: preflight-tgoskits-starryos is deprecated; use 'make prepare-target WORKFLOW=tgoskits_starryos'" >&2
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
-
-run-tgoskits-starryos-smoke:
-	@echo "warning: run-tgoskits-starryos-smoke is deprecated; use 'make run WORKFLOW=tgoskits_starryos CAMPAIGN=smoke'" >&2
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) $(if $(LIMIT),--limit $(LIMIT),) --jobs $(or $(JOBS),1)
-
-run-tgoskits-starryos-scale:
-	@echo "warning: run-tgoskits-starryos-scale is deprecated; use 'make run WORKFLOW=tgoskits_starryos_scale CAMPAIGN=full'" >&2
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_starryos_scale campaign --campaign full $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) --limit $(or $(LIMIT),200) --jobs $(or $(JOBS),8)
-
-preflight-tgoskits-arceos:
-	@echo "warning: preflight-tgoskits-arceos is deprecated; use 'make prepare-target WORKFLOW=tgoskits_arceos_smoke'" >&2
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
-
-run-tgoskits-arceos-smoke:
-	@echo "warning: run-tgoskits-arceos-smoke is deprecated; use 'make run WORKFLOW=tgoskits_arceos_smoke CAMPAIGN=smoke'" >&2
-	$(PYTHON) tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke $(if $(ELIGIBLE_FILE),--eligible-file $(ELIGIBLE_FILE),) --limit $(or $(LIMIT),1) --jobs $(or $(JOBS),1)
 
 # ---------------------------------------------------------------------------
 # Test
