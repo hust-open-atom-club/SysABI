@@ -451,22 +451,37 @@ def prepare_target(cfg: dict[str, Any]) -> str:
     ensure_supported_arch(cfg)
     ensure_toolchain_probes(cfg)
     revision = ensure_pinned_revision(cfg)
-    values = command_values(cfg)
-    for template in target_config(cfg).get("prepare_commands", []):
-        command = resolve_command(template, values)
-        completed = run_subprocess(command, cwd=workspace_dir(cfg), timeout_sec=int(target_config(cfg).get("prepare_timeout_sec", 1800)))
-        if completed.returncode != 0:
-            raise RunnerError(completed.stderr.strip() or completed.stdout.strip() or f"prepare command failed: {' '.join(command)}")
-    dump_json(
-        resolve_repo_path(target_config(cfg)["build_info_path"]),
-        {
-            "target": "tgoskits_starryos",
-            "revision": revision,
-            "arch": str(cfg.get("arch", "")),
-            "disk_image_path": str(disk_image_path(cfg)),
-            "workspace": str(repo_dir(cfg)),
-        },
-    )
+    build_info_path = resolve_repo_path(target_config(cfg)["build_info_path"])
+    build_info_path.parent.mkdir(parents=True, exist_ok=True)
+
+    import fcntl
+    with open(build_info_path, "a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            content = f.read()
+            if content:
+                existing = json.loads(content)
+                if existing.get("revision") == revision:
+                    return f"tgoskits-starryos@{revision[:12]}"
+            values = command_values(cfg)
+            for template in target_config(cfg).get("prepare_commands", []):
+                command = resolve_command(template, values)
+                completed = run_subprocess(command, cwd=workspace_dir(cfg), timeout_sec=int(target_config(cfg).get("prepare_timeout_sec", 1800)))
+                if completed.returncode != 0:
+                    raise RunnerError(completed.stderr.strip() or completed.stdout.strip() or f"prepare command failed: {' '.join(command)}")
+            info = {
+                "target": "tgoskits_starryos",
+                "revision": revision,
+                "arch": str(cfg.get("arch", "")),
+                "disk_image_path": str(disk_image_path(cfg)),
+                "workspace": str(repo_dir(cfg)),
+            }
+            f.seek(0)
+            f.truncate()
+            json.dump(info, f)
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
     return f"tgoskits-starryos@{revision[:12]}"
 
 
