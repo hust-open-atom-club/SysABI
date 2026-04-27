@@ -1,0 +1,23 @@
+{
+  "default_mode": "system",
+  "supported_arches": ["x86_64", "riscv64", "aarch64"],
+  "kernel_image_by_arch": {
+    "x86_64": "artifacts/kernels/qemu_linux/x86_64/vmlinux-lts",
+    "riscv64": "artifacts/kernels/qemu_linux/riscv64/vmlinux-lts",
+    "aarch64": "artifacts/kernels/qemu_linux/aarch64/vmlinux-lts"
+  },
+  "qemu_system_by_arch": {
+    "x86_64": "qemu-system-x86_64",
+    "riscv64": "qemu-system-riscv64",
+    "aarch64": "qemu-system-aarch64"
+  },
+  "qemu_machine_by_arch": {
+    "x86_64": "q35",
+    "riscv64": "virt",
+    "aarch64": "virt"
+  },
+  "memory_mb": 512,
+  "boot_timeout_sec": 30,
+  "command_timeout_sec": 30,
+  "trace_marker_prefix": "__SYZABI_TRACE_EVENT__ "
+}
