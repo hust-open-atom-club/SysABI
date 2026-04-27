@@ -24,8 +24,6 @@ class TGOSKitsArceOSTargetAdapter:
         return api.preflight_payload(cfg)
 
     def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
-        if args is not None and (getattr(args, "limit", None) != 1 or getattr(args, "jobs", None) != 1):
-            raise api.RunnerError("ArceOS experimental campaign is single-case only; use `--limit 1 --jobs 1`.")
         return api.replay_preflight_payload(cfg)
 
     def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
