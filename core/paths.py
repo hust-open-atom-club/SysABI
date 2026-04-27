@@ -1,11 +1,50 @@
 from __future__ import annotations
 
+import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_compiler_path(compiler: str) -> str | None:
+    """Resolve a compiler name to an absolute path.
+
+    Lookup order:
+    1. ``PATH`` environment variable (``shutil.which``).
+    2. ``SYZABI_<COMPILER>_PATH`` environment variable (e.g.
+       ``SYZABI_RISCV64_LINUX_MUSL_GCC_PATH``).
+    3. Common home-directory toolchain layout used by musl-cross-make,
+       e.g. ``~/toolchains/riscv64-linux-musl-cross/bin/riscv64-linux-musl-gcc``.
+
+    Set ``SYZABI_DISABLE_TOOLCHAIN_FALLBACK=1`` to disable the
+    home-directory fallback (useful in tests that verify missing-tool
+    behaviour).
+    """
+    # 1. Already on PATH?
+    if found := shutil.which(compiler):
+        return found
+
+    # 2. Explicit per-compiler env var
+    env_var = f"SYZABI_{compiler.upper().replace('-', '_')}_PATH"
+    if env_path := os.environ.get(env_var):
+        p = Path(env_path)
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+
+    # 3. Common musl-cross-make home-directory layout
+    if os.environ.get("SYZABI_DISABLE_TOOLCHAIN_FALLBACK") != "1":
+        #    e.g. riscv64-linux-musl-gcc -> ~/toolchains/riscv64-linux-musl-cross/bin/riscv64-linux-musl-gcc
+        home = Path.home()
+        prefix = compiler.rsplit("-", 1)[0]  # strip trailing -gcc / -clang
+        candidate = home / "toolchains" / f"{prefix}-cross" / "bin" / compiler
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+
+    return None
 
 
 def repo_root() -> Path:

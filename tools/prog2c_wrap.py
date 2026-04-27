@@ -14,6 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from core.constants import Classification, ExecutionStatus
+from core.paths import resolve_compiler_path
 from orchestrator.common import config, configure_runtime, dump_json, env_with_temp, load_jsonl, report_path, resolve_repo_path, resolved_config_path, runner_profiles, write_text
 from orchestrator.syzkaller import build_prog2c
 
@@ -68,15 +70,42 @@ def inject_header(source: str) -> str:
 
 
 def instrument_source(source: str) -> tuple[str, int]:
-    lines = inject_header(source).splitlines()
-    wrapped = 0
-    output: list[str] = []
-    for line in lines:
-        match = SYSCALL_PATTERN.match(line)
-        if not match:
-            output.append(line)
+    source = inject_header(source)
+    calls: list[tuple[int, int, str, str]] = []
+    i = 0
+    while i < len(source):
+        idx = source.find("syscall(", i)
+        if idx == -1:
+            break
+        if idx > 0 and (source[idx - 1].isalnum() or source[idx - 1] == "_"):
+            i = idx + 1
             continue
-        args = split_args(match.group("body"))
+        start = idx
+        paren_depth = 1
+        j = idx + len("syscall(")
+        while j < len(source) and paren_depth > 0:
+            if source[j] == "(":
+                paren_depth += 1
+            elif source[j] == ")":
+                paren_depth -= 1
+            j += 1
+        k = j
+        while k < len(source) and source[k] in " \t\n":
+            k += 1
+        if k < len(source) and source[k] == ";":
+            end = k + 1
+            line_start = source.rfind("\n", 0, start) + 1
+            prefix = source[line_start:start]
+            body = source[start + len("syscall("):j - 1]
+            calls.append((start, end, prefix, body))
+            i = end
+        else:
+            i = j
+    parts: list[str] = []
+    last_end = 0
+    for idx, (start, end, prefix, body) in enumerate(calls):
+        parts.append(source[last_end:start])
+        args = split_args(body)
         nr_expr = args[0]
         call_args = args[1:]
         while len(call_args) < 6:
@@ -84,16 +113,17 @@ def instrument_source(source: str) -> tuple[str, int]:
         if len(call_args) > 6:
             raise ValueError(f"unexpected syscall arity for {nr_expr}: {len(call_args)}")
         replacement = (
-            f'{match.group("prefix")}traced_syscall("{syscall_name(nr_expr)}", {nr_expr}, {wrapped}, '
+            f'{prefix}traced_syscall("{syscall_name(nr_expr)}", {nr_expr}, {idx}, '
             + ", ".join(call_args[:6])
             + ");"
         )
-        output.append(replacement)
-        wrapped += 1
-    instrumented = "\n".join(output) + "\n"
+        parts.append(replacement)
+        last_end = end
+    parts.append(source[last_end:])
+    instrumented = "".join(parts)
     if re.search(r"\bsyscall\s*\(", instrumented):
         raise ValueError("raw syscall invocation remains after instrumentation")
-    return instrumented, wrapped
+    return instrumented, len(calls)
 
 
 def build_side_config(cfg: dict[str, object], *, side: str) -> dict[str, object]:
@@ -157,13 +187,15 @@ def compile_testcase(
     side: str,
 ) -> subprocess.CompletedProcess[str]:
     compiler = compiler_for_side(cfg, side=side)
-    if shutil.which(compiler) is None:
+    resolved = resolve_compiler_path(compiler)
+    if resolved is None:
         return subprocess.CompletedProcess(
             [compiler],
             127,
             "",
             f"missing compiler for {side} build: {compiler}",
         )
+    compiler = resolved
     runner_source = runner_source_for_side(cfg, side=side)
     extra_cflags = cflags_for_side(cfg, side=side)
     cmd = [
@@ -292,7 +324,7 @@ def load_cached_build_result(
         cached = json.loads(build_result_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
-    if cached.get("status") != "ok":
+    if cached.get("status") != ExecutionStatus.OK:
         return None
     output_paths = [
         Path(str(cached.get("testcase_c", ""))),
@@ -356,7 +388,7 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
     if prog2c_result.returncode != 0:
         result = {
             "program_id": program_id,
-            "status": "build_failure",
+            "status": Classification.BUILD_FAILURE,
             "stage": "prog2c",
             "returncode": prog2c_result.returncode,
             "stderr_path": str(prog2c_stderr),
@@ -389,7 +421,7 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
         result = {
             "program_id": program_id,
             "normalized_path": str(normalized_path),
-            "status": "build_failure",
+            "status": Classification.BUILD_FAILURE,
             "stage": "compile",
             "returncode": 1,
             "wrapped_syscalls": wrapped_count,
@@ -405,15 +437,15 @@ def build_one(entry: dict[str, object]) -> dict[str, object]:
         dump_json(build_root / "build-result.json", result)
         return result
 
-    status = "ok" if compile_result.returncode == 0 else "build_failure"
+    status = ExecutionStatus.OK if compile_result.returncode == 0 else Classification.BUILD_FAILURE
     if candidate_compile_result is not None and candidate_compile_result.returncode != 0:
-        status = "build_failure"
+        status = Classification.BUILD_FAILURE
     result = {
         "program_id": program_id,
         "normalized_path": str(normalized_path),
         "status": status,
-        "stage": "compile" if status != "ok" else "done",
-        "returncode": compile_result.returncode if status == "ok" or candidate_compile_result is None else candidate_compile_result.returncode,
+        "stage": "compile" if status != ExecutionStatus.OK else "done",
+        "returncode": compile_result.returncode if status == ExecutionStatus.OK or candidate_compile_result is None else candidate_compile_result.returncode,
         "wrapped_syscalls": wrapped_count,
         "testcase_c": str(testcase_c),
         "testcase_instrumented_c": str(testcase_instrumented),
@@ -450,8 +482,8 @@ def main() -> None:
         report_path("build-summary.json", cfg=cfg),
         {
             "total": len(results),
-            "success": sum(1 for result in results if result["status"] == "ok"),
-            "failed": sum(1 for result in results if result["status"] != "ok"),
+            "success": sum(1 for result in results if result["status"] == ExecutionStatus.OK),
+            "failed": sum(1 for result in results if result["status"] != ExecutionStatus.OK),
         },
     )
 

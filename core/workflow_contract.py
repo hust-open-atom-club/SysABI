@@ -24,7 +24,9 @@ REQUIRED_TOP_LEVEL_MAPPING_KEYS = (
     "thresholds",
 )
 
-ALLOWED_TRACE_EVENT_TRANSPORTS = {"file", "stdout"}
+from core.constants import TraceEventsTransport
+
+ALLOWED_TRACE_EVENT_TRANSPORTS = {TraceEventsTransport.FILE, TraceEventsTransport.STDOUT}
 
 ALLOWED_TOP_LEVEL_KEYS = (
     "allowlist",
@@ -106,7 +108,7 @@ def trace_events_transport(cfg: dict[str, Any]) -> str:
     trace_cfg = cfg.get("trace", {})
     if not isinstance(trace_cfg, dict):
         return "file"
-    transport = str(trace_cfg.get("events_transport", "file") or "file")
+    transport = str(trace_cfg.get("events_transport", TraceEventsTransport.FILE) or TraceEventsTransport.FILE)
     if transport not in ALLOWED_TRACE_EVENT_TRANSPORTS:
         raise WorkflowContractError(
             f"unsupported trace.events_transport={transport!r}; expected one of "

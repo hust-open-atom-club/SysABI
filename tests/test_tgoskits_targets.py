@@ -180,9 +180,10 @@ class TGOSKitsTargetTests(unittest.TestCase):
             os.environ["SYZABI_WORKFLOW"] = "fake_starry"
 
             class FakeSession:
-                def __init__(self, cfg, *, cwd=None):
+                def __init__(self, cfg, *, cwd=None, extra_args=None):
                     self.cfg = cfg
                     self._cwd = cwd
+                    self._extra_args = extra_args
                     self._console = "starry:~#"
 
                 def start(self) -> None:
