@@ -40,7 +40,6 @@ The authoritative blocking thresholds are the checked-in workflow thresholds. Se
    - baseline / asterinas workflows still run without TGOSKits
    - StarryOS operator bring-up steps match [targets/tgoskits-starryos.md](targets/tgoskits-starryos.md)
    - ArceOS experimental launch steps match [targets/tgoskits-arceos.md](targets/tgoskits-arceos.md)
-   - Old Makefile aliases (`run-smoke`, `run-asterinas-smoke`, etc.) are deprecated; use unified `make run WORKFLOW=...`
 
 ## External Target Smoke
 

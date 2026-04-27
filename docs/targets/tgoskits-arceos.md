@@ -51,7 +51,7 @@ python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
 Equivalent `make` entrypoint:
 
 ```bash
-make preflight-tgoskits-arceos
+make prepare-target WORKFLOW=tgoskits_arceos_smoke
 ```
 
 Expected success signal:
@@ -95,7 +95,7 @@ The launch tool rejects any other `--limit` or `--jobs` combination with a fail-
 Equivalent `make` entrypoint:
 
 ```bash
-make run-tgoskits-arceos-smoke ELIGIBLE_FILE=<eligible.jsonl> LIMIT=1 JOBS=1
+make run WORKFLOW=tgoskits_arceos_smoke CAMPAIGN=smoke ELIGIBLE_FILE=<eligible.jsonl> LIMIT=1 JOBS=1
 ```
 
 Expected output locations:

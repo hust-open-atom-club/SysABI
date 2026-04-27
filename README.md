@@ -1,145 +1,184 @@
 # SyzABI
 
-> Offline differential replay for `syzkaller` programs.
->
-> Compatibility alias: `FuzzAsterinas` remains in historical paths and scripts.
+> Offline differential replay for `syzkaller` programs across OS kernels.
 
-SyzABI does one thing well: it takes a corpus of `*.syz` programs, turns them into reproducible testcase binaries, runs them on both sides, normalizes the traces, compares the results, and writes reports you can actually inspect.
+SyzABI takes a corpus of `*.syz` programs, compiles them into reproducible testcase binaries, runs them simultaneously on a **reference** kernel (Linux) and a **candidate** kernel (Asterinas, StarryOS, ArceOS, etc.), normalizes the resulting syscall traces, compares the outputs, and produces actionable divergence reports.
 
-Today the main target is:
+---
 
-- Linux `reference`
-- Asterinas `candidate`
+## Core Concept
 
-The repository keeps the shortest operational guide in this `README`, with deeper target/release notes under `docs/`.
+Every workflow follows the same pattern:
 
-## One Command
-
-If `corpus/meta/*.json` and `corpus/normalized/*.syz` already exist, the shortest path is:
-
-```bash
-make run
+```
+syz programs  →  testcase binaries  →  run on reference + candidate  →  compare traces  →  report
 ```
 
-For a larger Asterinas run:
+The interface is unified: every workflow is driven by `make <command> WORKFLOW=<name>`.
 
-```bash
-ASTERINAS_JOBS=80 RUN_LIMIT=100 make run
-```
+| Side | Typical kernel | Role |
+|------|---------------|------|
+| `reference` | Linux | Ground truth |
+| `candidate` | Asterinas / StarryOS / ArceOS / Linux | System under test |
 
-`make run` now performs the full Asterinas smoke pipeline:
-
-1. initialize baseline and Asterinas layout
-2. rebuild baseline eligible corpus
-3. derive Asterinas eligible corpus
-4. prepare the Asterinas Docker runner and shared kernel bundle
-5. build testcase binaries for the selected limit
-6. run the Asterinas workflow
-
-Default values:
-
-- workflow: `asterinas`
-- campaign: `smoke`
-- limit: `100`
-- jobs: `4`
+---
 
 ## Quick Start
 
 ### 1. Bootstrap once
 
 ```bash
-make bootstrap
-make init-layout
+make bootstrap        # Install pinned Go toolchain
+make init-layout      # Create directory scaffolding
 ```
 
-### 2. Prepare Asterinas source tree
+### 2. Prepare target source (example: Asterinas)
 
 ```bash
 git clone https://github.com/asterinas/asterinas.git third_party/asterinas
 git -C third_party/asterinas checkout main
 ```
 
-### 3. If you do not have a corpus yet
+### 3. Generate or import corpus
 
 ```bash
 make generate-corpus
 make import-corpus
 ```
 
-### 4. Run Asterinas
+### 4. Run
 
 ```bash
-ASTERINAS_JOBS=80 RUN_LIMIT=100 make run
+# Default: Asterinas smoke, 100 cases, 4 jobs
+make run
+
+# Or fully explicit
+make run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100 JOBS=4
 ```
 
-## Core Workflows
+---
 
-| Workflow | Purpose | Typical comparison |
-| --- | --- | --- |
-| `baseline` | validate the replay framework on Linux vs Linux | Linux `reference` vs Linux `candidate` |
-| `asterinas` | run Linux vs Asterinas differential replay | Linux `reference` vs Asterinas `candidate` |
-| `asterinas_scml` | add SCML-aware filtering and preflight | Linux `reference` vs Asterinas `candidate` |
-| `tgoskits_starryos` | external-workspace StarryOS integration path | Linux `reference` vs TGOSKits StarryOS `candidate` |
-| `tgoskits_arceos_smoke` | external-workspace ArceOS smoke / PoC path | Linux `reference` vs TGOSKits ArceOS `candidate` |
+## Supported Workflows
 
-## Most Useful Commands
+| Workflow | Purpose | Comparison |
+|----------|---------|------------|
+| `baseline` | Validate replay framework | Linux vs Linux |
+| `asterinas` | Differential replay | Linux vs Asterinas |
+| `asterinas_scml` | SCML-aware filtering + preflight | Linux vs Asterinas |
+| `tgoskits_starryos` | TGOSKits StarryOS integration | Linux vs StarryOS |
+| `tgoskits_arceos_smoke` | TGOSKits ArceOS smoke / PoC | Linux vs ArceOS |
+
+---
+
+## Workflow Guides
 
 ### Asterinas
 
-One-shot run:
+One-shot:
 
 ```bash
 make run
-ASTERINAS_JOBS=80 RUN_LIMIT=100 make run
+# or
+ASTERINAS_JOBS=80 make run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100
 ```
 
 Step by step:
 
 ```bash
 make filter-corpus
-make derive-asterinas
-make prepare-asterinas-candidate
-make build-asterinas
-ASTERINAS_JOBS=80 make run-asterinas-smoke
-make analyze-asterinas
-make report-asterinas
+make derive WORKFLOW=asterinas
+make prepare-target WORKFLOW=asterinas
+make build WORKFLOW=asterinas
+make run WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=4
+make analyze WORKFLOW=asterinas
+make report WORKFLOW=asterinas
 ```
 
 ### Baseline
 
 ```bash
 make filter-corpus
-make build-eligible
-make run-smoke
-make run-full
-make analyze
-make report
+make build WORKFLOW=baseline
+make run WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100
+make run WORKFLOW=baseline CAMPAIGN=full LIMIT=1000
+make analyze WORKFLOW=baseline
+make report WORKFLOW=baseline
 ```
 
 ### SCML
 
 ```bash
 make build-asterinas-scml-manifest
-make derive-asterinas-scml
-make preflight-asterinas-scml
+make derive WORKFLOW=asterinas_scml
+make preflight-workflow WORKFLOW=asterinas_scml
 python3 orchestrator/scheduler.py --workflow asterinas_scml --campaign smoke --limit 100 --jobs 8
 python3 tools/render_summary.py --workflow asterinas_scml
 ```
 
-### TGOSKits
+### TGOSKits — StarryOS
+
+Prerequisites:
+
+- `SYZABI_ENABLE_TGOSKITS=1`
+- `SYZABI_TGOSKITS_DIR=/path/to/tgoskits`
+- Rust toolchain (`rustc`, `cargo`)
+- `riscv64-linux-musl-gcc`
+- QEMU system-mode `qemu-system-riscv64`
+
+Preflight and healthcheck:
 
 ```bash
+export SYZABI_ENABLE_TGOSKITS=1
+export SYZABI_TGOSKITS_DIR=/path/to/tgoskits
+
 python3 tools/tgoskits_launch.py --workflow tgoskits_starryos preflight
 python3 tools/tgoskits_launch.py --workflow tgoskits_starryos healthcheck
-python3 tools/tgoskits_launch.py --workflow tgoskits_starryos campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
-python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
-python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke healthcheck
-python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke campaign --campaign smoke --eligible-file <eligible.jsonl> --limit 1 --jobs 1
 ```
 
-## Requirements
+Smoke campaign:
 
-Host tools:
+```bash
+make run WORKFLOW=tgoskits_starryos CAMPAIGN=smoke LIMIT=20 JOBS=4
+```
+
+Scale campaign:
+
+```bash
+make run WORKFLOW=tgoskits_starryos_scale CAMPAIGN=full LIMIT=200 JOBS=8
+```
+
+For detailed host prerequisites, PATH setup, and troubleshooting, see [`docs/targets/tgoskits-starryos.md`](docs/targets/tgoskits-starryos.md).
+
+### TGOSKits — ArceOS
+
+Prerequisites:
+
+- `SYZABI_ENABLE_TGOSKITS=1`
+- `SYZABI_TGOSKITS_DIR=/path/to/tgoskits`
+
+Preflight and healthcheck:
+
+```bash
+export SYZABI_ENABLE_TGOSKITS=1
+export SYZABI_TGOSKITS_DIR=/path/to/tgoskits
+
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke preflight
+python3 tools/tgoskits_launch.py --workflow tgoskits_arceos_smoke healthcheck
+```
+
+Experimental single-case campaign:
+
+```bash
+make run WORKFLOW=tgoskits_arceos_smoke CAMPAIGN=smoke LIMIT=1 JOBS=1
+```
+
+For details, see [`docs/targets/tgoskits-arceos.md`](docs/targets/tgoskits-arceos.md).
+
+---
+
+## System Requirements
+
+### Host tools
 
 - `bash`
 - `python3`
@@ -150,36 +189,44 @@ Host tools:
 - `gcc`
 - `strace`
 
-For Asterinas:
+### For Asterinas workflows
 
 - `docker`
 - `qemu-system-x86_64`
-- preferably `/dev/kvm`
+- `/dev/kvm` (recommended for speed)
 
-Notes:
+### For TGOSKits StarryOS
 
-- `make bootstrap` installs the pinned Go toolchain into `artifacts/toolchains/go/current/go`
-- Asterinas runs use the Docker path by default
-- the shared Asterinas kernel bundle is prepared once and then reused across testcase runs
+- `qemu-system-riscv64`
+- `riscv64-linux-musl-gcc`
+- Rust nightly toolchain
 
-## What The Runner Actually Does
+### Notes
 
-For the Asterinas workflow, the runner is intentionally simple:
+- `make bootstrap` installs the pinned Go toolchain into `artifacts/toolchains/go/current/go`.
+- Asterinas runs use Docker by default; the shared kernel bundle is prepared once and reused.
+- TGOSKits targets are gated by `SYZABI_ENABLE_TGOSKITS=1` and require an external TGOSKits checkout pointed to by `SYZABI_TGOSKITS_DIR`.
 
-- testcase binaries are built from `syz-prog2c`
-- the Asterinas kernel image and packaged bundle are prepared in Docker
-- each testcase runs in its own sandbox directory
-- traces and external state are written to disk
-- results are compared and classified into:
-  - `NO_DIFF`
-  - `BASELINE_INVALID`
-  - `WEAK_SPEC_OR_ENV_NOISE`
-  - `UNSUPPORTED_FEATURE`
-  - `BUG_LIKELY`
+---
+
+## What the Runner Does
+
+1. **Build** — `syz-prog2c` turns each `*.syz` program into a standalone C binary.
+2. **Prepare** — Target-specific assets (kernel image, initramfs, Docker bundle) are built or reused.
+3. **Run** — Each testcase executes in an isolated sandbox against both reference and candidate sides.
+4. **Trace** — Syscall events, return values, errno, and memory outputs are captured.
+5. **Compare** — Traces are normalized and compared. Results are classified:
+   - `NO_DIFF` — behavior matches
+   - `BASELINE_INVALID` — reference side failed (infrastructure issue)
+   - `WEAK_SPEC_OR_ENV_NOISE` — expected environmental difference
+   - `UNSUPPORTED_FEATURE` — candidate does not implement the syscall
+   - `BUG_LIKELY` — semantic divergence detected
+
+---
 
 ## Important Outputs
 
-Asterinas run outputs:
+### Asterinas
 
 - `eligible_programs/targets/asterinas/asterinas/default.jsonl`
 - `build/targets/asterinas/asterinas/testcases/`
@@ -190,70 +237,62 @@ Asterinas run outputs:
 - `reports/targets/asterinas/asterinas/summary.md`
 - `reports/targets/asterinas/asterinas/failure-report.json`
 
-Baseline outputs:
+### Baseline
 
 - `eligible_programs/targets/linux/baseline/default.jsonl`
 - `build/targets/linux/baseline/testcases/`
 - `artifacts/runs/targets/linux/baseline/`
 - `reports/targets/linux/baseline/summary.json`
 
-## Compatibility Contract
+### TGOSKits StarryOS
 
-The following surfaces are intentionally preserved while the platform layer evolves:
+- `artifacts/runs/targets/tgoskits_starryos/tgoskits_starryos/`
+- `reports/targets/tgoskits_starryos/tgoskits_starryos/summary.json`
 
-- workflow names and generic entrypoints such as `make run`, `make build-workflow`, `make run-workflow`
-- canonical artifact roots under `build/targets/<target>/<workflow>/`, `artifacts/runs/targets/<target>/<workflow>/`, and `reports/targets/<target>/<workflow>/`
-- legacy `_rules.json` compatibility for older configs
-- per-run materialization of `stdout.txt`, `stderr.txt`, `console.log`, `raw-trace.json`, `external-state.json`, and `run-result.json`
+When investigating failures, the first files to inspect are usually:
 
-For the TGOSKits StarryOS and ArceOS workflows:
+- `reports/targets/<target>/<workflow>/summary.json`
+- `reports/targets/<target>/<workflow>/campaign-results.jsonl`
+- The corresponding `candidate/console.log` under `artifacts/runs/targets/<target>/<workflow>/`
 
-- the repo does not vendor TGOSKits; point the workflow at an external checkout with `SYZABI_TGOSKITS_DIR`
-- external TGOSKits targets are explicitly gated by `SYZABI_ENABLE_TGOSKITS=1`
-- `trace.events_transport=stdout` is used so guest-side trace events can be recovered from framed stdout lines when a writable guest file path is not available
-- `tools/tgoskits_launch.py` is the repo-owned entrypoint for TGOSKits `preflight`, `healthcheck`, and bounded `campaign` execution
-- `tgoskits_arceos_smoke` now provides an experimental single-case C-app replay path and still does not claim StarryOS-level Linux syscall compatibility
-- see `docs/targets/tgoskits-starryos.md` and `docs/targets/tgoskits-arceos.md` for exact host prerequisites, `PATH` setup, and real launch commands
+---
 
 ## Repository Layout
 
 ```text
 .
-├── agent/                 # guest-side trace helpers
-├── analyzer/              # normalize / compare / classify
+├── agent/                 # Guest-side trace helpers
+├── analyzer/              # Normalize / compare / classify
 ├── cmd/                   # Go helper tools
 ├── compat_specs/          # SCML and generation metadata
-├── configs/               # workflow and target configuration
-├── orchestrator/          # scheduler and VM runner
-├── targets/               # target-owned runtime/build logic
-├── tools/                 # corpus / build / report scripts
-├── tests/                 # regression and unit tests
-├── corpus/                # raw / normalized / meta
-├── eligible_programs/     # executable JSONL lists
-├── build/                 # testcase build roots
-├── artifacts/             # runtime state, sandboxes, caches
-└── reports/               # summaries and failure reports
+├── configs/               # Workflow and target configuration
+├── orchestrator/          # Scheduler and VM runner
+├── targets/               # Target-owned runtime/build logic
+├── tools/                 # Corpus / build / report scripts
+├── tests/                 # Regression and unit tests
+├── corpus/                # Raw / normalized / meta
+├── eligible_programs/     # Executable JSONL lists
+├── build/                 # Testcase build roots
+├── artifacts/             # Runtime state, sandboxes, caches
+└── reports/               # Summaries and failure reports
 ```
+
+---
 
 ## Version Pins
 
-Current pinned components in this repository:
+| Component | Version / Commit |
+|-----------|-----------------|
+| `syzkaller` | `5b92003d577daa0766edda7ed533d75e1ac545ff` |
+| Asterinas Docker image | `asterinas/asterinas:0.17.1-20260317` |
 
-- `syzkaller`: `5b92003d577daa0766edda7ed533d75e1ac545ff`
-- Asterinas Docker image: `asterinas/asterinas:0.17.1-20260317`
+The exact Asterinas revision is resolved from the configured workflow path during preparation.
 
-The exact Asterinas revision is checked from the configured workflow/runtime path during preparation.
+---
 
-## Current Expectations
+## Design Goals
 
-`make run` is meant to make the infrastructure path predictable:
-
-- it should not require remembering six separate commands
-- it should be safe to use with higher `ASTERINAS_JOBS`
-- it should reuse prepared kernel assets instead of rebuilding per testcase
-
-If a run still fails, the first files to inspect are usually:
-
-- `reports/targets/asterinas/asterinas/summary.json`
-- `reports/targets/asterinas/asterinas/campaign-results.jsonl`
-- the corresponding `candidate/console.log` under `artifacts/runs/targets/asterinas/asterinas/`
+- **One command to run** — `make run WORKFLOW=...` should cover the full pipeline.
+- **Safe parallelism** — Higher `JOBS` should scale without corruption.
+- **Asset reuse** — Prepared kernel bundles are cached and reused across testcases.
+- **Clean interface** — No hard-coded target names in generic tooling; everything is workflow-driven.
