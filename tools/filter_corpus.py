@@ -44,10 +44,10 @@ def has_likely_blocking_pipe_read(meta: dict[str, object]) -> bool:
 def classify_rejection(meta: dict[str, object], cfg: dict[str, object]) -> list[str]:
     reasons: list[str] = []
     allow = set(cfg["allowlist"]["syscalls"])
-    deny_prefixes = tuple(cfg["allowlist"]["deny_prefixes"])
-    deny_contains = tuple(cfg["allowlist"]["deny_name_contains"])
-    pseudo_prefix = cfg["allowlist"]["pseudo_prefix"]
-    threading_prefixes = tuple(cfg["allowlist"]["threading_sensitive_prefixes"])
+    deny_prefixes = tuple(cfg["allowlist"].get("deny_prefixes", []))
+    deny_contains = tuple(cfg["allowlist"].get("deny_name_contains", []))
+    pseudo_prefix = cfg["allowlist"].get("pseudo_prefix", "syz_")
+    threading_prefixes = tuple(cfg["allowlist"].get("threading_sensitive_prefixes", []))
 
     if meta["uses_pseudo_syscalls"]:
         reasons.append("pseudo_syscall")
@@ -85,7 +85,7 @@ def classify_rejection(meta: dict[str, object], cfg: dict[str, object]) -> list[
 
 
 def main() -> None:
-    configure_runtime(workflow="baseline")
+    configure_runtime()
     cfg = config()
     meta_root = ensure_dir(cfg["paths"]["corpus_meta"])
     eligible_rows: list[dict[str, object]] = []
