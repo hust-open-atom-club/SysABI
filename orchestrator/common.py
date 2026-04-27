@@ -4,8 +4,20 @@ import hashlib
 import json
 import os
 import shutil
+import threading
 from pathlib import Path
 from typing import Any
+
+_vm_concurrency_semaphore: threading.Semaphore | None = None
+
+
+def set_vm_concurrency_limit(limit: int) -> None:
+    global _vm_concurrency_semaphore
+    _vm_concurrency_semaphore = threading.Semaphore(limit)
+
+
+def vm_concurrency_semaphore() -> threading.Semaphore | None:
+    return _vm_concurrency_semaphore
 
 from core.paths import PathResolver, repo_root as core_repo_root, resolve_repo_path as core_resolve_repo_path
 from core.workflow_contract import WorkflowContractError, validate_repo_workflow_payload, validate_target_config_payload

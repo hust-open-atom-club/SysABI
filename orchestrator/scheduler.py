@@ -5,10 +5,12 @@ import argparse
 import concurrent.futures
 import json
 import shutil
+import threading
 import time
 import sys
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -17,9 +19,10 @@ from analyzer.compare import compare_canonical
 from analyzer.normalize import canonicalize
 from core.capabilities import capabilities_from_config
 from core.workflow_contract import WorkflowContractError
-from orchestrator.common import clean_dir, config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, load_jsonl, report_path, reports_dir, runner_profiles
+from orchestrator.common import clean_dir, config, configure_runtime, dump_json, dump_jsonl, ensure_dir, load_json, load_jsonl, report_path, reports_dir, runner_profiles, set_vm_concurrency_limit
 from orchestrator.stability import all_equal, canonical_trace_hash, build_status_ok
 from orchestrator.vm_runner import build_root, execute_candidate_batch, execute_candidate_batch_with_context, execute_candidate_case_in_package, execute_side
+from runners import build_runner
 from targets.base import canonical_execution_mode
 from targets.registry import get_target_adapter
 from tools.render_summary import render_summary_reports
@@ -758,6 +761,11 @@ def candidate_batching_enabled(args: argparse.Namespace, cfg: dict[str, object])
     return True
 
 
+def _max_concurrent_vms() -> int:
+    cfg = config()
+    return int(cfg.get("parallel", {}).get("max_concurrent_vms", cfg.get("parallel", {}).get("jobs", 1)))
+
+
 def schedule_entries_with_candidate_batch(entries: list[dict[str, object]], args: argparse.Namespace, jobs: int) -> list[dict[str, object]]:
     if not entries:
         return []
@@ -916,10 +924,30 @@ def write_summary(results: list[dict[str, object]], campaign: str) -> None:
     write_bug_likely_reports(results, cfg)
 
 
+def _run_healthchecks(cfg: dict[str, Any]) -> None:
+    """Run runner and target adapter healthchecks before campaign start."""
+    profiles = runner_profiles()
+    for side in ("reference", "candidate"):
+        profile = profiles.get(side)
+        if profile is None:
+            continue
+        runner = build_runner(profile)
+        result = runner.healthcheck()
+        if result.get("status") != "ok":
+            raise WorkflowContractError(
+                f"{side} runner healthcheck failed: {result}"
+            )
+    adapter = get_target_adapter(cfg)
+    if adapter.requires_campaign_healthcheck(cfg):
+        adapter.healthcheck(SimpleNamespace(healthcheck=True))
+
+
 def main() -> None:
     args = parse_args()
     configure_runtime(workflow=args.workflow)
     cfg = config()
+    _run_healthchecks(cfg)
+    set_vm_concurrency_limit(_max_concurrent_vms())
     if not args.eligible_file:
         args.eligible_file = cfg["paths"]["eligible_file"]
     entries = selected_entries(args)
