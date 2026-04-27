@@ -1,11 +1,24 @@
 {
   "schema_version": 1,
   "reference": {
-    "kind": "local",
+    "kind": "command",
+    "command": [
+      "python3",
+      "{repo_root}/targets/entrypoint.py",
+      "--workflow",
+      "qemu_linux_riscv64",
+      "--mode",
+      "system",
+      "--binary",
+      "{binary_path}",
+      "--work-dir",
+      "{sandbox_root}"
+    ],
     "role": "reference",
-    "snapshot_id": "local-linux-reference-tgoskits-starryos",
-    "work_root": "artifacts/sandboxes/tgoskits_starryos/reference",
-    "kernel_build_command": "uname -r"
+    "snapshot_id": "qemu-linux-riscv64-reference",
+    "work_root": "artifacts/sandboxes/qemu_linux/riscv64/reference",
+    "kernel_build_command": "printf qemu-linux-riscv64",
+    "timeout_sec": 120
   },
   "candidate": {
     "binary_name": "testcase.candidate.bin",

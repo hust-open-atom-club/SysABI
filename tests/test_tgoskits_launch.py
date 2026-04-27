@@ -214,12 +214,14 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             root = Path(tmpdir)
             self.make_fake_starry_config(root)
             os.environ["SYZABI_ENABLE_TGOSKITS"] = "1"
+            os.environ["SYZABI_DISABLE_TOOLCHAIN_FALLBACK"] = "1"
             missing = root / "fake-bin" / "riscv64-linux-musl-gcc"
             missing.unlink()
             with patch("sys.argv", ["tools/tgoskits_launch.py", "--workflow", "fake_starry", "preflight"]):
                 with self.assertRaises(SystemExit) as ctx:
                     launch.main()
             self.assertIn("missing required StarryOS tools", str(ctx.exception))
+            os.environ.pop("SYZABI_DISABLE_TOOLCHAIN_FALLBACK", None)
 
     def test_preflight_rejects_revision_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.paths import resolve_compiler_path
 from orchestrator.common import config, configure_runtime, dump_json, resolve_repo_path
 from orchestrator.vm_runner import TRACE_EVENT_STDOUT_PREFIX, extract_framed_events
 
@@ -157,6 +158,12 @@ def preflight_payload(cfg: dict[str, Any]) -> dict[str, object]:
 
 
 def shutil_which(tool: str) -> str | None:
+    # Prefer resolve_compiler_path for compiler tools (searches PATH,
+    # SYZABI_*_PATH env vars, and ~/toolchains/ fallback), then fall
+    # back to the shell command lookup for non-compiler tools.
+    resolved = resolve_compiler_path(tool)
+    if resolved:
+        return resolved
     return subprocess.run(
         ["sh", "-lc", f"command -v {shlex.quote(tool)}"],
         check=False,
@@ -210,6 +217,48 @@ def guest_binary_path(cfg: dict[str, Any], *, suffix: str = "") -> str:
     return str(path.with_name(f"{path.stem}{suffix}{path.suffix}"))
 
 
+def _qemu_template_path(cfg: dict[str, Any]) -> Path:
+    return repo_dir(cfg) / "test-suit" / "starryos" / f"qemu-{cfg.get('arch', 'riscv64')}.toml"
+
+
+def _shared_rootfs_placeholder(cfg: dict[str, Any]) -> str:
+    arch = str(cfg.get("arch", "riscv64"))
+    target = f"{arch}gc-unknown-none-elf" if arch == "riscv64" else f"{arch}-unknown-none"
+    return f"${{workspace}}/target/{target}/rootfs-{arch}.img"
+
+
+def prepare_isolated_qemu_config(cfg: dict[str, Any], sandbox_root: Path) -> tuple[Path, Path | None]:
+    """Copy disk image and generate an isolated qemu config for this run.
+
+    Returns (copied_image_path, temp_config_path).  If the QEMU config
+    template is not present (e.g. in a minimal test fixture), the config
+    path is ``None`` and the caller is responsible for ensuring the
+    isolated image is used.
+    """
+    original_image = disk_image_path(cfg)
+    if not original_image.exists():
+        raise RunnerError(f"StarryOS disk image is missing: {original_image}")
+
+    copied_image = sandbox_root / "rootfs-riscv64.img"
+    shutil.copy2(str(original_image), str(copied_image))
+
+    template = _qemu_template_path(cfg)
+    if not template.exists():
+        # Template missing -- caller must handle config absence.
+        return copied_image, None
+
+    config_text = template.read_text(encoding="utf-8")
+    placeholder = _shared_rootfs_placeholder(cfg)
+    config_text = config_text.replace(placeholder, str(copied_image))
+    # Also attempt to replace any absolute path occurrence as a fallback
+    config_text = config_text.replace(str(original_image), str(copied_image))
+
+    temp_config = sandbox_root / "qemu-isolated.toml"
+    temp_config.write_text(config_text, encoding="utf-8")
+
+    return copied_image, temp_config
+
+
 def install_binary_into_rootfs(cfg: dict[str, Any], host_binary: Path, guest_path: str, image: Path | None = None) -> None:
     if image is None:
         image = disk_image_path(cfg)
@@ -246,9 +295,10 @@ def reserve_unix_socket_path() -> Path:
 
 
 class ShellSession:
-    def __init__(self, cfg: dict[str, Any], *, cwd: Path | None = None) -> None:
+    def __init__(self, cfg: dict[str, Any], *, cwd: Path | None = None, extra_args: list[str] | None = None) -> None:
         self.cfg = cfg
         self._cwd = cwd
+        self._extra_args = extra_args or []
         self._console_parts: list[str] = []
         self._lock = threading.Lock()
         self.process: subprocess.Popen[str] | None = None
@@ -297,6 +347,8 @@ class ShellSession:
             target_config(self.cfg)["shell_launch_command"],
             command_values(self.cfg, serial_port=serial_port, serial_socket_path=serial_socket_path),
         )
+        if self._extra_args:
+            launch_command = launch_command + self._extra_args
         cwd = str(self._cwd) if self._cwd else str(workspace_dir(self.cfg))
         if serial_transport == "stdio":
             master_fd, slave_fd = pty.openpty()
@@ -583,20 +635,14 @@ def run_case(args: argparse.Namespace) -> None:
     label = prepare_target(cfg)
     binary = Path(str(args.binary)).resolve()
     guest_path = guest_binary_path(cfg)
+    sandbox_root = Path(str(args.work_dir)).resolve()
 
-    work_dir = Path(str(args.work_dir)) if args.work_dir else None
-    if work_dir is not None:
-        repo_copy = work_dir / "repo"
-        _copytree_with_links(repo_dir(cfg), repo_copy)
-        private_image = repo_copy / str(target_config(cfg).get("disk_image_path", ""))
-        if private_image.exists():
-            private_image.unlink()
-        shutil.copy2(disk_image_path(cfg), private_image)
-        install_binary_into_rootfs(cfg, binary, guest_path, image=private_image)
-        session = ShellSession(cfg, cwd=repo_copy)
-    else:
-        install_binary_into_rootfs(cfg, binary, guest_path)
-        session = ShellSession(cfg)
+    copied_image, temp_config = prepare_isolated_qemu_config(cfg, sandbox_root)
+    install_binary_into_rootfs(cfg, binary, guest_path, image=copied_image)
+    extra_args: list[str] = []
+    if temp_config is not None:
+        extra_args = ["--qemu-config", str(temp_config)]
+    session = ShellSession(cfg, extra_args=extra_args)
     try:
         session.start()
         command = f"{env_assignments(cfg)} {shlex.quote(guest_path)}"
