@@ -162,6 +162,7 @@ class AsterinasPipelineTests(unittest.TestCase):
         status, exit_code, detail, kernel_build = finalize_process_result(
             profile_kind="command",
             completed_returncode=1,
+            execution_status=None,
             runner_result={
                 "status": "unsupported",
                 "exit_code": None,
