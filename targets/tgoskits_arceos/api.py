@@ -214,6 +214,18 @@ def healthcheck(args: argparse.Namespace) -> None:
     write_runner_result({"status": "ok", "exit_code": 0, "kernel_build": label})
 
 
+def _hardlink_or_copy(src: str, dst: str) -> None:
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def _copytree_with_links(src: Path, dst: Path) -> None:
+    if not dst.exists():
+        shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git"), copy_function=_hardlink_or_copy)
+
+
 def resolve_work_dir(args: argparse.Namespace) -> Path:
     selected = args.work_dir or os.environ.get("SYZABI_WORK_DIR")
     if selected:
@@ -287,7 +299,6 @@ def render_managed_cargo_config(cfg: dict[str, Any]) -> str:
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise RunnerError(f"failed to read TGOSKits root Cargo.toml for managed ArceOS cargo-config generation: {root_cargo_manifest_path(cfg)}") from exc
     patches = manifest.get("patch", {}).get("crates-io", {})
-    arceos_dir = workspace_dir(cfg)
     rendered = template if template.endswith("\n") else template + "\n"
     rendered += "[patch.crates-io]\n"
     for crate_name in sorted(patches):
@@ -298,8 +309,7 @@ def render_managed_cargo_config(cfg: dict[str, Any]) -> str:
         if not isinstance(relative_path, str) or not relative_path:
             continue
         absolute = repo_dir(cfg) / relative_path
-        rel = os.path.relpath(absolute, arceos_dir)
-        rendered += f'{crate_name} = {{ path = "{rel}" }}\n'
+        rendered += f'{crate_name} = {{ path = "{absolute}" }}\n'
     return rendered
 
 
@@ -720,105 +730,120 @@ def run_case(args: argparse.Namespace) -> None:
         raise RunnerError("missing SysABI output paths for ArceOS candidate run")
     console_path = env_path("SYZABI_CONSOLE_LOG_PATH")
     work_dir = resolve_work_dir(args)
-    app_dir = materialize_app_tree(cfg, binary_path=binary_path, work_dir=work_dir)
-    timeout_sec = int(target_config(cfg).get("command_timeout_sec", 300))
-    console_text = ""
+
+    # Setup private workspace for concurrent execution isolation
+    private_workspace_env = os.environ.get("SYZABI_ARCEOS_PRIVATE_WORKSPACE")
+    repo_copy = work_dir / "repo"
+    if not repo_copy.exists():
+        _copytree_with_links(repo_dir(cfg), repo_copy)
+    private_workspace = repo_copy / str(target_config(cfg).get("workspace_subdir", "os/arceos"))
+    os.environ["SYZABI_ARCEOS_PRIVATE_WORKSPACE"] = str(private_workspace)
+
     try:
-        ensure_toolchain_probes(cfg, key="replay_toolchain_probes")
-    except RunnerError as exc:
-        write_infra_error(
-            runner_result_path_value=runner_result,
-            console_path=console_path,
-            console_text=console_text,
-            detail=str(exc),
-            kernel_build=label,
-        )
-        raise
-    try:
-        disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
-    except RunnerError as exc:
-        write_infra_error(
-            runner_result_path_value=runner_result,
-            console_path=console_path,
-            console_text=console_text,
-            detail=str(exc),
-            kernel_build=label,
-        )
-        raise
-    initial_external_state = sample_fat_external_state(disk_image)
-    config_path: Path | None = None
-    previous_config: str | None = None
-    try:
-        config_path, previous_config = write_managed_cargo_config(cfg)
-        make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
+        app_dir = materialize_app_tree(cfg, binary_path=binary_path, work_dir=work_dir)
+        timeout_sec = int(target_config(cfg).get("command_timeout_sec", 300))
+        console_text = ""
         try:
-            completed_defconfig = subprocess.run(
-                ["make", *make_args, "defconfig"],
-                cwd=str(workspace_dir(cfg)),
-                check=False,
-                text=True,
-                capture_output=True,
-                timeout=timeout_sec,
-            )
-        except subprocess.TimeoutExpired as exc:
-            console_text = (exc.stdout or "") + (exc.stderr or "")
-            detail = f"ArceOS defconfig timed out after {timeout_sec}s"
+            ensure_toolchain_probes(cfg, key="replay_toolchain_probes")
+        except RunnerError as exc:
             write_infra_error(
                 runner_result_path_value=runner_result,
                 console_path=console_path,
                 console_text=console_text,
-                detail=detail,
+                detail=str(exc),
                 kernel_build=label,
             )
-            raise RunnerError(detail) from exc
-        console_text = completed_defconfig.stdout + completed_defconfig.stderr
-        if completed_defconfig.returncode != 0:
-            if console_path is not None:
-                console_path.parent.mkdir(parents=True, exist_ok=True)
-                console_path.write_text(console_text, encoding="utf-8")
-            raise RunnerError(completed_defconfig.stderr.strip() or completed_defconfig.stdout.strip() or "ArceOS defconfig failed")
+            raise
         try:
-            completed_run = subprocess.run(
-                ["make", *make_args, "run"],
-                cwd=str(workspace_dir(cfg)),
-                check=False,
-                text=True,
-                capture_output=True,
-                timeout=timeout_sec,
-            )
-        except subprocess.TimeoutExpired as exc:
-            console_text += (exc.stdout or "") + (exc.stderr or "")
-            detail = f"ArceOS run timed out after {timeout_sec}s"
+            disk_image = ensure_disk_image(cfg, work_dir=work_dir, timeout_sec=timeout_sec)
+        except RunnerError as exc:
             write_infra_error(
                 runner_result_path_value=runner_result,
                 console_path=console_path,
                 console_text=console_text,
-                detail=detail,
+                detail=str(exc),
                 kernel_build=label,
             )
-            raise RunnerError(detail) from exc
-        console_text += completed_run.stdout + completed_run.stderr
-        if completed_run.returncode != 0:
-            if console_path is not None:
-                console_path.parent.mkdir(parents=True, exist_ok=True)
-                console_path.write_text(console_text, encoding="utf-8")
-            raise RunnerError(completed_run.stderr.strip() or completed_run.stdout.strip() or "ArceOS experimental replay failed")
+            raise
+        initial_external_state = sample_fat_external_state(disk_image)
+        config_path: Path | None = None
+        previous_config: str | None = None
+        try:
+            config_path, previous_config = write_managed_cargo_config(cfg)
+            make_args = run_case_make_args(cfg, app_dir=app_dir, disk_image=disk_image)
+            try:
+                completed_defconfig = subprocess.run(
+                    ["make", *make_args, "defconfig"],
+                    cwd=str(workspace_dir(cfg)),
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                    timeout=timeout_sec,
+                )
+            except subprocess.TimeoutExpired as exc:
+                console_text = (exc.stdout or "") + (exc.stderr or "")
+                detail = f"ArceOS defconfig timed out after {timeout_sec}s"
+                write_infra_error(
+                    runner_result_path_value=runner_result,
+                    console_path=console_path,
+                    console_text=console_text,
+                    detail=detail,
+                    kernel_build=label,
+                )
+                raise RunnerError(detail) from exc
+            console_text = completed_defconfig.stdout + completed_defconfig.stderr
+            if completed_defconfig.returncode != 0:
+                if console_path is not None:
+                    console_path.parent.mkdir(parents=True, exist_ok=True)
+                    console_path.write_text(console_text, encoding="utf-8")
+                raise RunnerError(completed_defconfig.stderr.strip() or completed_defconfig.stdout.strip() or "ArceOS defconfig failed")
+            try:
+                completed_run = subprocess.run(
+                    ["make", *make_args, "run"],
+                    cwd=str(workspace_dir(cfg)),
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                    timeout=timeout_sec,
+                )
+            except subprocess.TimeoutExpired as exc:
+                console_text += (exc.stdout or "") + (exc.stderr or "")
+                detail = f"ArceOS run timed out after {timeout_sec}s"
+                write_infra_error(
+                    runner_result_path_value=runner_result,
+                    console_path=console_path,
+                    console_text=console_text,
+                    detail=detail,
+                    kernel_build=label,
+                )
+                raise RunnerError(detail) from exc
+            console_text += completed_run.stdout + completed_run.stderr
+            if completed_run.returncode != 0:
+                if console_path is not None:
+                    console_path.parent.mkdir(parents=True, exist_ok=True)
+                    console_path.write_text(console_text, encoding="utf-8")
+                raise RunnerError(completed_run.stderr.strip() or completed_run.stdout.strip() or "ArceOS experimental replay failed")
+        finally:
+            if config_path is not None:
+                restore_managed_cargo_config(config_path, previous_config)
+        write_case_outputs(
+            program_id=os.environ.get("SYZABI_PROGRAM_ID", binary_path.parent.name),
+            run_id=os.environ.get("SYZABI_RUN_ID", "arceos-run"),
+            console_text=console_text,
+            exit_code=0,
+            kernel_build=label,
+            raw_trace_path=raw_trace_path,
+            external_state_path=external_state_path,
+            runner_result_path_value=runner_result,
+            console_path=console_path,
+            disk_image=disk_image,
+            initial_external_state=initial_external_state,
+        )
     finally:
-        if config_path is not None:
-            restore_managed_cargo_config(config_path, previous_config)
-    write_case_outputs(
-        program_id=os.environ.get("SYZABI_PROGRAM_ID", binary_path.parent.name),
-        run_id=os.environ.get("SYZABI_RUN_ID", "arceos-run"),
-        console_text=console_text,
-        exit_code=0,
-        kernel_build=label,
-        raw_trace_path=raw_trace_path,
-        external_state_path=external_state_path,
-        runner_result_path_value=runner_result,
-        console_path=console_path,
-        disk_image=disk_image,
-        initial_external_state=initial_external_state,
-    )
+        if private_workspace_env is None:
+            os.environ.pop("SYZABI_ARCEOS_PRIVATE_WORKSPACE", None)
+        else:
+            os.environ["SYZABI_ARCEOS_PRIVATE_WORKSPACE"] = private_workspace_env
 
 
 def run_batch(args: argparse.Namespace) -> None:
