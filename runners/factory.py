@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any
 
 from runners.command import CommandRunner
-from runners.local import LocalRunner
 
 
 RunnerBuilder = Callable[[dict[str, Any]], object]
@@ -30,4 +29,4 @@ def build_runner(profile: dict[str, Any]):
 
 
 register_runner_builder("command", CommandRunner)
-register_runner_builder("local", LocalRunner)
+register_runner_builder("local", CommandRunner)
