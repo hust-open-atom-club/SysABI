@@ -15,15 +15,16 @@ def classify_result(
         return classes["baseline_invalid"]
     if candidate_status == "unsupported":
         return classes["unsupported_feature"]
+    # candidate_bug (e.g., kernel panic) is treated like crash for classification
+    if candidate_status in {"crash", "timeout", "candidate_bug"}:
+        return classes["bug_likely"]
     if comparison is None:
-        if candidate_status in {"crash", "timeout"}:
-            return classes["bug_likely"]
         if candidate_status == "infra_error":
             return classes["weak_spec_or_env_noise"]
         return classes["unsupported_feature"]
     if comparison["equivalent"]:
         return classes["no_diff"]
-    if candidate_status in {"crash", "timeout"}:
+    if candidate_status in {"crash", "timeout", "candidate_bug"}:
         return classes["bug_likely"]
     if candidate_status == "infra_error":
         return classes["weak_spec_or_env_noise"]
