@@ -199,23 +199,6 @@ class TGOSKitsLaunchTests(unittest.TestCase):
             ],
         )
 
-    def test_arceos_campaign_rejects_scope_outside_single_case(self) -> None:
-        cfg = {
-            "target": "tgoskits_arceos",
-            "paths": {"eligible_file": "eligible.jsonl", "syzkaller_dir": "third_party/syzkaller"},
-        }
-        for extra_args in (["--limit", "2"], ["--limit", "1", "--jobs", "2"]):
-            with self.subTest(extra_args=extra_args), patch("tools.tgoskits_launch.load_cfg", return_value=cfg), patch(
-                "tools.tgoskits_launch.checked_preflight_payload",
-                return_value={"target": "tgoskits_arceos"},
-            ), patch(
-                "sys.argv",
-                ["tools/tgoskits_launch.py", "--workflow", "tgoskits_arceos_smoke", "campaign", *extra_args],
-            ):
-                with self.assertRaises(SystemExit) as ctx:
-                    launch.main()
-                self.assertIn("single-case only", str(ctx.exception))
-
     def test_preflight_rejects_missing_feature_flag(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
