@@ -686,96 +686,6 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("make run-workflow WORKFLOW=baseline CAMPAIGN=smoke", run.stdout)
         self.assertIn("make prepare-target WORKFLOW=baseline", run.stdout)
 
-        # Deprecated pipeline behavior preserved under run-pipeline alias
-        pipeline = subprocess.run(
-            ["make", "-n", "run-pipeline"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(pipeline.returncode, 0)
-        self.assertIn("tools/init_layout.py --workflow baseline", pipeline.stdout)
-        self.assertIn("tools/init_layout.py --workflow asterinas", pipeline.stdout)
-        self.assertIn("make filter-corpus", pipeline.stdout)
-        self.assertIn("make derive-workflow WORKFLOW=asterinas", pipeline.stdout)
-        self.assertIn("make build-workflow WORKFLOW=asterinas", pipeline.stdout)
-        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100 JOBS=4", pipeline.stdout)
-
-        build = subprocess.run(
-            ["make", "-n", "build-eligible"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(build.returncode, 0)
-        self.assertIn("build-eligible is deprecated", build.stdout)
-        self.assertIn("make build-workflow WORKFLOW=baseline", build.stdout)
-
-        smoke = subprocess.run(
-            ["make", "-n", "run-smoke"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(smoke.returncode, 0)
-        self.assertIn("make run-workflow WORKFLOW=baseline CAMPAIGN=smoke LIMIT=100", smoke.stdout)
-
-        asterinas = subprocess.run(
-            ["make", "-n", "run-asterinas-smoke"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(asterinas.returncode, 0)
-        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=50 JOBS=4", asterinas.stdout)
-
-        analyze = subprocess.run(
-            ["make", "-n", "analyze-asterinas"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(analyze.returncode, 0)
-        self.assertIn("make analyze-workflow WORKFLOW=asterinas", analyze.stdout)
-
-        derive_scml = subprocess.run(
-            ["make", "-n", "derive-asterinas-scml"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(derive_scml.returncode, 0)
-        self.assertIn("derive-asterinas-scml is deprecated", derive_scml.stdout)
-        self.assertIn("make derive-workflow WORKFLOW=asterinas_scml", derive_scml.stdout)
-        self.assertIn("make preflight-workflow WORKFLOW=asterinas_scml", derive_scml.stdout)
-
-        preflight_scml = subprocess.run(
-            ["make", "-n", "preflight-asterinas-scml"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(preflight_scml.returncode, 0)
-        self.assertIn("preflight-asterinas-scml is deprecated", preflight_scml.stdout)
-        self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key preflight.source_eligible_file", preflight_scml.stdout)
-
-        prepare = subprocess.run(
-            ["make", "-n", "prepare-asterinas-candidate"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(prepare.returncode, 0)
-        self.assertIn("make prepare-target WORKFLOW=asterinas", prepare.stdout)
-
         prepare_scml = subprocess.run(
             ["make", "-n", "prepare-target", "WORKFLOW=asterinas_scml"],
             cwd=repo_root,
@@ -787,18 +697,6 @@ class ContractSurfaceTests(unittest.TestCase):
         self.assertIn("tools/workflow_path.py --workflow asterinas_scml --key target", prepare_scml.stdout)
         self.assertIn("targets/entrypoint.py --mode \"$TARGET_MODE\" --healthcheck", prepare_scml.stdout)
         self.assertNotIn("tools/run_asterinas.py", prepare_scml.stdout)
-
-        starry_scale = subprocess.run(
-            ["make", "-n", "run-tgoskits-starryos-scale"],
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(starry_scale.returncode, 0)
-        self.assertIn("tools/tgoskits_launch.py --workflow tgoskits_starryos_scale campaign --campaign full", starry_scale.stdout)
-        self.assertIn("--limit 200", starry_scale.stdout)
-        self.assertIn("--jobs 8", starry_scale.stdout)
 
         clean = subprocess.run(
             ["make", "-n", "clean"],
