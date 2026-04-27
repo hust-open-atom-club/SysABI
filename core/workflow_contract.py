@@ -34,6 +34,7 @@ ALLOWED_TOP_LEVEL_KEYS = (
     "classification",
     "compat_manifest_path",
     "derivation",
+    "external_state_limits",
     "generation_profile_path",
     "normalization",
     "parallel",

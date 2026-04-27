@@ -157,5 +157,13 @@
       "trace_success_rate": 0.9
     }
   },
-  "workflow": "baseline"
+  "workflow": "baseline",
+  "parallel": {
+    "max_concurrent_vms": 4
+  },
+  "external_state_limits": {
+    "max_files": 1000,
+    "max_total_size_bytes": 104857600,
+    "max_file_sample_bytes": 4096
+  }
 }

@@ -70,7 +70,8 @@
   },
   "parallel": {
     "candidate_batch_size": 16,
-    "jobs": 8
+    "jobs": 8,
+    "max_concurrent_vms": 8
   },
   "paths": {
     "artifacts_dir": "artifacts/runs/targets/tgoskits_starryos/tgoskits_starryos_scale",
@@ -122,5 +123,10 @@
   "trace": {
     "events_transport": "stdout"
   },
-  "workflow": "tgoskits_starryos_scale"
+  "workflow": "tgoskits_starryos_scale",
+  "external_state_limits": {
+    "max_files": 1000,
+    "max_total_size_bytes": 104857600,
+    "max_file_sample_bytes": 4096
+  }
 }

@@ -41,7 +41,8 @@
     ]
   },
   "parallel": {
-    "jobs": 1
+    "jobs": 1,
+    "max_concurrent_vms": 1
   },
   "paths": {
     "artifacts_dir": "artifacts/runs/targets/tgoskits_arceos/tgoskits_arceos_smoke",
@@ -81,5 +82,10 @@
       "trace_success_rate": 0.0
     }
   },
-  "workflow": "tgoskits_arceos_smoke"
+  "workflow": "tgoskits_arceos_smoke",
+  "external_state_limits": {
+    "max_files": 1000,
+    "max_total_size_bytes": 104857600,
+    "max_file_sample_bytes": 4096
+  }
 }
