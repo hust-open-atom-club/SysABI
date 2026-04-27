@@ -674,6 +674,7 @@ class ContractSurfaceTests(unittest.TestCase):
 
     def test_legacy_make_targets_route_through_generic_workflow_entrypoints(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
+        # New unified 'run' command routes through run-workflow
         run = subprocess.run(
             ["make", "-n", "run"],
             cwd=repo_root,
@@ -682,13 +683,24 @@ class ContractSurfaceTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(run.returncode, 0)
-        self.assertIn("tools/init_layout.py --workflow baseline", run.stdout)
-        self.assertIn("tools/init_layout.py --workflow asterinas", run.stdout)
-        self.assertIn("make filter-corpus", run.stdout)
-        self.assertIn("make derive-workflow WORKFLOW=asterinas", run.stdout)
-        self.assertIn("make prepare-target WORKFLOW=asterinas", run.stdout)
-        self.assertIn("make build-workflow WORKFLOW=asterinas", run.stdout)
-        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100 JOBS=4", run.stdout)
+        self.assertIn("make run-workflow WORKFLOW=baseline CAMPAIGN=smoke", run.stdout)
+        self.assertIn("make prepare-target WORKFLOW=baseline", run.stdout)
+
+        # Deprecated pipeline behavior preserved under run-pipeline alias
+        pipeline = subprocess.run(
+            ["make", "-n", "run-pipeline"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(pipeline.returncode, 0)
+        self.assertIn("tools/init_layout.py --workflow baseline", pipeline.stdout)
+        self.assertIn("tools/init_layout.py --workflow asterinas", pipeline.stdout)
+        self.assertIn("make filter-corpus", pipeline.stdout)
+        self.assertIn("make derive-workflow WORKFLOW=asterinas", pipeline.stdout)
+        self.assertIn("make build-workflow WORKFLOW=asterinas", pipeline.stdout)
+        self.assertIn("make run-workflow WORKFLOW=asterinas CAMPAIGN=smoke LIMIT=100 JOBS=4", pipeline.stdout)
 
         build = subprocess.run(
             ["make", "-n", "build-eligible"],
