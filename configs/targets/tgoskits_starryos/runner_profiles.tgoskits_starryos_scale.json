@@ -9,15 +9,7 @@
   },
   "candidate": {
     "binary_name": "testcase.candidate.bin",
-    "batch_command": [
-      "python3",
-      "{repo_root}/targets/entrypoint.py",
-      "--mode",
-      "shell-qemu",
-      "--batch-manifest",
-      "{batch_manifest_path}"
-    ],
-    "command_batching_mode": "shared_runtime_batch",
+    "command_batching_mode": "packaged_per_case",
     "command": [
       "python3",
       "{repo_root}/targets/entrypoint.py",

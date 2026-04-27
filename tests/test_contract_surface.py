@@ -84,7 +84,7 @@ class ContractSurfaceTests(unittest.TestCase):
 
         starry_scale = runner_profiles(workflow="tgoskits_starryos_scale")
         self.assertEqual(starry_scale["candidate"]["kind"], "command")
-        self.assertEqual(starry_scale["candidate"]["command_batching_mode"], "shared_runtime_batch")
+        self.assertEqual(starry_scale["candidate"]["command_batching_mode"], "packaged_per_case")
 
     def test_canonical_and_legacy_config_paths_resolve_to_target_metadata(self) -> None:
         baseline = config(workflow="baseline")
@@ -114,8 +114,8 @@ class ContractSurfaceTests(unittest.TestCase):
         workflow_modes = {
             "baseline": SINGLE_COMMAND_EXECUTION_MODE,
             "asterinas": PACKAGED_PER_CASE_EXECUTION_MODE,
-            "tgoskits_starryos": SHARED_RUNTIME_BATCH_EXECUTION_MODE,
-            "tgoskits_starryos_scale": SHARED_RUNTIME_BATCH_EXECUTION_MODE,
+            "tgoskits_starryos": PACKAGED_PER_CASE_EXECUTION_MODE,
+            "tgoskits_starryos_scale": PACKAGED_PER_CASE_EXECUTION_MODE,
             "tgoskits_arceos_smoke": SINGLE_COMMAND_EXECUTION_MODE,
         }
 
@@ -659,7 +659,7 @@ class ContractSurfaceTests(unittest.TestCase):
         args = SimpleNamespace(candidate_batch_size=2)
         with patch(
             "orchestrator.scheduler.runner_profiles",
-            return_value={"candidate": {"kind": "local", "command_batching_mode": "shared_runtime_batch"}},
+            return_value={"candidate": {"kind": "local", "command_batching_mode": "packaged_per_case"}},
         ):
             with self.assertRaises(WorkflowContractError) as cm:
                 candidate_batching_enabled(
