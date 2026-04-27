@@ -10,3 +10,4 @@ class RunnerExecution:
     stderr: str | bytes
     timed_out: bool = False
     os_error: str | None = None
+    status: str | None = None
