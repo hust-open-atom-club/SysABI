@@ -78,7 +78,8 @@
   },
   "parallel": {
     "candidate_batch_size": 100,
-    "jobs": 4
+    "jobs": 4,
+    "max_concurrent_vms": 4
   },
   "paths": {
     "artifacts_dir": "artifacts/runs/targets/asterinas/asterinas",
@@ -128,5 +129,10 @@
       "trace_success_rate": 0.95
     }
   },
-  "workflow": "asterinas"
+  "workflow": "asterinas",
+  "external_state_limits": {
+    "max_files": 1000,
+    "max_total_size_bytes": 104857600,
+    "max_file_sample_bytes": 4096
+  }
 }
