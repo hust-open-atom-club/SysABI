@@ -4,16 +4,12 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from core.capabilities import CapabilitySet, capabilities_from_config
-from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE
+from targets.base import BaseTargetAdapter, PACKAGED_PER_CASE_EXECUTION_MODE
 from targets.tgoskits_starryos import api
 
 
-class TGOSKitsStarryOSTargetAdapter:
+class TGOSKitsStarryOSTargetAdapter(BaseTargetAdapter):
     name = "tgoskits_starryos"
-
-    def capabilities(self, cfg: dict[str, Any]) -> CapabilitySet:
-        return capabilities_from_config(cfg)
 
     def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
         return (PACKAGED_PER_CASE_EXECUTION_MODE,)
@@ -26,38 +22,6 @@ class TGOSKitsStarryOSTargetAdapter:
 
     def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
         return api.preflight_payload(cfg)
-
-    def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "program_id": str(entry.get("program_id", "")),
-            "binary_path": str(entry.get("binary_path", "")),
-        }
-
-    def prepare_batch(self, cases: list[dict[str, object]], cfg: dict[str, Any]) -> dict[str, object] | None:
-        if not self.capabilities(cfg).supports_batch_execution:
-            return None
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "execution_mode": PACKAGED_PER_CASE_EXECUTION_MODE,
-            "case_count": len(cases),
-            "program_ids": [str(case.get("program_id", "")) for case in cases],
-            "cases": list(cases),
-        }
-
-    def collect_result(self, result: object, cfg: dict[str, Any]) -> dict[str, object]:
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "result": result,
-        }
-
-    def finalize_result(self, result: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
-        finalized = dict(result)
-        finalized["finalized"] = True
-        return finalized
 
     def prepare_case_package_payload(
         self,
@@ -82,39 +46,8 @@ class TGOSKitsStarryOSTargetAdapter:
             ],
         }
 
-    def prepare_batch_manifest_payload(
-        self,
-        cases: list[dict[str, object]],
-        cfg: dict[str, Any],
-        batch_metadata: dict[str, object] | None,
-    ) -> dict[str, object] | None:
-        return None
-
-    def case_package_id(self, payload: dict[str, object]) -> str:
-        from targets.base import case_package_id as _case_package_id
-        return _case_package_id(payload)
-
-    def batch_manifest_id(self, payload: dict[str, object]) -> str:
-        from targets.base import batch_manifest_id as _batch_manifest_id
-        return _batch_manifest_id(payload)
-
     def runner_errors(self) -> tuple[type[Exception], ...]:
         return (api.RunnerError,)
-
-    def compose_template_inputs(self, cfg: dict[str, Any]) -> dict[str, object]:
-        return {}
-
-    def packaged_candidate_env(self, package_dir: Path, slot: int) -> dict[str, str]:
-        return {}
-
-    def prewarm_candidate_batch(
-        self,
-        *,
-        prepared_cases: list[dict[str, object]],
-        package_dir: Path,
-        cfg: dict[str, object],
-    ) -> None:
-        return None
 
     def prepare_target(self, *, cfg: dict[str, Any]) -> str:
         return api.prepare_target(cfg)

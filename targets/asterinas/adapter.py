@@ -4,36 +4,19 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from core.capabilities import CapabilitySet, capabilities_from_config
-from targets.base import PACKAGED_PER_CASE_EXECUTION_MODE
+from orchestrator.common import runner_profiles
+from targets.base import BaseTargetAdapter, PACKAGED_PER_CASE_EXECUTION_MODE
 from targets.asterinas import api
 from targets.asterinas.common import RunnerError
-from orchestrator.common import runner_profiles
 
 from . import initramfs
 
 
-class AsterinasTargetAdapter:
+class AsterinasTargetAdapter(BaseTargetAdapter):
     name = "asterinas"
-
-    def capabilities(self, cfg: dict[str, Any]) -> CapabilitySet:
-        return capabilities_from_config(cfg)
 
     def execution_modes(self, cfg: dict[str, Any]) -> tuple[str, ...]:
         return (PACKAGED_PER_CASE_EXECUTION_MODE,)
-
-    def requires_campaign_healthcheck(self, cfg: dict[str, Any]) -> bool:
-        return False
-
-    def preflight_payload(self, cfg: dict[str, Any]) -> dict[str, object]:
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "arch": str(cfg.get("arch", "")),
-            "target_os": str(cfg.get("target_os", "")),
-            "supports_preflight": self.capabilities(cfg).supports_preflight,
-            "supported_execution_modes": list(self.execution_modes(cfg)),
-        }
 
     def prepare_campaign_assets(self, cfg: dict[str, Any], args: Any | None = None) -> dict[str, object]:
         paths = cfg.get("paths", {})
@@ -44,38 +27,6 @@ class AsterinasTargetAdapter:
             "build_info_path": str(target_cfg.get("build_info_path", "")),
             "candidate_initramfs_packages_dir": str(paths.get("candidate_initramfs_packages_dir", "")),
         }
-
-    def prepare_case(self, entry: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "program_id": str(entry.get("program_id", "")),
-            "binary_path": str(entry.get("binary_path", "")),
-        }
-
-    def prepare_batch(self, cases: list[dict[str, object]], cfg: dict[str, Any]) -> dict[str, object] | None:
-        if not self.capabilities(cfg).supports_batch_execution:
-            return None
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "execution_mode": PACKAGED_PER_CASE_EXECUTION_MODE,
-            "case_count": len(cases),
-            "program_ids": [str(case.get("program_id", "")) for case in cases],
-            "cases": list(cases),
-        }
-
-    def collect_result(self, result: object, cfg: dict[str, Any]) -> dict[str, object]:
-        return {
-            "target": self.name,
-            "workflow": str(cfg.get("workflow", "")),
-            "result": result,
-        }
-
-    def finalize_result(self, result: dict[str, object], cfg: dict[str, Any]) -> dict[str, object]:
-        finalized = dict(result)
-        finalized["finalized"] = True
-        return finalized
 
     def prepare_case_package_payload(
         self,
@@ -98,22 +49,6 @@ class AsterinasTargetAdapter:
                 for case in cases
             ],
         }
-
-    def prepare_batch_manifest_payload(
-        self,
-        cases: list[dict[str, object]],
-        cfg: dict[str, Any],
-        batch_metadata: dict[str, object] | None,
-    ) -> dict[str, object] | None:
-        return None
-
-    def case_package_id(self, payload: dict[str, object]) -> str:
-        from targets.base import case_package_id as _case_package_id
-        return _case_package_id(payload)
-
-    def batch_manifest_id(self, payload: dict[str, object]) -> str:
-        from targets.base import batch_manifest_id as _batch_manifest_id
-        return _batch_manifest_id(payload)
 
     def runner_errors(self) -> tuple[type[Exception], ...]:
         return (RunnerError,)
