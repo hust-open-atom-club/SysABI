@@ -180,7 +180,7 @@ python3 tools/prog2c_wrap.py --workflow tgoskits_starryos_scale --eligible-file 
 ### Run the scale workflow
 
 ```bash
-make run-tgoskits-starryos-scale ELIGIBLE_FILE=<eligible.jsonl>
+make run WORKFLOW=tgoskits_starryos_scale CAMPAIGN=full ELIGIBLE_FILE=<eligible.jsonl>
 ```
 
 Or directly:
