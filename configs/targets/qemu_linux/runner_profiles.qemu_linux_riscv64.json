@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "kind": "command",
+    "command": [
+      "python3",
+      "{repo_root}/targets/entrypoint.py",
+      "--workflow",
+      "qemu_linux_riscv64",
+      "--mode",
+      "system",
+      "--binary",
+      "{binary_path}",
+      "--work-dir",
+      "{sandbox_root}"
+    ],
+    "role": "reference",
+    "snapshot_id": "qemu-linux-riscv64-reference",
+    "work_root": "artifacts/sandboxes/qemu_linux/riscv64/reference",
+    "kernel_build_command": "printf qemu-linux-riscv64",
+    "timeout_sec": 120
+  }
+}

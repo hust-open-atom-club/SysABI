@@ -1,0 +1,95 @@
+{
+  "workflow": "qemu_linux_riscv64",
+  "target": "qemu_linux",
+  "arch": "riscv64",
+  "target_os": "linux",
+  "build": {
+    "cflags": ["-static"],
+    "reference": {
+      "compiler_by_arch": {
+        "riscv64": "riscv64-linux-musl-gcc"
+      }
+    }
+  },
+  "capabilities": {
+    "supports_batch_execution": false,
+    "supports_preflight": false,
+    "supports_snapshot_reuse": false
+  },
+  "classification": {
+    "baseline_invalid": "BASELINE_INVALID",
+    "bug_likely": "BUG_LIKELY",
+    "no_diff": "NO_DIFF",
+    "unsupported_feature": "UNSUPPORTED_FEATURE",
+    "weak_spec_or_env_noise": "WEAK_SPEC_OR_ENV_NOISE"
+  },
+  "normalization": {
+    "drop_comment_prefixes": [
+      "#",
+      "//"
+    ],
+    "max_probe_bytes": 4096,
+    "preview_bytes": 32,
+    "runtime_syscalls": [
+      "mmap",
+      "munmap",
+      "brk"
+    ]
+  },
+  "paths": {
+    "artifacts_dir": "artifacts/runs/targets/qemu_linux/qemu_linux_riscv64",
+    "build_dir": "build/targets/qemu_linux/qemu_linux_riscv64/testcases",
+    "corpus_meta": "corpus/meta",
+    "corpus_normalized": "corpus/normalized",
+    "corpus_raw": "corpus/raw",
+    "corpus_rejected": "corpus/rejected",
+    "eligible_file": "eligible_programs/targets/qemu_linux/qemu_linux_riscv64/default.jsonl",
+    "go_archive_dir": "artifacts/toolchains/go",
+    "go_root": "artifacts/toolchains/go/current/go",
+    "reports_dir": "reports/targets/qemu_linux/qemu_linux_riscv64",
+    "syzkaller_dir": "third_party/syzkaller",
+    "temp_dir": "artifacts/tmp"
+  },
+  "presentation": {
+    "reference_label": "QEMU Linux (riscv64)",
+    "candidate_label": "Linux"
+  },
+  "runner_profiles_path": "configs/targets/qemu_linux/runner_profiles.qemu_linux_riscv64.json",
+  "schema_version": 1,
+  "stability": {
+    "baseline_invalid_threshold": 0.1,
+    "rerun_count": 2,
+    "timeout_sec": 120
+  },
+  "target_config_path": "configs/targets/qemu_linux/target.json",
+  "thresholds": {
+    "signoff": {
+      "baseline_invalid_rate": 0.1,
+      "build_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.85,
+      "require_minimized_report": true,
+      "total_min": 50,
+      "trace_success_rate": 0.95
+    },
+    "smoke": {
+      "baseline_invalid_rate": 0.1,
+      "build_success_rate": 0.95,
+      "canonical_success_rate": 1.0,
+      "dual_execution_completion_rate": 0.8,
+      "total_min": 1,
+      "trace_success_rate": 0.95
+    }
+  },
+  "trace": {
+    "events_transport": "stdout"
+  },
+  "parallel": {
+    "max_concurrent_vms": 4
+  },
+  "external_state_limits": {
+    "max_files": 1000,
+    "max_total_size_bytes": 104857600,
+    "max_file_sample_bytes": 4096
+  }
+}
