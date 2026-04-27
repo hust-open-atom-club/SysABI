@@ -83,6 +83,11 @@ def repo_dir(cfg: dict[str, Any]) -> Path:
 
 
 def workspace_dir(cfg: dict[str, Any]) -> Path:
+    env_override = os.environ.get("SYZABI_ARCEOS_PRIVATE_WORKSPACE")
+    if env_override:
+        path = Path(env_override)
+        if path.exists():
+            return path
     relative = str(target_config(cfg).get("workspace_subdir", "os/arceos"))
     workspace = repo_dir(cfg) / relative
     if not workspace.exists():
